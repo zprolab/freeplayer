@@ -40,4 +40,9 @@ contextBridge.exposeInMainWorld('freeplayer', {
   removeFromPlaylist: (data) => ipcRenderer.invoke('playlist:remove-track', data),
   deletePlaylist: (playlistId) => ipcRenderer.invoke('playlist:delete', playlistId),
   renamePlaylist: (data) => ipcRenderer.invoke('playlist:rename', data),
+
+  // System media key listener
+  onMediaKey: (callback) => {
+    ipcRenderer.on('media-key', (_event, action) => callback(action));
+  },
 });

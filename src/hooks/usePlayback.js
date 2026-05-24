@@ -194,6 +194,19 @@ export function usePlayback() {
     };
   }, [audioRef, playSessionIdRef, playStartTimeRef]);
 
+  // System media key support
+  useEffect(() => {
+    if (!window.freeplayer.onMediaKey) return;
+    const handler = (action) => {
+      switch (action) {
+        case 'playpause': togglePlayPause(); break;
+        case 'next': handleNext(); break;
+        case 'previous': handlePrev(); break;
+      }
+    };
+    window.freeplayer.onMediaKey(handler);
+  }, [togglePlayPause, handleNext, handlePrev]);
+
   return {
     playTrack,
     togglePlayPause,
