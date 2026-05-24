@@ -303,6 +303,11 @@ export default function ImportModal({ onClose, onComplete, importMode, initialPa
         <div className="modal-footer">
           {step === 'confirm' && (
             <>
+              <button className="btn btn-secondary" onClick={() => {
+                setStep('select-source');
+                setFiles([]);
+                startedRef.current = false;
+              }}>Back</button>
               <button className="btn btn-secondary" onClick={onClose}>Cancel</button>
               <button className="btn btn-primary" onClick={handleImport}>
                 Import {files.length} Files
