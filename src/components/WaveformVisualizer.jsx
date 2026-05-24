@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useCallback } from 'react';
-import { ensureAudioGraph, resumeAudioContext } from '../audioEngine';
+import { audioEngine } from '../audioEngine';
 
 // ── Constants ──
 const WAVEFORM_COLOR = '#e24329';
@@ -66,8 +66,8 @@ export default function WaveformVisualizer({ audioElement, isPlaying, trackId, m
   useEffect(() => {
     if (!audioElement) return;
     const resume = () => {
-      resumeAudioContext();
-      ensureAudioGraph(audioElement);
+      audioEngine.resume();
+      audioEngine.connect(audioElement);
     };
     audioElement.addEventListener('play', resume);
     return () => audioElement.removeEventListener('play', resume);
@@ -111,7 +111,7 @@ export default function WaveformVisualizer({ audioElement, isPlaying, trackId, m
       const W = rect.width;
       const H = rect.height;
 
-      const an = audioElement ? ensureAudioGraph(audioElement) : null;
+      const an = audioElement ? audioEngine.connect(audioElement) : null;
 
       if (!ctx || !an) {
         if (ctx) drawNoSignal(ctx, W, H);

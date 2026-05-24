@@ -7,7 +7,7 @@ import PlayerBar from './components/PlayerBar';
 import ImportModal from './components/ImportModal';
 import Settings from './components/Settings';
 import PlaylistModal from './components/PlaylistModal';
-import { setPlaybackGain } from './audioEngine';
+import { audioEngine } from './audioEngine';
 
 const VIEWS = {
   LIBRARY: 'library',
@@ -165,6 +165,7 @@ export default function App() {
         const percentage = trackDuration > 0 ? Math.min((elapsed / trackDuration) * 100, 100) : 0;
         window.freeplayer.playEnd({ sessionId: sid, durationSeconds: Math.round(elapsed), playPercentage: Math.round(percentage) });
       }
+      audioEngine.dispose();
     };
   }, []);
 
@@ -214,7 +215,7 @@ export default function App() {
     audioRef.current.src = src;
     // Apply ReplayGain loudness normalization
     const gainDb = track.replaygain_gain || 0;
-    setPlaybackGain(gainDb);
+    audioEngine.setGain(gainDb);
     try {
       await audioRef.current.play();
       await startPlaySession_(track.id);
