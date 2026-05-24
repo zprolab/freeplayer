@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog, protocol } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, protocol, globalShortcut } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const {
@@ -44,7 +44,6 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
-      webSecurity: false,
     },
   });
 
@@ -455,12 +454,24 @@ app.whenReady().then(() => {
   setupIPC();
   createWindow();
 
+  // Register media keys
+  globalShortcut.register('MediaPlayPause', () => {
+    mainWindow?.webContents.send('media-key', 'playpause');
+  });
+  globalShortcut.register('MediaNextTrack', () => {
+    mainWindow?.webContents.send('media-key', 'next');
+  });
+  globalShortcut.register('MediaPreviousTrack', () => {
+    mainWindow?.webContents.send('media-key', 'previous');
+  });
+
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
 });
 
 app.on('window-all-closed', () => {
+  globalShortcut.unregisterAll();
   closeDatabase();
   if (process.platform !== 'darwin') app.quit();
 });
