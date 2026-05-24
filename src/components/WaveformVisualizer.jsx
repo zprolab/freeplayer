@@ -244,11 +244,9 @@ function drawWaveformMode(ctx, freqData, timeData, bufferLen, W, H) {
 // ═══════════════════════════════════════════════════════════════
 
 function drawSpectrogramMode(ctx, freqData, bufferLen, W, H) {
-  // Fill background solid (no phosphor for spectrogram — we manage history manually)
   ctx.fillStyle = BG_COLOR;
   ctx.fillRect(0, 0, W, H);
 
-  // Spectrogram display area: leave room for labels
   const marginTop = 18;
   const marginBottom = 42;
   const marginLeft = 12;
@@ -256,7 +254,6 @@ function drawSpectrogramMode(ctx, freqData, bufferLen, W, H) {
   const plotW = W - marginLeft - marginRight;
   const plotH = H - marginTop - marginBottom;
 
-  // Init buffer if needed
   if (!spectrogramBuffer || spectrogramBuffer.length !== SPECTROGRAM_ROWS) {
     spectrogramBuffer = new Array(SPECTROGRAM_ROWS);
     for (let i = 0; i < SPECTROGRAM_ROWS; i++) {
@@ -264,26 +261,36 @@ function drawSpectrogramMode(ctx, freqData, bufferLen, W, H) {
     }
   }
 
-  // Shift buffer up, add new row at bottom (newest = last row)
   spectrogramBuffer.copyWithin(0, 1);
   spectrogramBuffer[SPECTROGRAM_ROWS - 1] = new Uint8Array(freqData);
 
-  // How many frequency bins per pixel column
   const binStep = bufferLen / plotW;
+  const rowH = Math.ceil(plotH / SPECTROGRAM_ROWS);
 
-  // Render spectrogram heatmap
+  // Render to ImageData for a single bulk put
+  const imageData = ctx.createImageData(plotW, plotH);
+  const pixels = imageData.data;
+
   for (let row = 0; row < SPECTROGRAM_ROWS; row++) {
-    const y = marginTop + plotH - ((row / (SPECTROGRAM_ROWS - 1)) * plotH); // newest at top
+    const imgY = plotH - 1 - Math.round((row / (SPECTROGRAM_ROWS - 1)) * (plotH - 1));
     const srcRow = spectrogramBuffer[row];
 
     for (let px = 0; px < plotW; px++) {
       const binIdx = Math.floor(px * binStep);
       const val = srcRow[Math.min(binIdx, bufferLen - 1)] / 255;
       const [r, g, b] = spectrogramColor(val);
-      ctx.fillStyle = `rgb(${r},${g},${b})`;
-      ctx.fillRect(marginLeft + px, Math.floor(y), 1, Math.ceil(plotH / SPECTROGRAM_ROWS) + 1);
+
+      for (let dy = 0; dy < rowH && (imgY + dy) < plotH; dy++) {
+        const base = ((imgY + dy) * plotW + px) * 4;
+        pixels[base] = r;
+        pixels[base + 1] = g;
+        pixels[base + 2] = b;
+        pixels[base + 3] = 255;
+      }
     }
   }
+
+  ctx.putImageData(imageData, marginLeft, marginTop);
 
   // Grid overlay
   ctx.strokeStyle = 'rgba(16, 133, 72, 0.10)';
@@ -303,12 +310,9 @@ function drawSpectrogramMode(ctx, freqData, bufferLen, W, H) {
   ctx.textBaseline = 'bottom';
   ctx.textAlign = 'center';
   const freqLabels = [
-    { hz: '20',  xFrac: 0.04 },
-    { hz: '100', xFrac: 0.22 },
-    { hz: '500', xFrac: 0.40 },
-    { hz: '2k',  xFrac: 0.58 },
-    { hz: '8k',  xFrac: 0.76 },
-    { hz: '20k', xFrac: 0.94 },
+    { hz: '20',  xFrac: 0.04 }, { hz: '100', xFrac: 0.22 },
+    { hz: '500', xFrac: 0.40 }, { hz: '2k',  xFrac: 0.58 },
+    { hz: '8k',  xFrac: 0.76 }, { hz: '20k', xFrac: 0.94 },
   ];
   freqLabels.forEach(({ hz, xFrac }) => {
     ctx.fillText(hz, marginLeft + plotW * xFrac, freqY);
@@ -326,7 +330,7 @@ function drawSpectrogramMode(ctx, freqData, bufferLen, W, H) {
 
   // Peak indicator
   const maxFreq = Math.max(...freqData);
-  const peakW = Math.min((maxFreq / 255) * (plotW), plotW);
+  const peakW = Math.min((maxFreq / 255) * plotW, plotW);
   ctx.fillStyle = `rgba(226, 67, 41, ${0.15 + (maxFreq / 255) * 0.5})`;
   ctx.fillRect(marginLeft, H - 3, peakW, 1.5);
 }
