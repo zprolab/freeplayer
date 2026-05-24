@@ -1,4 +1,5 @@
 import React from 'react';
+import { getCachedCover, setCachedCover } from '../coverCache';
 
 function formatTime(seconds) {
   if (!seconds || !isFinite(seconds)) return '0:00';
@@ -144,15 +145,23 @@ function CoverArt({ track }) {
   const [coverUrl, setCoverUrl] = React.useState(null);
 
   React.useEffect(() => {
-    let mounted = true;
+    let stale = false;
     if (track && track.cover_path) {
+      const cached = getCachedCover(track.cover_path);
+      if (cached) {
+        setCoverUrl(cached);
+        return;
+      }
       window.freeplayer.getCover(track.cover_path).then((url) => {
-        if (mounted && url) setCoverUrl(url);
+        if (!stale && url) {
+          setCachedCover(track.cover_path, url);
+          setCoverUrl(url);
+        }
       });
     } else {
       setCoverUrl(null);
     }
-    return () => { mounted = false; };
+    return () => { stale = true; };
   }, [track]);
 
   if (coverUrl) {

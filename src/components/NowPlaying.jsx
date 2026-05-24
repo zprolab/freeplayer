@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import WaveformVisualizer from './WaveformVisualizer';
+import { getCachedCover, setCachedCover } from '../coverCache';
 
 function formatTime(seconds) {
   if (!seconds || !isFinite(seconds)) return '0:00';
@@ -21,8 +22,16 @@ export default function NowPlaying({
   useEffect(() => {
     let stale = false;
     if (currentTrack && currentTrack.cover_path) {
+      const cached = getCachedCover(currentTrack.cover_path);
+      if (cached) {
+        setCoverUrl(cached);
+        return;
+      }
       window.freeplayer.getCover(currentTrack.cover_path).then((url) => {
-        if (!stale && url) setCoverUrl(url);
+        if (!stale && url) {
+          setCachedCover(currentTrack.cover_path, url);
+          setCoverUrl(url);
+        }
       });
     } else {
       setCoverUrl(null);
