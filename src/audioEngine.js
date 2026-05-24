@@ -1,58 +1,88 @@
-// ── Module-level audio graph (persists across mount/unmount cycles) ──
-// Moved to a separate file because Vite Fast Refresh breaks when a React
-// component file has named exports alongside the default export.
+// AudioEngine — manages Web Audio API graph lifecycle
+// Single instance per app; survives React remount
 
-let audioCtx = null;
-let analyser = null;
-let gainNode = null;
-let sourceNode = null;
-let connectedElement = null;
-let pendingGainDb = 0;
+export class AudioEngine {
+  constructor() {
+    this.ctx = null;
+    this.analyser = null;
+    this.gainNode = null;
+    this.sourceNode = null;
+    this.connectedElement = null;
+    this._pendingGainDb = 0;
+  }
 
-export function ensureAudioGraph(audioElement) {
-  if (!audioElement) return null;
-  if (connectedElement === audioElement && analyser) return analyser;
+  connect(audioElement) {
+    if (!audioElement) return null;
+    if (this.connectedElement === audioElement && this.analyser) {
+      return this.analyser;
+    }
 
-  try {
-    if (!audioCtx || audioCtx.state === 'closed') {
-      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    try {
+      if (!this.ctx || this.ctx.state === 'closed') {
+        this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      if (!this.analyser) {
+        this.analyser = this.ctx.createAnalyser();
+        this.analyser.fftSize = 2048;
+        this.analyser.smoothingTimeConstant = 0.65;
+        this.analyser.minDecibels = -90;
+        this.analyser.maxDecibels = -10;
+      }
+      if (!this.gainNode) {
+        this.gainNode = this.ctx.createGain();
+        this.gainNode.gain.value = Math.pow(10, this._pendingGainDb / 20);
+      }
+      if (this.connectedElement !== audioElement) {
+        this.sourceNode = this.ctx.createMediaElementSource(audioElement);
+        this.sourceNode.connect(this.analyser);
+        this.analyser.connect(this.gainNode);
+        this.gainNode.connect(this.ctx.destination);
+        this.connectedElement = audioElement;
+      }
+      return this.analyser;
+    } catch (err) {
+      console.warn('Audio graph wiring failed:', err.message);
+      this.analyser = null;
+      this.connectedElement = null;
+      return null;
     }
-    if (!analyser) {
-      analyser = audioCtx.createAnalyser();
-      analyser.fftSize = 2048;
-      analyser.smoothingTimeConstant = 0.65;
-      analyser.minDecibels = -90;
-      analyser.maxDecibels = -10;
+  }
+
+  resume() {
+    if (this.ctx?.state === 'suspended') {
+      this.ctx.resume();
     }
-    if (!gainNode) {
-      gainNode = audioCtx.createGain();
-      gainNode.gain.value = Math.pow(10, pendingGainDb / 20);
+  }
+
+  setGain(gainDb) {
+    this._pendingGainDb = gainDb;
+    if (!this.gainNode || !this.ctx) return;
+    const targetGain = Math.pow(10, gainDb / 20);
+    const now = this.ctx.currentTime;
+    this.gainNode.gain.cancelScheduledValues(now);
+    this.gainNode.gain.setTargetAtTime(targetGain, now, 0.05);
+  }
+
+  dispose() {
+    if (this.sourceNode) {
+      try { this.sourceNode.disconnect(); } catch {}
+      this.sourceNode = null;
     }
-    if (connectedElement !== audioElement) {
-      sourceNode = audioCtx.createMediaElementSource(audioElement);
-      sourceNode.connect(analyser);
-      analyser.connect(gainNode);
-      gainNode.connect(audioCtx.destination);
-      connectedElement = audioElement;
+    if (this.analyser) {
+      try { this.analyser.disconnect(); } catch {}
+      this.analyser = null;
     }
-    return analyser;
-  } catch (err) {
-    console.warn('Audio graph wiring failed:', err.message);
-    analyser = null;
-    connectedElement = null;
-    return null;
+    if (this.gainNode) {
+      try { this.gainNode.disconnect(); } catch {}
+      this.gainNode = null;
+    }
+    if (this.ctx && this.ctx.state !== 'closed') {
+      this.ctx.close();
+    }
+    this.ctx = null;
+    this.connectedElement = null;
   }
 }
 
-export function resumeAudioContext() {
-  if (audioCtx?.state === 'suspended') audioCtx.resume();
-}
-
-export function setPlaybackGain(gainDb) {
-  pendingGainDb = gainDb;
-  if (!gainNode || !audioCtx) return;
-  const targetGain = Math.pow(10, gainDb / 20);
-  const now = audioCtx.currentTime;
-  gainNode.gain.cancelScheduledValues(now);
-  gainNode.gain.setTargetAtTime(targetGain, now, 0.05);
-}
+// Singleton — one audio graph for the app lifetime
+export const audioEngine = new AudioEngine();
