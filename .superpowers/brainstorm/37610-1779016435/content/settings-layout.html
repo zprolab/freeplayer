@@ -1,0 +1,107 @@
+<h2>Settings Page Layout</h2>
+<p class="subtitle">All settings organized in card sections within the existing FreePlayer design system</p>
+
+<div class="mockup">
+  <div class="mockup-header">Settings Page — Full Layout</div>
+  <div class="mockup-body">
+    <div style="font-family: -apple-system, sans-serif; max-width: 640px; margin: 0 auto; padding: 20px;">
+
+      <!-- Section 1: Import Mode -->
+      <div style="background: #fff; border: 1px solid #dbdbdb; border-radius: 8px; padding: 20px; margin-bottom: 16px;">
+        <h3 style="font-size: 14px; font-weight: 600; margin: 0 0 4px; color: #303030;">Import Mode</h3>
+        <p style="font-size: 12px; color: #737278; margin: 0 0 16px;">Choose how files are added to your library when importing music.</p>
+
+        <div style="display: flex; gap: 12px;">
+          <label style="flex: 1; display: flex; align-items: center; gap: 12px; padding: 14px; border: 2px solid #e24329; border-radius: 8px; cursor: pointer; background: rgba(226,67,41,0.04);">
+            <div style="width: 20px; height: 20px; border-radius: 50%; border: 2px solid #e24329; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+              <div style="width: 10px; height: 10px; border-radius: 50%; background: #e24329;"></div>
+            </div>
+            <div>
+              <div style="font-size: 13px; font-weight: 600; color: #303030;">Copy Files</div>
+              <div style="font-size: 11px; color: #737278;">Duplicate files into library directory</div>
+            </div>
+          </label>
+
+          <label style="flex: 1; display: flex; align-items: center; gap: 12px; padding: 14px; border: 2px solid #dbdbdb; border-radius: 8px; cursor: pointer; background: transparent;">
+            <div style="width: 20px; height: 20px; border-radius: 50%; border: 2px solid #dbdbdb; flex-shrink: 0;"></div>
+            <div>
+              <div style="font-size: 13px; font-weight: 600; color: #303030;">Symlink</div>
+              <div style="font-size: 11px; color: #737278;">Create symbolic links (saves disk space)</div>
+            </div>
+          </label>
+        </div>
+      </div>
+
+      <!-- Section 2: Library Directory -->
+      <div style="background: #fff; border: 1px solid #dbdbdb; border-radius: 8px; padding: 20px; margin-bottom: 16px;">
+        <h3 style="font-size: 14px; font-weight: 600; margin: 0 0 4px; color: #303030;">Library Directory</h3>
+        <p style="font-size: 12px; color: #737278; margin: 0 0 12px;">Where your organized music files and symlinks are stored.</p>
+
+        <div style="display: flex; align-items: center; gap: 8px; padding: 10px 12px; background: #fafafa; border: 1px solid #e8e8e8; border-radius: 6px;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#999" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+          <span style="font-size: 12px; color: #303030; font-family: 'JetBrains Mono', monospace; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">/Users/eason/Music/FreePlayer Library</span>
+          <button style="flex-shrink: 0; display: inline-flex; align-items: center; gap: 4px; padding: 5px 12px; border: 1px solid #dbdbdb; border-radius: 4px; background: #fff; font-size: 12px; color: #303030; cursor: pointer;">Change...</button>
+        </div>
+      </div>
+
+      <!-- Section 3: Playback -->
+      <div style="background: #fff; border: 1px solid #dbdbdb; border-radius: 8px; padding: 20px; margin-bottom: 16px;">
+        <h3 style="font-size: 14px; font-weight: 600; margin: 0 0 4px; color: #303030;">Playback</h3>
+        <p style="font-size: 12px; color: #737278; margin: 0 0 16px;">Default playback preferences.</p>
+
+        <div style="display: flex; flex-direction: column; gap: 14px;">
+          <!-- Default Volume -->
+          <div style="display: flex; align-items: center; justify-content: space-between;">
+            <div>
+              <div style="font-size: 13px; font-weight: 500; color: #303030;">Default Volume</div>
+              <div style="font-size: 11px; color: #999;">Set the starting volume for playback</div>
+            </div>
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <input type="range" style="width: 100px;" value="80">
+              <span style="font-size: 12px; font-family: 'JetBrains Mono', monospace; color: #737278; width: 32px; text-align: right;">80%</span>
+            </div>
+          </div>
+
+          <!-- Default Visualizer -->
+          <div style="display: flex; align-items: center; justify-content: space-between; padding-top: 14px; border-top: 1px solid #f0f0f3;">
+            <div>
+              <div style="font-size: 13px; font-weight: 500; color: #303030;">Default Visualizer</div>
+              <div style="font-size: 11px; color: #999;">Visualization shown on Now Playing view</div>
+            </div>
+            <div style="display: flex; border: 1px solid #dbdbdb; border-radius: 4px; overflow: hidden;">
+              <button style="padding: 5px 10px; border: none; background: #e24329; color: #fff; font-size: 11px; cursor: pointer;">Waveform</button>
+              <button style="padding: 5px 10px; border: none; border-left: 1px solid #dbdbdb; background: #fff; color: #737278; font-size: 11px; cursor: pointer;">Spectrogram</button>
+              <button style="padding: 5px 10px; border: none; border-left: 1px solid #dbdbdb; background: #fff; color: #737278; font-size: 11px; cursor: pointer;">Off</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Section 4: Danger Zone -->
+      <div style="background: #fff; border: 1px solid #dd2c2c; border-radius: 8px; padding: 20px;">
+        <h3 style="font-size: 14px; font-weight: 600; margin: 0 0 4px; color: #dd2c2c;">Danger Zone</h3>
+        <p style="font-size: 12px; color: #737278; margin: 0 0 12px;">Irreversible actions. Proceed with caution.</p>
+
+        <div style="display: flex; align-items: center; justify-content: space-between;">
+          <div>
+            <div style="font-size: 13px; font-weight: 500; color: #303030;">Reset Database</div>
+            <div style="font-size: 11px; color: #999;">Remove all tracks, play history, and playlists. Files on disk are not affected.</div>
+          </div>
+          <button style="flex-shrink: 0; padding: 6px 14px; border: 1px solid #dd2c2c; border-radius: 4px; background: transparent; color: #dd2c2c; font-size: 12px; font-weight: 500; cursor: pointer;">Reset...</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<div style="margin-top: 16px;">
+  <h3>Key Design Decisions</h3>
+  <ul>
+    <li><strong>Radio cards</strong> for import mode — makes the trade-off visible at a glance (disk space vs portability)</li>
+    <li><strong>Segmented button</strong> for visualizer default — compact and matches the visualizer UI in Now Playing</li>
+    <li><strong>Red-bordered danger zone</strong> — visually separates destructive actions, requires confirmation dialog</li>
+    <li><strong>Path display</strong> uses monospace font inline, consistent with the rest of the app</li>
+    <li>Settings are saved immediately on change (no "Save" button needed)</li>
+  </ul>
+</div>
