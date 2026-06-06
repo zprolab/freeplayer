@@ -91,7 +91,7 @@ function formatTime(seconds) {
   return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
-export default function LyricsDisplay({ lrcContent, currentTime = 0, isPlaying, onUpload, onRemove }) {
+export default function LyricsDisplay({ lrcContent, currentTime = 0, isPlaying, onUpload, onRemove, onImmersive }) {
   const lyrics = useMemo(() => parseLRC(lrcContent), [lrcContent]);
   const listRef = useRef(null);
   const prevActiveRef = useRef(-1);
@@ -161,6 +161,16 @@ export default function LyricsDisplay({ lrcContent, currentTime = 0, isPlaying, 
         <span className="lyrics-meta-badge">LRC</span>
         <span className="lyrics-meta-count">{lyrics.length} lines</span>
         <div className="lyrics-meta-spacer" />
+        {onImmersive && (
+          <button className="lyrics-immersive-btn" onClick={onImmersive} title="Immersive mode">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="15 3 21 3 21 9"/>
+              <polyline points="9 21 3 21 3 15"/>
+              <line x1="21" y1="3" x2="14" y2="10"/>
+              <line x1="3" y1="21" x2="10" y2="14"/>
+            </svg>
+          </button>
+        )}
         {onRemove && (
           <button className="lyrics-remove-btn" onClick={onRemove} title="Remove lyrics">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">

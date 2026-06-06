@@ -2913,3 +2913,395 @@ input[type="range"]::-webkit-slider-thumb {
 .lyrics-upload-btn:active {
   transform: scale(0.97);
 }
+
+.lyrics-immersive-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: none;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.15);
+  cursor: pointer;
+  border-radius: var(--gl-radius-sm);
+  transition: color 0.15s, background 0.15s;
+  margin-right: 2px;
+}
+
+.lyrics-immersive-btn:hover {
+  color: #e8c34a;
+  background: rgba(232, 195, 74, 0.1);
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   Immersive Mode — Full-window Lyrics Experience
+   ═══════════════════════════════════════════════════════════════════ */
+
+.immersive-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 500;
+  display: flex;
+  flex-direction: column;
+  animation: immersiveIn 0.35s cubic-bezier(0.22, 0.1, 0, 1);
+  overflow: hidden;
+}
+
+@keyframes immersiveIn {
+  from { opacity: 0; transform: scale(1.02); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+/* Background layer with dynamic color */
+.immersive-bg {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  transition: background 1.2s ease;
+}
+
+/* ── Top bar ── */
+
+.immersive-top {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 24px 28px 0;
+  flex-shrink: 0;
+}
+
+.immersive-cover-wrap {
+  width: 64px;
+  height: 64px;
+  border-radius: 6px;
+  overflow: hidden;
+  flex-shrink: 0;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.immersive-cover {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.immersive-cover--spin {
+  animation: coverSpin 20s linear infinite;
+}
+
+.immersive-cover-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 255, 255, 0.1);
+}
+
+.immersive-track-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.immersive-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.9);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  letter-spacing: -0.01em;
+}
+
+.immersive-artist {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.45);
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.immersive-top-spacer {
+  flex: 1;
+}
+
+/* ── Zoom controls ── */
+
+.immersive-zoom {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--gl-radius-sm);
+  padding: 2px;
+}
+
+.immersive-zoom-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.45);
+  cursor: pointer;
+  border-radius: 3px;
+  transition: color 0.15s, background 0.15s;
+}
+
+.immersive-zoom-btn:hover:not(:disabled) {
+  color: rgba(255, 255, 255, 0.85);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.immersive-zoom-btn:disabled {
+  opacity: 0.2;
+  cursor: default;
+}
+
+.immersive-zoom-label {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.35);
+  min-width: 36px;
+  text-align: center;
+}
+
+/* ── Close button ── */
+
+.immersive-close-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(255, 255, 255, 0.5);
+  cursor: pointer;
+  border-radius: 50%;
+  transition: color 0.15s, background 0.15s, border-color 0.15s;
+}
+
+.immersive-close-btn:hover {
+  color: rgba(255, 255, 255, 0.9);
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+/* ── Lyrics center ── */
+
+.immersive-lyrics {
+  position: relative;
+  z-index: 2;
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 40px 0;
+  scroll-behavior: smooth;
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0%,
+    rgba(0, 0, 0, 1) 10%,
+    rgba(0, 0, 0, 1) 90%,
+    transparent 100%
+  );
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0%,
+    rgba(0, 0, 0, 1) 10%,
+    rgba(0, 0, 0, 1) 90%,
+    transparent 100%
+  );
+}
+
+.immersive-line {
+  display: flex;
+  align-items: baseline;
+  gap: 18px;
+  padding: 6px 48px;
+  transition: all 0.5s cubic-bezier(0.25, 0.1, 0.25, 1);
+}
+
+.immersive-time {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.1);
+  width: 40px;
+  flex-shrink: 0;
+  text-align: right;
+  font-family: var(--font-mono);
+  transition: color 0.5s cubic-bezier(0.25, 0.1, 0.25, 1);
+}
+
+.immersive-text {
+  font-family: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei",
+    "Noto Sans CJK SC", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-weight: 400;
+  color: rgba(255, 255, 255, 0.2);
+  line-height: 1.55;
+  letter-spacing: 0.02em;
+  transition: all 0.5s cubic-bezier(0.25, 0.1, 0.25, 1);
+}
+
+/* Past */
+.immersive-line--past .immersive-text {
+  color: rgba(255, 255, 255, 0.12);
+}
+
+.immersive-line--past .immersive-time {
+  color: rgba(255, 255, 255, 0.04);
+}
+
+/* Distant future */
+.immersive-line--distant .immersive-text {
+  color: rgba(255, 255, 255, 0.06);
+}
+
+.immersive-line--distant .immersive-time {
+  opacity: 0;
+}
+
+/* Active line — the centerpiece */
+.immersive-line--active {
+  padding-top: 14px;
+  padding-bottom: 14px;
+}
+
+.immersive-line--active .immersive-text {
+  color: #e8c34a;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  text-shadow: 0 0 48px rgba(232, 195, 74, 0.25),
+               0 0 12px rgba(232, 195, 74, 0.1);
+  line-height: 1.4;
+}
+
+.immersive-line--active .immersive-time {
+  font-size: 12px;
+  color: rgba(232, 195, 74, 0.55);
+  font-weight: 500;
+}
+
+/* Active line side indicator */
+.immersive-line--active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 50%;
+  background: linear-gradient(to bottom, transparent, #e8c34a 30%, #e8c34a 70%, transparent);
+  border-radius: 0 3px 3px 0;
+  opacity: 0.7;
+}
+
+.immersive-line {
+  position: relative;
+}
+
+/* No lyrics */
+.immersive-no-lyrics {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: rgba(255, 255, 255, 0.15);
+  font-size: 15px;
+  font-style: italic;
+}
+
+/* ── Bottom bar: progress + controls ── */
+
+.immersive-bottom {
+  position: relative;
+  z-index: 2;
+  flex-shrink: 0;
+  padding: 0 48px 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.immersive-progress-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.immersive-progress-bar {
+  height: 4px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 2px;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  transition: height 0.15s;
+}
+
+.immersive-progress-bar:hover {
+  height: 6px;
+}
+
+.immersive-progress-fill {
+  height: 100%;
+  background: linear-gradient(to right, rgba(232, 195, 74, 0.8), #e8c34a);
+  border-radius: inherit;
+  transition: width 0.2s linear;
+}
+
+.immersive-time-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.25);
+}
+
+.immersive-controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 32px;
+}
+
+.immersive-ctrl-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  border: none;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.5);
+  cursor: pointer;
+  border-radius: 50%;
+  transition: color 0.15s, background 0.15s, transform 0.15s;
+}
+
+.immersive-ctrl-btn:hover {
+  color: rgba(255, 255, 255, 0.85);
+  background: rgba(255, 255, 255, 0.06);
+  transform: scale(1.06);
+}
+
+.immersive-ctrl-btn--play {
+  width: 72px;
+  height: 72px;
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3);
+}
+
+.immersive-ctrl-btn--play:hover {
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+  transform: scale(1.08);
+}

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import WaveformVisualizer from './WaveformVisualizer';
 import LyricsDisplay from './LyricsDisplay';
+import ImmersiveMode from './ImmersiveMode';
 import { getCachedCover, setCachedCover } from '../coverCache';
 
 function formatTime(seconds) {
@@ -21,6 +22,7 @@ export default function NowPlaying({
   const [coverUrl, setCoverUrl] = useState(null);
   const [lrcContent, setLrcContent] = useState(null);
   const [lrcPath, setLrcPath] = useState(null);
+  const [isImmersive, setIsImmersive] = useState(false);
 
   useEffect(() => {
     let stale = false;
@@ -157,6 +159,7 @@ export default function NowPlaying({
         isPlaying={isPlaying}
         onUpload={handleUploadLrc}
         onRemove={handleRemoveLrc}
+        onImmersive={lrcContent ? () => setIsImmersive(true) : null}
       />
 
       {/* Progress */}
@@ -270,6 +273,23 @@ export default function NowPlaying({
             ))}
           </div>
         </div>
+      )}
+
+      {/* Immersive Mode Overlay */}
+      {isImmersive && (
+        <ImmersiveMode
+          track={currentTrack}
+          lrcContent={lrcContent}
+          currentTime={currentTime}
+          duration={duration}
+          coverUrl={coverUrl}
+          isPlaying={isPlaying}
+          onSeek={onSeek}
+          onTogglePlay={onTogglePlay}
+          onNext={onNext}
+          onPrev={onPrev}
+          onClose={() => setIsImmersive(false)}
+        />
       )}
     </div>
   );
