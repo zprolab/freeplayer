@@ -91,7 +91,7 @@ function formatTime(seconds) {
   return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
-export default function LyricsDisplay({ lrcContent, currentTime = 0, isPlaying, onUpload, onRemove, onImmersive }) {
+export default function LyricsDisplay({ lrcContent, currentTime = 0, isPlaying, onUpload, onRemove, onImmersive, autoScroll = false }) {
   const lyrics = useMemo(() => parseLRC(lrcContent), [lrcContent]);
   const listRef = useRef(null);
   const prevActiveRef = useRef(-1);
@@ -99,20 +99,17 @@ export default function LyricsDisplay({ lrcContent, currentTime = 0, isPlaying, 
   // Find active line index
   const activeIndex = useMemo(() => {
     if (!lyrics.length) return -1;
-    // Find the last line whose time <= currentTime
     let idx = -1;
     for (let i = 0; i < lyrics.length; i++) {
-      if (lyrics[i].time <= currentTime) {
-        idx = i;
-      } else {
-        break;
-      }
+      if (lyrics[i].time <= currentTime) idx = i;
+      else break;
     }
     return idx;
   }, [lyrics, currentTime]);
 
-  // Auto-scroll active line into view (centered)
+  // Auto-scroll only when enabled (immersive mode handles its own)
   useEffect(() => {
+    if (!autoScroll) return;
     if (activeIndex !== prevActiveRef.current && listRef.current) {
       const activeEl = listRef.current.querySelector('.lyrics-line--active');
       if (activeEl) {
@@ -120,7 +117,7 @@ export default function LyricsDisplay({ lrcContent, currentTime = 0, isPlaying, 
       }
       prevActiveRef.current = activeIndex;
     }
-  }, [activeIndex]);
+  }, [activeIndex, autoScroll]);
 
   // Empty state — no LRC file uploaded
   if (!lyrics.length) {
