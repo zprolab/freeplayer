@@ -158,8 +158,8 @@ export default function NowPlaying({
         currentTime={currentTime}
         isPlaying={isPlaying}
         onUpload={handleUploadLrc}
+        onImmersive={() => setIsImmersive(true)}
         onRemove={handleRemoveLrc}
-        onImmersive={lrcContent ? () => setIsImmersive(true) : null}
       />
 
       {/* Progress */}
