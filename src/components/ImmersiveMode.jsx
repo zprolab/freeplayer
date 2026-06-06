@@ -193,13 +193,27 @@ export default function ImmersiveMode({
       </div>
 
       {/* ── Center: lyrics ── */}
-      <div className="immersive-lyrics" ref={listRef}>
-        {lyrics.length === 0 ? (
-          <div className="immersive-no-lyrics">
-            <p>No synced lyrics available</p>
+      {lyrics.length === 0 ? (
+        <div className="immersive-no-lyrics">
+          <div className="immersive-no-lyrics-cover">
+            {coverUrl ? (
+              <img src={coverUrl} alt="" className="immersive-no-lyrics-cover-img" />
+            ) : (
+              <div className="immersive-no-lyrics-cover-p">
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="0.8">
+                  <path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>
+                </svg>
+              </div>
+            )}
           </div>
-        ) : (
-          lyrics.map((entry, idx) => {
+          <h2 className="immersive-no-lyrics-title">{track?.title || '—'}</h2>
+          <p className="immersive-no-lyrics-artist">{track?.artist || '—'}</p>
+          <p className="immersive-no-lyrics-msg">No synced lyrics</p>
+          <p className="immersive-no-lyrics-hint">Upload an <code>.lrc</code> file for this track to see time-synced lyrics here</p>
+        </div>
+      ) : (
+        <div className="immersive-lyrics" ref={listRef}>
+          {lyrics.map((entry, idx) => {
             const isActive = idx === activeIndex;
             const isPast = idx < activeIndex;
             const isNear = Math.abs(idx - activeIndex) <= 2;
@@ -213,9 +227,9 @@ export default function ImmersiveMode({
                 <span className="immersive-text">{entry.text}</span>
               </div>
             );
-          })
-        )}
-      </div>
+          })}
+        </div>
+      )}
 
       {/* ── Bottom: progress + controls ── */}
       <div className="immersive-bottom">

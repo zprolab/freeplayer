@@ -3210,13 +3210,79 @@ input[type="range"]::-webkit-slider-thumb {
 
 /* No lyrics */
 .immersive-no-lyrics {
+  position: relative;
+  z-index: 2;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 40px;
+}
+
+.immersive-no-lyrics-cover {
+  width: 160px;
+  height: 160px;
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5);
+  margin-bottom: 16px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.immersive-no-lyrics-cover-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.immersive-no-lyrics-cover-p {
+  width: 100%;
+  height: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 100%;
+  color: rgba(255, 255, 255, 0.08);
+}
+
+.immersive-no-lyrics-title {
+  font-size: 22px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.8);
+  letter-spacing: -0.02em;
+  margin: 0;
+}
+
+.immersive-no-lyrics-artist {
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.35);
+  font-weight: 500;
+  margin: 0;
+}
+
+.immersive-no-lyrics-msg {
+  font-size: 16px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.25);
+  margin-top: 16px;
+}
+
+.immersive-no-lyrics-hint {
+  font-size: 13px;
   color: rgba(255, 255, 255, 0.15);
-  font-size: 15px;
-  font-style: italic;
+  text-align: center;
+  max-width: 360px;
+  line-height: 1.6;
+}
+
+.immersive-no-lyrics-hint code {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  background: rgba(255, 255, 255, 0.06);
+  padding: 1px 6px;
+  border-radius: 3px;
+  color: rgba(255, 255, 255, 0.3);
 }
 
 /* ── Bottom bar: progress + controls ── */
