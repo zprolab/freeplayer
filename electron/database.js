@@ -91,6 +91,7 @@ function initDatabase() {
   const migrations = [
     'ALTER TABLE tracks ADD COLUMN replaygain_gain REAL DEFAULT 0',
     'ALTER TABLE tracks ADD COLUMN replaygain_peak REAL DEFAULT 0',
+    'ALTER TABLE tracks ADD COLUMN lrc_path TEXT',
   ];
   for (const sql of migrations) {
     try { db.exec(sql); } catch { /* column already exists */ }
@@ -302,6 +303,47 @@ function addTrackToPlaylist(playlistId, trackId) {
   ).run(playlistId, trackId, maxPos);
 }
 
+function addTracksToPlaylist(playlistId, trackIds) {
+  if (!trackIds || trackIds.length === 0) return;
+  const db = getDatabase();
+  const nextPos = db.prepare(
+    'SELECT COALESCE(MAX(position), -1) + 1 as next_pos FROM playlist_tracks WHERE playlist_id = ?'
+  ).get(playlistId).next_pos;
+
+  const insertStmt = db.prepare(
+    'INSERT OR IGNORE INTO playlist_tracks (playlist_id, track_id, position) VALUES (?, ?, ?)'
+  );
+
+  const transaction = db.transaction((ids) => {
+    let pos = nextPos;
+    for (const trackId of ids) {
+      insertStmt.run(playlistId, trackId, pos);
+      pos++;
+    }
+  });
+
+  transaction(trackIds);
+  db.prepare('UPDATE playlists SET updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(playlistId);
+}
+
+function setPlaylistTracks(playlistId, trackIds) {
+  const db = getDatabase();
+  const ids = trackIds || [];
+  const transaction = db.transaction(() => {
+    db.prepare('DELETE FROM playlist_tracks WHERE playlist_id = ?').run(playlistId);
+    if (ids.length > 0) {
+      const insertStmt = db.prepare(
+        'INSERT INTO playlist_tracks (playlist_id, track_id, position) VALUES (?, ?, ?)'
+      );
+      ids.forEach((trackId, idx) => {
+        insertStmt.run(playlistId, trackId, idx);
+      });
+    }
+  });
+  transaction();
+  db.prepare('UPDATE playlists SET updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(playlistId);
+}
+
 function getPlaylistTracks(playlistId) {
   const db = getDatabase();
   return db.prepare(`
@@ -330,6 +372,24 @@ function renamePlaylist(id, name) {
   return db.prepare(
     'UPDATE playlists SET name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
   ).run(name, id);
+}
+
+// ── LRC (Lyrics) operations ──
+
+function setTrackLrc(trackId, lrcPath) {
+  const db = getDatabase();
+  return db.prepare('UPDATE tracks SET lrc_path = ? WHERE id = ?').run(lrcPath, trackId);
+}
+
+function getTrackLrc(trackId) {
+  const db = getDatabase();
+  const row = db.prepare('SELECT lrc_path FROM tracks WHERE id = ?').get(trackId);
+  return row ? row.lrc_path : null;
+}
+
+function clearTrackLrc(trackId) {
+  const db = getDatabase();
+  return db.prepare('UPDATE tracks SET lrc_path = NULL WHERE id = ?').run(trackId);
 }
 
 // ── Settings operations ──
@@ -376,10 +436,15 @@ module.exports = {
   createPlaylist,
   getAllPlaylists,
   addTrackToPlaylist,
+  addTracksToPlaylist,
+  setPlaylistTracks,
   getPlaylistTracks,
   removeTrackFromPlaylist,
   deletePlaylist,
   renamePlaylist,
+  setTrackLrc,
+  getTrackLrc,
+  clearTrackLrc,
   getSetting,
   setSetting,
 };

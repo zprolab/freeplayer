@@ -24,14 +24,25 @@ export function usePlaylists() {
     dispatch({ type: 'SET', payload: { view: 'library' } });
   }, [dispatch]);
 
-  const handleCreatePlaylist = useCallback(async ({ name, description }) => {
-    const result = await window.freeplayer.createPlaylist({ name, description });
-    await loadPlaylists();
-    dispatch({ type: 'SET', payload: { playlistModal: null } });
-    if (state.pendingAddTrack) {
+  const handleCreatePlaylist = useCallback(async ({ name, description, trackIds }) => {
+    try {
+      const result = await window.freeplayer.createPlaylist({ name, description });
       const playlistId = result.lastInsertRowid || result.id;
-      await window.freeplayer.addToPlaylist({ playlistId, trackId: state.pendingAddTrack.id });
-      dispatch({ type: 'SET', payload: { pendingAddTrack: null } });
+
+      // Combine pendingAddTrack with selected track IDs (deduped)
+      const allTrackIds = trackIds || [];
+      if (state.pendingAddTrack && !allTrackIds.includes(state.pendingAddTrack.id)) {
+        allTrackIds.push(state.pendingAddTrack.id);
+      }
+
+      if (allTrackIds.length > 0) {
+        await window.freeplayer.addTracksToPlaylist({ playlistId, trackIds: allTrackIds });
+      }
+
+      await loadPlaylists();
+      dispatch({ type: 'SET', payload: { playlistModal: null, pendingAddTrack: null } });
+    } catch (err) {
+      console.error('Failed to create playlist:', err);
     }
   }, [dispatch, loadPlaylists, state.pendingAddTrack]);
 
@@ -42,6 +53,27 @@ export function usePlaylists() {
       dispatch({ type: 'SET', payload: { playlistModal: null } });
     }
   }, [dispatch, loadPlaylists, state.playlistModal]);
+
+  const handleUpdatePlaylistTracks = useCallback(async ({ trackIds }, playlistId) => {
+    // Use passed playlistId or fall back to modal state
+    const pid = playlistId || state.playlistModal?.playlist?.id;
+    if (!pid) return;
+
+    try {
+      await window.freeplayer.setPlaylistTracks({ playlistId: pid, trackIds });
+
+      // If editing the currently active playlist, refresh displayed tracks
+      if (state.activePlaylistId === pid) {
+        const tracks = await window.freeplayer.getPlaylistTracks(pid);
+        dispatch({ type: 'SET_PLAYLIST_TRACKS', payload: tracks });
+      }
+
+      await loadPlaylists();
+      dispatch({ type: 'SET', payload: { playlistModal: null } });
+    } catch (err) {
+      console.error('Failed to update playlist tracks:', err);
+    }
+  }, [dispatch, loadPlaylists, state.playlistModal, state.activePlaylistId]);
 
   const handleDeletePlaylist = useCallback(async (playlistId) => {
     await window.freeplayer.deletePlaylist(playlistId);
@@ -76,6 +108,7 @@ export function usePlaylists() {
     handleCreatePlaylist,
     handleRenamePlaylist,
     handleDeletePlaylist,
+    handleUpdatePlaylistTracks,
     handleAddToPlaylist,
     handleRemoveFromPlaylist,
     handleOpenCreateForTrack,

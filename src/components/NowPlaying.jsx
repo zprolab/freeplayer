@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import WaveformVisualizer from './WaveformVisualizer';
+import LyricsDisplay from './LyricsDisplay';
 import { getCachedCover, setCachedCover } from '../coverCache';
 
 function formatTime(seconds) {
@@ -18,6 +19,8 @@ export default function NowPlaying({
   playMode, onPlayModeChange,
 }) {
   const [coverUrl, setCoverUrl] = useState(null);
+  const [lrcContent, setLrcContent] = useState(null);
+  const [lrcPath, setLrcPath] = useState(null);
 
   useEffect(() => {
     let stale = false;
@@ -37,6 +40,52 @@ export default function NowPlaying({
       setCoverUrl(null);
     }
     return () => { stale = true; };
+  }, [currentTrack]);
+
+  // Fetch LRC lyrics when track changes
+  useEffect(() => {
+    let stale = false;
+    if (currentTrack?.id) {
+      window.freeplayer.getLrc(currentTrack.id).then((result) => {
+        if (!stale) {
+          if (result && result.content) {
+            setLrcContent(result.content);
+            setLrcPath(result.path);
+          } else {
+            setLrcContent(null);
+            setLrcPath(null);
+          }
+        }
+      }).catch(() => {
+        if (!stale) {
+          setLrcContent(null);
+          setLrcPath(null);
+        }
+      });
+    } else {
+      setLrcContent(null);
+      setLrcPath(null);
+    }
+    return () => { stale = true; };
+  }, [currentTrack]);
+
+  const handleUploadLrc = useCallback(async () => {
+    if (!currentTrack?.id) return;
+    const result = await window.freeplayer.uploadLrc(currentTrack.id);
+    if (result && result.success) {
+      const lrcResult = await window.freeplayer.getLrc(currentTrack.id);
+      if (lrcResult && lrcResult.content) {
+        setLrcContent(lrcResult.content);
+        setLrcPath(lrcResult.path);
+      }
+    }
+  }, [currentTrack]);
+
+  const handleRemoveLrc = useCallback(async () => {
+    if (!currentTrack?.id) return;
+    await window.freeplayer.removeLrc(currentTrack.id);
+    setLrcContent(null);
+    setLrcPath(null);
   }, [currentTrack]);
 
   if (!currentTrack) {
@@ -100,6 +149,15 @@ export default function NowPlaying({
           </div>
         </div>
       </div>
+
+      {/* Lyrics */}
+      <LyricsDisplay
+        lrcContent={lrcContent}
+        currentTime={currentTime}
+        isPlaying={isPlaying}
+        onUpload={handleUploadLrc}
+        onRemove={handleRemoveLrc}
+      />
 
       {/* Progress */}
       <div className="np-progress-section">

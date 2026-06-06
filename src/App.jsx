@@ -25,8 +25,14 @@ export default function App() {
   } = useLibrary();
   const {
     handleSelectPlaylist, handleCreatePlaylist, handleRenamePlaylist, handleDeletePlaylist,
+    handleUpdatePlaylistTracks, loadPlaylists,
     handleAddToPlaylist, handleRemoveFromPlaylist, handleOpenCreateForTrack,
   } = usePlaylists();
+
+  // Load playlists on mount
+  React.useEffect(() => {
+    loadPlaylists();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Keyboard shortcuts
   React.useEffect(() => {
@@ -111,6 +117,7 @@ export default function App() {
         onSelectPlaylist={handleSelectPlaylist}
         onCreatePlaylist={() => dispatch({ type: 'SET', payload: { playlistModal: { mode: 'create', playlist: null } } })}
         onRenamePlaylist={(playlist) => dispatch({ type: 'SET', payload: { playlistModal: { mode: 'rename', playlist } } })}
+        onEditPlaylist={(playlist) => dispatch({ type: 'SET', payload: { playlistModal: { mode: 'edit', playlist } } })}
         onDeletePlaylist={handleDeletePlaylist}
       />
       <main className="main-content">
@@ -282,8 +289,13 @@ export default function App() {
         <PlaylistModal
           mode={state.playlistModal.mode}
           playlist={state.playlistModal.playlist}
+          allTracks={state.tracks}
           onClose={() => dispatch({ type: 'SET', payload: { playlistModal: null, pendingAddTrack: null } })}
-          onSubmit={state.playlistModal.mode === 'create' ? handleCreatePlaylist : handleRenamePlaylist}
+          onSubmit={
+            state.playlistModal.mode === 'create' ? handleCreatePlaylist :
+            state.playlistModal.mode === 'rename' ? handleRenamePlaylist :
+            handleUpdatePlaylistTracks
+          }
         />
       )}
     </div>
