@@ -1,6 +1,7 @@
 const { app, BrowserWindow, ipcMain, dialog, protocol, globalShortcut } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const iconv = require('iconv-lite');
 const {
   initDatabase,
   closeDatabase,
@@ -458,13 +459,34 @@ function setupIPC() {
     return setTrackLrc(trackId, lrcPath);
   });
 
-  // Get LRC content for a track
+  // Get LRC content for a track (with auto encoding detection)
   ipcMain.handle('music:get-lrc', (_event, trackId) => {
     const lrcPath = getTrackLrc(trackId);
     if (!lrcPath) return null;
     try {
       if (fs.existsSync(lrcPath)) {
-        const content = fs.readFileSync(lrcPath, 'utf-8');
+        const buf = fs.readFileSync(lrcPath);
+
+        // Try UTF-8 first — most common modern encoding
+        let content = buf.toString('utf8');
+
+        // If UTF-8 produced replacement chars, try CJK encodings
+        if (content.includes('�')) {
+          const encodings = ['gbk', 'gb18030', 'gb2312', 'shift_jis', 'euc-kr', 'big5'];
+          for (const enc of encodings) {
+            try {
+              const decoded = iconv.decode(buf, enc);
+              // Prefer a decode that has NO replacement chars
+              if (!decoded.includes('�')) {
+                content = decoded;
+                break;
+              }
+            } catch (_) {
+              // encoding not supported or failed, try next
+            }
+          }
+        }
+
         return { content, path: lrcPath };
       }
     } catch (err) {
