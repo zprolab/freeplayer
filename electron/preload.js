@@ -36,10 +36,18 @@ contextBridge.exposeInMainWorld('freeplayer', {
   createPlaylist: (data) => ipcRenderer.invoke('playlist:create', data),
   getPlaylists: () => ipcRenderer.invoke('playlist:get-all'),
   addToPlaylist: (data) => ipcRenderer.invoke('playlist:add-track', data),
+  addTracksToPlaylist: (data) => ipcRenderer.invoke('playlist:add-tracks', data),
+  setPlaylistTracks: (data) => ipcRenderer.invoke('playlist:set-tracks', data),
   getPlaylistTracks: (playlistId) => ipcRenderer.invoke('playlist:get-tracks', playlistId),
   removeFromPlaylist: (data) => ipcRenderer.invoke('playlist:remove-track', data),
   deletePlaylist: (playlistId) => ipcRenderer.invoke('playlist:delete', playlistId),
   renamePlaylist: (data) => ipcRenderer.invoke('playlist:rename', data),
+
+  // LRC Lyrics
+  getLrc: (trackId) => ipcRenderer.invoke('music:get-lrc', trackId),
+  setLrc: (data) => ipcRenderer.invoke('music:set-lrc', data),
+  uploadLrc: (trackId) => ipcRenderer.invoke('music:upload-lrc', trackId),
+  removeLrc: (trackId) => ipcRenderer.invoke('music:remove-lrc', trackId),
 
   // System media key listener
   onMediaKey: (callback) => {

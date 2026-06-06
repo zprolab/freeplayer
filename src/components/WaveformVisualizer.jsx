@@ -17,7 +17,8 @@ const LAYOUT = {
   spectrumHeight: 0.38,
 };
 
-const SPECTROGRAM_ROWS = 220;
+const MIN_SPECTROGRAM_ROWS = 100;
+const MAX_SPECTROGRAM_ROWS = 800;
 
 // ── Spectrogram color gradient (thermal camera style) ──
 function spectrogramColor(t) {
@@ -48,6 +49,12 @@ function spectrogramColor(t) {
 // ── Spectrogram history buffer (module-level, survives remount) ──
 let spectrogramBuffer = null;
 
+// ── Offscreen canvas for HiDPI-safe spectrogram rendering ──
+// putImageData bypasses the context transform, so on Retina displays
+// it renders at 1/dpr scale. We render to an offscreen canvas at CSS
+// resolution, then drawImage to the main canvas (which respects dpr).
+let offscreenCanvas = null;
+
 // ═══════════════════════════════════════════════════════════════
 //  Component
 // ═══════════════════════════════════════════════════════════════
@@ -60,6 +67,7 @@ export default function WaveformVisualizer({ audioElement, isPlaying, trackId, m
   // Reset spectrogram history when track changes
   useEffect(() => {
     spectrogramBuffer = null;
+    offscreenCanvas = null;
   }, [trackId]);
 
   // Resume suspended context on play
@@ -254,25 +262,59 @@ function drawSpectrogramMode(ctx, freqData, bufferLen, W, H) {
   const plotW = W - marginLeft - marginRight;
   const plotH = H - marginTop - marginBottom;
 
-  if (!spectrogramBuffer || spectrogramBuffer.length !== SPECTROGRAM_ROWS) {
-    spectrogramBuffer = new Array(SPECTROGRAM_ROWS);
-    for (let i = 0; i < SPECTROGRAM_ROWS; i++) {
+  // Dynamic row count: 1 row per pixel of plot height (capped)
+  const numRows = Math.max(MIN_SPECTROGRAM_ROWS, Math.min(MAX_SPECTROGRAM_ROWS, Math.floor(plotH)));
+
+  // Initialize or resize spectrogram buffer
+  if (!spectrogramBuffer) {
+    spectrogramBuffer = new Array(numRows);
+    for (let i = 0; i < numRows; i++) {
       spectrogramBuffer[i] = new Uint8Array(bufferLen);
     }
+  } else if (spectrogramBuffer.length !== numRows) {
+    const oldLen = spectrogramBuffer.length;
+    const newBuffer = new Array(numRows);
+    if (numRows > oldLen) {
+      const diff = numRows - oldLen;
+      for (let i = 0; i < diff; i++) {
+        newBuffer[i] = new Uint8Array(bufferLen);
+      }
+      for (let i = 0; i < oldLen; i++) {
+        newBuffer[diff + i] = spectrogramBuffer[i];
+      }
+    } else {
+      const diff = oldLen - numRows;
+      for (let i = 0; i < numRows; i++) {
+        newBuffer[i] = spectrogramBuffer[diff + i];
+      }
+    }
+    spectrogramBuffer = newBuffer;
   }
 
+  // Shift history up, append new frequency data at the end
   spectrogramBuffer.copyWithin(0, 1);
-  spectrogramBuffer[SPECTROGRAM_ROWS - 1] = new Uint8Array(freqData);
+  spectrogramBuffer[numRows - 1] = new Uint8Array(freqData);
 
   const binStep = bufferLen / plotW;
-  const rowH = Math.ceil(plotH / SPECTROGRAM_ROWS);
+  const rowH = Math.max(1, Math.ceil(plotH / numRows));
 
-  // Render to ImageData for a single bulk put
-  const imageData = ctx.createImageData(plotW, plotH);
+  // ── Render spectrogram via offscreen canvas (HiDPI-safe) ──
+  // We render ImageData at CSS resolution to an offscreen canvas, then
+  // drawImage to the main canvas. drawImage respects the context's dpr
+  // scale transform, unlike putImageData which uses raw device pixels.
+
+  if (!offscreenCanvas || offscreenCanvas.width !== plotW || offscreenCanvas.height !== plotH) {
+    offscreenCanvas = document.createElement('canvas');
+    offscreenCanvas.width = plotW;
+    offscreenCanvas.height = plotH;
+  }
+  const offCtx = offscreenCanvas.getContext('2d');
+
+  const imageData = offCtx.createImageData(plotW, plotH);
   const pixels = imageData.data;
 
-  for (let row = 0; row < SPECTROGRAM_ROWS; row++) {
-    const imgY = plotH - 1 - Math.round((row / (SPECTROGRAM_ROWS - 1)) * (plotH - 1));
+  for (let row = 0; row < numRows; row++) {
+    const imgY = plotH - 1 - Math.round((row / (numRows - 1)) * (plotH - 1));
     const srcRow = spectrogramBuffer[row];
 
     for (let px = 0; px < plotW; px++) {
@@ -290,7 +332,9 @@ function drawSpectrogramMode(ctx, freqData, bufferLen, W, H) {
     }
   }
 
-  ctx.putImageData(imageData, marginLeft, marginTop);
+  offCtx.putImageData(imageData, 0, 0);
+  // drawImage respects the canvas context transform (dpr scaling)
+  ctx.drawImage(offscreenCanvas, marginLeft, marginTop);
 
   // Grid overlay
   ctx.strokeStyle = 'rgba(16, 133, 72, 0.10)';

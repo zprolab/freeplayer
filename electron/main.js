@@ -17,10 +17,15 @@ const {
   createPlaylist,
   getAllPlaylists,
   addTrackToPlaylist,
+  addTracksToPlaylist,
+  setPlaylistTracks,
   getPlaylistTracks,
   removeTrackFromPlaylist,
   deletePlaylist,
   renamePlaylist,
+  setTrackLrc,
+  getTrackLrc,
+  clearTrackLrc,
   getSetting,
   resetDatabase,
   setSetting,
@@ -436,6 +441,89 @@ function setupIPC() {
 
   ipcMain.handle('playlist:rename', (_event, { id, name }) => {
     return renamePlaylist(id, name);
+  });
+
+  ipcMain.handle('playlist:add-tracks', (_event, { playlistId, trackIds }) => {
+    return addTracksToPlaylist(playlistId, trackIds);
+  });
+
+  ipcMain.handle('playlist:set-tracks', (_event, { playlistId, trackIds }) => {
+    return setPlaylistTracks(playlistId, trackIds);
+  });
+
+  // ── LRC (Lyrics) operations ──
+
+  // Set LRC path for a track
+  ipcMain.handle('music:set-lrc', (_event, { trackId, lrcPath }) => {
+    return setTrackLrc(trackId, lrcPath);
+  });
+
+  // Get LRC content for a track
+  ipcMain.handle('music:get-lrc', (_event, trackId) => {
+    const lrcPath = getTrackLrc(trackId);
+    if (!lrcPath) return null;
+    try {
+      if (fs.existsSync(lrcPath)) {
+        const content = fs.readFileSync(lrcPath, 'utf-8');
+        return { content, path: lrcPath };
+      }
+    } catch (err) {
+      console.error('Failed to read LRC file:', err.message);
+    }
+    return null;
+  });
+
+  // Upload LRC file for a track
+  ipcMain.handle('music:upload-lrc', async (_event, trackId) => {
+    const track = getTrackById(trackId);
+    if (!track) return { error: 'Track not found' };
+
+    const result = await dialog.showOpenDialog(mainWindow, {
+      properties: ['openFile'],
+      title: 'Select LRC Lyrics File',
+      filters: [{ name: 'LRC Lyrics', extensions: ['lrc'] }, { name: 'All Files', extensions: ['*'] }],
+    });
+
+    if (result.canceled || result.filePaths.length === 0) {
+      return { canceled: true };
+    }
+
+    const sourcePath = result.filePaths[0];
+    const lrcFileName = path.basename(sourcePath);
+
+    // Copy to the same directory as the audio file
+    const audioDir = path.dirname(track.file_path);
+    const targetPath = path.join(audioDir, lrcFileName);
+
+    try {
+      // Only copy if different path
+      if (sourcePath !== targetPath) {
+        fs.copyFileSync(sourcePath, targetPath);
+      }
+      setTrackLrc(trackId, targetPath);
+      return { success: true, lrcPath: targetPath };
+    } catch (err) {
+      console.error('Failed to copy LRC file:', err.message);
+      return { error: err.message };
+    }
+  });
+
+  // Remove LRC file from a track
+  ipcMain.handle('music:remove-lrc', (_event, trackId) => {
+    const track = getTrackById(trackId);
+    if (!track) return { error: 'Track not found' };
+
+    const lrcPath = getTrackLrc(trackId);
+    if (lrcPath && fs.existsSync(lrcPath)) {
+      try {
+        fs.unlinkSync(lrcPath);
+      } catch (err) {
+        console.error('Failed to delete LRC file:', err.message);
+      }
+    }
+
+    clearTrackLrc(trackId);
+    return { success: true };
   });
 }
 
