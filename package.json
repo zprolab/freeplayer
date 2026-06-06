@@ -19,6 +19,7 @@
   },
   "dependencies": {
     "better-sqlite3": "^11.7.0",
+    "iconv-lite": "^0.7.2",
     "music-metadata": "^10.5.0"
   },
   "devDependencies": {
@@ -47,16 +48,24 @@
     ],
     "mac": {
       "category": "public.app-category.music",
-      "target": ["dmg", "zip"],
+      "target": [
+        "dmg",
+        "zip"
+      ],
       "hardenedRuntime": true,
       "entitlements": "build/entitlements.mac.plist",
       "entitlementsInherit": "build/entitlements.mac.plist"
     },
     "win": {
-      "target": ["nsis"]
+      "target": [
+        "nsis"
+      ]
     },
     "linux": {
-      "target": ["AppImage", "deb"],
+      "target": [
+        "AppImage",
+        "deb"
+      ],
       "category": "Audio"
     }
   }
