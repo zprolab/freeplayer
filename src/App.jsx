@@ -58,6 +58,19 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKey);
   }, [dispatch, togglePlayPause, state.visualizerMode]);
 
+  // Tray menu playback control
+  React.useEffect(() => {
+    if (!window.freeplayer?.onPlaybackControl) return;
+    const handler = ({ action }) => {
+      switch (action) {
+        case 'playpause': togglePlayPause(); break;
+        case 'next': handleNext(); break;
+        case 'previous': handlePrev(); break;
+      }
+    };
+    window.freeplayer.onPlaybackControl(handler);
+  }, [togglePlayPause, handleNext, handlePrev]);
+
   // Drag-and-drop handlers
   const handleDragEnter = (e) => {
     if (state.view !== VIEWS.LIBRARY || state.importModalOpen) return;
