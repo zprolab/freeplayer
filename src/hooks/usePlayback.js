@@ -194,6 +194,11 @@ export function usePlayback() {
     };
   }, [audioRef, playSessionIdRef, playStartTimeRef]);
 
+  // Push playback state to main process for tray menu
+  useEffect(() => {
+    window.freeplayer?.sendPlaybackState(state.isPlaying);
+  }, [state.isPlaying]);
+
   // System media key support
   useEffect(() => {
     if (!window.freeplayer.onMediaKey) return;
