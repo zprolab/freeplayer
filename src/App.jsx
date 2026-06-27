@@ -58,18 +58,22 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKey);
   }, [dispatch, togglePlayPause, state.visualizerMode]);
 
-  // Tray menu playback control
+  // Tray menu playback control — use ref to avoid listener leak on re-renders
+  const playbackHandlersRef = React.useRef({ togglePlayPause, handleNext, handlePrev });
+  playbackHandlersRef.current = { togglePlayPause, handleNext, handlePrev };
+
   React.useEffect(() => {
     if (!window.freeplayer?.onPlaybackControl) return;
     const handler = ({ action }) => {
+      const h = playbackHandlersRef.current;
       switch (action) {
-        case 'playpause': togglePlayPause(); break;
-        case 'next': handleNext(); break;
-        case 'previous': handlePrev(); break;
+        case 'playpause': h.togglePlayPause(); break;
+        case 'next': h.handleNext(); break;
+        case 'previous': h.handlePrev(); break;
       }
     };
     window.freeplayer.onPlaybackControl(handler);
-  }, [togglePlayPause, handleNext, handlePrev]);
+  }, []); // register once; ref always has latest handlers
 
   // Drag-and-drop handlers
   const handleDragEnter = (e) => {
