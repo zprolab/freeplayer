@@ -12,6 +12,15 @@ export default function Settings({
   onResetDatabase,
 }) {
   const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [trayEnabled, setTrayEnabled] = useState(true); // default true
+
+  React.useEffect(() => {
+    window.freeplayer.getSetting('tray_enabled').then(val => {
+      if (val !== undefined && val !== null) {
+        setTrayEnabled(val === true || val === 'true' || val === 1 || val === '1');
+      }
+    }).catch(() => {});
+  }, []);
 
   const handleChangeLibraryDir = async () => {
     const result = await window.freeplayer.selectLibraryDir();
@@ -131,6 +140,25 @@ export default function Settings({
               </button>
             ))}
           </div>
+        </div>
+
+        <div className="playback-row">
+          <div className="playback-label-group">
+            <span className="playback-label">Close to Tray</span>
+            <span className="playback-hint">Minimize to system tray instead of quitting when closing the window</span>
+          </div>
+          <label className="toggle-switch">
+            <input
+              type="checkbox"
+              checked={trayEnabled}
+              onChange={(e) => {
+                const val = e.target.checked;
+                setTrayEnabled(val);
+                window.freeplayer.setSetting({ key: 'tray_enabled', value: val });
+              }}
+            />
+            <span className="toggle-slider" />
+          </label>
         </div>
       </div>
 
