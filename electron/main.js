@@ -108,7 +108,9 @@ function createWindow() {
   mainWindow.on('close', (event) => {
     if (!isQuitting) {
       const trayEnabled = getSetting('tray_enabled', true);
-      if (trayEnabled) {
+      // getSetting returns strings from SQLite; coerce to boolean
+      const isTrayOn = trayEnabled === true || trayEnabled === 'true' || trayEnabled === 1 || trayEnabled === '1';
+      if (isTrayOn) {
         event.preventDefault();
         mainWindow.hide();
         return;
