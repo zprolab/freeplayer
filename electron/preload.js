@@ -53,4 +53,12 @@ contextBridge.exposeInMainWorld('freeplayer', {
   onMediaKey: (callback) => {
     ipcRenderer.on('media-key', (_event, action) => callback(action));
   },
+
+  // Tray playback state push
+  sendPlaybackState: (isPlaying) => ipcRenderer.send('playback:state-changed', { isPlaying }),
+
+  // Tray menu control listener
+  onPlaybackControl: (callback) => {
+    ipcRenderer.on('playback:control', (_event, data) => callback(data));
+  },
 });
