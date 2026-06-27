@@ -680,6 +680,12 @@ function setupIPC() {
 
 // ── App lifecycle ──
 
+// Intercept any quit signal (Cmd+Q, dock quit, app.quit()) so the close handler
+// sees isQuitting=true rather than hiding to tray.
+app.on('before-quit', () => {
+  isQuitting = true;
+});
+
 app.whenReady().then(() => {
   try {
     initDatabase();
