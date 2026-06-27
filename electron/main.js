@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog, protocol, globalShortcut } = require('electron');
+const { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain, dialog, protocol, globalShortcut } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const iconv = require('iconv-lite');
@@ -35,6 +35,51 @@ const {
 const isDev = !app.isPackaged;
 
 let mainWindow;
+let tray = null;
+let isQuitting = false;
+
+// Generate a 16x16 tray icon programmatically — a simple musical note shape.
+// No external asset file needed. Replace with a custom .png if desired.
+function createTrayIcon() {
+  // 16x16 musical note pixel art: '#' = white, '.' = transparent
+  const note = [
+    '................',
+    '................',
+    '.....##.........',
+    '....#.#.........',
+    '....##..........',
+    '....##..........',
+    '....#.#.........',
+    '....##..........',
+    '....##..........',
+    '....##..........',
+    '....##..........',
+    '...####.........',
+    '...##.##........',
+    '..##..##........',
+    '................',
+    '................',
+  ];
+  const size = 16;
+  const buffer = Buffer.alloc(size * size * 4);
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const idx = (y * size + x) * 4;
+      if (note[y][x] === '#') {
+        buffer[idx] = 0xff;     // R
+        buffer[idx + 1] = 0xff; // G
+        buffer[idx + 2] = 0xff; // B
+        buffer[idx + 3] = 0xff; // A
+      } else {
+        buffer[idx] = 0x1f;     // R
+        buffer[idx + 1] = 0x1f; // G
+        buffer[idx + 2] = 0x23; // B (background #1f1f23)
+        buffer[idx + 3] = 0xff; // A
+      }
+    }
+  }
+  return nativeImage.createFromBuffer(buffer, { width: size, height: size });
+}
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -58,6 +103,81 @@ function createWindow() {
   } else {
     mainWindow.loadFile(path.join(__dirname, '..', 'dist', 'index.html'));
   }
+
+  // Intercept close — hide to tray if tray_enabled, otherwise quit
+  mainWindow.on('close', (event) => {
+    if (!isQuitting) {
+      const trayEnabled = getSetting('tray_enabled', true);
+      if (trayEnabled) {
+        event.preventDefault();
+        mainWindow.hide();
+        return;
+      }
+    }
+    // Clean up tray when actually closing
+    if (tray) {
+      tray.destroy();
+      tray = null;
+    }
+  });
+}
+
+function createTray() {
+  const icon = createTrayIcon();
+  tray = new Tray(icon);
+  tray.setToolTip('FreePlayer');
+
+  const updateMenu = (isPlaying) => {
+    const contextMenu = Menu.buildFromTemplate([
+      {
+        label: 'Show Window',
+        click: () => {
+          mainWindow.show();
+          mainWindow.focus();
+        },
+      },
+      { type: 'separator' },
+      {
+        label: isPlaying ? 'Pause' : 'Play',
+        click: () => {
+          mainWindow.webContents.send('playback:control', { action: 'playpause' });
+        },
+      },
+      {
+        label: 'Previous Track',
+        click: () => {
+          mainWindow.webContents.send('playback:control', { action: 'previous' });
+        },
+      },
+      {
+        label: 'Next Track',
+        click: () => {
+          mainWindow.webContents.send('playback:control', { action: 'next' });
+        },
+      },
+      { type: 'separator' },
+      {
+        label: 'Quit FreePlayer',
+        click: () => {
+          isQuitting = true;
+          app.quit();
+        },
+      },
+    ]);
+    tray.setContextMenu(contextMenu);
+  };
+
+  // Initial menu (assume paused)
+  updateMenu(false);
+
+  // Double-click tray icon → show window
+  tray.on('double-click', () => {
+    mainWindow.show();
+    mainWindow.focus();
+  });
+
+  // Store updateMenu for use in IPC handler
+  tray._updateMenu = updateMenu;
 }
 
 function registerProtocol() {
@@ -547,6 +667,13 @@ function setupIPC() {
     clearTrackLrc(trackId);
     return { success: true };
   });
+
+  // Playback state from renderer → update tray menu label
+  ipcMain.on('playback:state-changed', (_event, { isPlaying }) => {
+    if (tray && tray._updateMenu) {
+      tray._updateMenu(isPlaying);
+    }
+  });
 }
 
 // ── App lifecycle ──
@@ -563,6 +690,7 @@ app.whenReady().then(() => {
   registerProtocol();
   setupIPC();
   createWindow();
+  createTray();
 
   // Register media keys
   globalShortcut.register('MediaPlayPause', () => {
@@ -582,6 +710,10 @@ app.whenReady().then(() => {
 
 app.on('window-all-closed', () => {
   globalShortcut.unregisterAll();
+  if (tray) {
+    tray.destroy();
+    tray = null;
+  }
   closeDatabase();
   if (process.platform !== 'darwin') app.quit();
 });
