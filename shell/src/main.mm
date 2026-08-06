@@ -25,6 +25,7 @@ NSWindow *gWindow = nil;
 
 // ── App lifecycle ──
 @interface ShellAppDelegate : NSObject <NSApplicationDelegate, NSWindowDelegate>
+@property (nonatomic, strong) id backgroundActivity;
 @end
 
 @implementation ShellAppDelegate
@@ -53,12 +54,14 @@ NSWindow *gWindow = nil;
   window.releasedWhenClosed = NO;
   window.backgroundColor = [NSColor colorWithSRGBRed:0.13 green:0.13 blue:0.15 alpha:1.0];
   window.minSize = NSMakeSize(960, 600);
+  window.delegate = self;
   gWindow = window;
+  NSLog(@"[shell] window delegate set: %@", window.delegate ? @"yes" : @"NO");
   [window center];
 
   WKWebViewConfiguration *config = [[WKWebViewConfiguration alloc] init];
   config.mediaTypesRequiringUserActionForPlayback = WKAudiovisualMediaTypeNone;
-  config.allowsAirPlayForMediaPlayback = YES;
+  config.preferences.javaScriptCanOpenWindowsAutomatically = NO;
 
   gScheme = [[MediaSchemeHandler alloc] init];
   [config setURLSchemeHandler:gScheme forURLScheme:@"media"];
@@ -111,6 +114,8 @@ NSWindow *gWindow = nil;
   if (webRoot.length > 0 && [NSFileManager.defaultManager fileExistsAtPath:webRoot]) {
     fpSetWebRoot(webRoot);
     loadURL = [NSURL URLWithString:@"app://index.html"];
+    // Prod: no persistent cache/disk store needed
+    config.websiteDataStore = WKWebsiteDataStore.nonPersistentDataStore;
     NSLog(@"[shell] prod mode, webRoot=%@", webRoot);
   } else {
     NSString *url = [defs stringForKey:@"FP_URL"];
@@ -122,8 +127,48 @@ NSWindow *gWindow = nil;
   [webView loadRequest:[NSURLRequest requestWithURL:loadURL]];
 }
 
-- (BOOL)applicationShouldTerminateAfterLastWindowClosed:(NSApplication *)sender {
+// ── Close-to-tray: a music player must survive window close ──
+
+- (void)setBackgroundPlayback:(BOOL)enabled {
+  if (enabled && !self.backgroundActivity) {
+    // Keeps App Nap from throttling hidden background playback
+    self.backgroundActivity = [NSProcessInfo.processInfo
+        beginActivityWithOptions:NSActivityBackground reason:@"Background audio playback"];
+  } else if (!enabled && self.backgroundActivity) {
+    [NSProcessInfo.processInfo endActivity:self.backgroundActivity];
+    self.backgroundActivity = nil;
+  }
+}
+
+- (BOOL)windowShouldClose:(NSWindow *)sender {
+  id val = fpdb::getSetting(@"tray_enabled", @"true");
+  BOOL trayOn = val == nil || [val isEqualToString:@"true"] || [val isEqualToString:@"1"]
+             || ([val respondsToSelector:@selector(boolValue)] && [val boolValue]);
+  if (trayOn) {
+    [sender orderOut:nil]; // hide, keep playing in the tray
+    [self setBackgroundPlayback:YES];
+    return NO;
+  }
+  // Tray disabled: closing the window quits the app explicitly
+  [NSApp terminate:nil];
+  return NO;
+}
+
+- (BOOL)applicationShouldHandleReopen:(NSApplication *)sender hasVisibleWindows:(BOOL)flag {
+  if (!flag && gWindow) {
+    [gWindow makeKeyAndOrderFront:nil];
+  }
   return YES;
+}
+
+- (void)windowDidBecomeKey:(NSNotification *)notification {
+  [self setBackgroundPlayback:NO];
+}
+
+- (BOOL)applicationShouldTerminateAfterLastWindowClosed:(NSApplication *)sender {
+  // Close-to-tray: orderOut during performClose can look like a window close;
+  // never auto-terminate here — windowShouldClose decides instead.
+  return NO;
 }
 
 - (void)applicationWillTerminate:(NSNotification *)notification {
