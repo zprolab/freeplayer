@@ -11,6 +11,7 @@ import { usePlayer, VIEWS } from './context/PlayerContext';
 import { usePlayback } from './hooks/usePlayback';
 import { useLibrary } from './hooks/useLibrary';
 import { usePlaylists } from './hooks/usePlaylists';
+import { audioEngine } from './audioEngine';
 
 export default function App() {
   const { state, dispatch, audioRef } = usePlayer();
@@ -83,6 +84,29 @@ export default function App() {
     };
     window.freeplayer.onPlaybackControl(handler);
   }, []); // register once; ref always has latest handlers
+
+  // Equalizer: init from DB once, apply live curve changes
+  const eqHandlerRef = React.useRef();
+  eqHandlerRef.current = (s) => {
+    if (!s) return;
+    audioEngine.applyEq(s.gains, s.enabled);
+    dispatch({ type: 'SET', payload: { eqEnabled: s.enabled } });
+  };
+
+  React.useEffect(() => {
+    if (!window.freeplayer?.getEqState) return;
+    window.freeplayer.getEqState().then((s) => {
+      if (s) {
+        audioEngine.applyEq(s.gains, s.enabled);
+        dispatch({ type: 'SET', payload: { eqEnabled: s.enabled } });
+      }
+    });
+  }, []);
+
+  React.useEffect(() => {
+    if (!window.freeplayer?.onEqChange) return;
+    window.freeplayer.onEqChange((s) => eqHandlerRef.current(s));
+  }, []);
 
   // Drag-and-drop handlers
   const handleDragEnter = (e) => {
@@ -295,6 +319,8 @@ export default function App() {
         onVolumeChange={handleVolumeChange}
         playMode={state.playMode}
         onPlayModeChange={(m) => dispatch({ type: 'SET_PLAY_MODE', payload: m })}
+        eqEnabled={state.eqEnabled}
+        onOpenEq={() => window.freeplayer?.openEq?.()}
       />
 
       {state.importModalOpen && (

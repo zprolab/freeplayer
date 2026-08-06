@@ -39,6 +39,7 @@ const initialState = {
   pendingAddTrack: null,
   dragOver: false,
   initialPaths: null,
+  eqEnabled: false,
 };
 
 function reducer(state, action) {

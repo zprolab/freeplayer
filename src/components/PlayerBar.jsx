@@ -11,7 +11,7 @@ function formatTime(seconds) {
 export default function PlayerBar({
   currentTrack, isPlaying, currentTime, duration,
   onTogglePlay, onNext, onPrev, onSeek, volume, onVolumeChange,
-  playMode, onPlayModeChange,
+  playMode, onPlayModeChange, eqEnabled, onOpenEq,
 }) {
   const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
 
@@ -80,6 +80,18 @@ export default function PlayerBar({
 
         {/* Time & Volume */}
         <div className="player-extras">
+          <button
+            className={`eq-btn ${eqEnabled ? 'eq-btn--active' : ''}`}
+            onClick={onOpenEq}
+            title="Equalizer"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+              <line x1="4" y1="6" x2="4" y2="18"/>
+              <line x1="10" y1="4" x2="10" y2="20"/>
+              <line x1="16" y1="8" x2="16" y2="16"/>
+              <line x1="21" y1="10" x2="21" y2="14"/>
+            </svg>
+          </button>
           <div className="play-mode-btns">
             <button
               className={`play-mode-btn ${playMode === 'sequential' ? 'play-mode-btn--active' : ''}`}

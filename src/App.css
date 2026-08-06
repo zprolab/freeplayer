@@ -3589,3 +3589,15 @@ input[type="range"]::-webkit-slider-thumb {
 .eq-chip--active {
   background: rgba(226, 67, 41, 0.12); border-color: #e24329; color: #ff8a6b; font-weight: 600;
 }
+
+/* ── Equalizer entry button ── */
+.eq-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 30px; height: 30px; border-radius: var(--gl-radius-sm);
+  background: transparent; border: 1px solid var(--gl-border);
+  color: var(--gl-text-tertiary); cursor: pointer;
+  transition: all 0.12s;
+  font-family: var(--font-ui);
+}
+.eq-btn:hover { color: var(--gl-text-primary); border-color: var(--gl-border-dark); background: var(--gl-border-light); }
+.eq-btn--active { color: var(--gl-orange); border-color: var(--gl-orange); }
