@@ -71,6 +71,28 @@ describe('AudioEngine EQ', () => {
     expect(() => engine.applyEq([0, 0, 0, 0, 0, 0, 0, 0, 0, 0], true)).not.toThrow();
   });
 
+  it('restores pending EQ curve on connect (relaunch path)', () => {
+    const originalCreate = window.AudioContext.prototype.createBiquadFilter;
+    const filters = [];
+    window.AudioContext.prototype.createBiquadFilter = function () {
+      const f = originalCreate.call(this);
+      f.gain.setTargetAtTime = vi.fn();
+      filters.push(f);
+      return f;
+    };
+    try {
+      const gains = [6, 6, 5, 3.5, 2, 0, 0, 0, 0, 0];
+      engine.applyEq(gains, true);
+      engine.connect({});
+      expect(filters).toHaveLength(10);
+      filters.forEach((f, i) => {
+        expect(f.gain.setTargetAtTime).toHaveBeenCalledWith(gains[i], expect.any(Number), 0.05);
+      });
+    } finally {
+      window.AudioContext.prototype.createBiquadFilter = originalCreate;
+    }
+  });
+
   it('dispose releases eq filters', () => {
     engine.connect({});
     engine.dispose();

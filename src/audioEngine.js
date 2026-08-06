@@ -54,6 +54,9 @@ export class AudioEngine {
           f.Q.value = 1.4142;
           return f;
         });
+        // Restore a curve that was applied before the graph existed
+        // (startup or AudioContext rebuild) — mirrors setGain's pending pattern.
+        if (this._pendingEqGains) this._applyTargets(this.ctx.currentTime);
       }
       if (this.connectedElement !== audioElement) {
         this.sourceNode = this.ctx.createMediaElementSource(audioElement);
@@ -111,8 +114,12 @@ export class AudioEngine {
     this._pendingEqGains = gains;
     this._pendingEqEnabled = enabled;
     if (!this.eqFilters || !this.ctx) return;
-    const now = this.ctx.currentTime;
-    const targets = enabled ? gains : gains.map(() => 0);
+    this._applyTargets(this.ctx.currentTime);
+  }
+
+  _applyTargets(now) {
+    if (!this.eqFilters || !this.ctx || !this._pendingEqGains) return;
+    const targets = this._pendingEqEnabled ? this._pendingEqGains : this._pendingEqGains.map(() => 0);
     this.eqFilters.forEach((f, i) => {
       const t = Math.min(Math.max(targets[i] ?? 0, -12), 12);
       f.gain.cancelScheduledValues(now);

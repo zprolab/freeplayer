@@ -828,6 +828,8 @@ body {
 .volume-slider {
   -webkit-appearance: none;
   width: 80px;
+  min-width: 60px;
+  flex-shrink: 0;
   height: 4px;
   background: var(--gl-border-light);
   border-radius: 2px;

@@ -100,7 +100,7 @@ export default function App() {
         audioEngine.applyEq(s.gains, s.enabled);
         dispatch({ type: 'SET', payload: { eqEnabled: s.enabled } });
       }
-    });
+    }).catch((err) => console.warn('Failed to load EQ state:', err));
   }, []);
 
   React.useEffect(() => {
