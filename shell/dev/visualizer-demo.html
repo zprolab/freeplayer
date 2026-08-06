@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>FreePlayer Visualizer Demo</title>
+<style>
+  body { background:#f5f5f7; font-family:-apple-system,sans-serif; margin:0; padding:24px; color:#303030; }
+  h1 { font-size:16px; margin:0 0 4px; }
+  p.hint { font-size:12px; color:#737278; margin:0 0 16px; }
+  .controls { display:flex; gap:20px; align-items:center; flex-wrap:wrap; margin-bottom:16px; font-size:12px; }
+  .controls label { display:flex; align-items:center; gap:6px; }
+  #stage { background:#fff; border:1px solid #dbdbdb; border-radius:8px; padding:16px; }
+  canvas { display:block; border-radius:6px; }
+  .layout-guide { margin-top:14px; font-family:monospace; font-size:11px; color:#737278; line-height:1.7; }
+  .layout-guide b { color:#e24329; }
+</style>
+</head>
+<body>
+<h1>Visualizer 布局模拟</h1>
+<p class="hint">与 WaveformVisualizer.jsx 完全相同的绘制函数 + 模拟信号。调整尺寸模拟实际窗口，切换模式对比。</p>
+<div class="controls">
+  <label>模式
+    <select id="mode">
+      <option value="waveform">Waveform + Spectrum</option>
+      <option value="spectrogram">Spectrogram</option>
+    </select>
+  </label>
+  <label>宽度 <input type="range" id="width" min="500" max="1400" value="1004"> <span id="widthVal"></span></label>
+  <label>高度 <input type="range" id="height" min="120" max="600" value="363"> <span id="heightVal"></span></label>
+  <label>信号强度 <input type="range" id="amp" min="0" max="100" value="60"> <span id="ampVal"></span></label>
+  <label><input type="checkbox" id="playing" checked> 播放中</label>
+</div>
+<div id="stage"><canvas id="cv"></canvas></div>
+<pre class="layout-guide" id="guide"></pre>
+
+<script>
+// ── 与 src/components/WaveformVisualizer.jsx 相同的常量与布局 ──
+const WAVEFORM_COLOR = '#e24329';
+const WAVEFORM_GLOW = 'rgba(226, 67, 41, 0.22)';
+const BG_COLOR = '#1a1a1e';
+const GRID_COLOR = 'rgba(16, 133, 72, 0.14)';
+const GRID_MAJOR = 'rgba(16, 133, 72, 0.28)';
+const LABEL_COLOR = 'rgba(255, 255, 255, 0.45)';
+const LABEL_DIM = 'rgba(255, 255, 255, 0.25)';
+
+const LAYOUT = {
+  waveformTop: 0.08,
+  waveformHeight: 0.47,
+  dividerH: 0.02,
+  spectrumHeight: 0.38,
+};
+
+const cv = document.getElementById('cv');
+const ctx = cv.getContext('2d');
+const modeSel = document.getElementById('mode');
+const wIn = document.getElementById('width');
+const hIn = document.getElementById('height');
+const aIn = document.getElementById('amp');
+const playChk = document.getElementById('playing');
+const guide = document.getElementById('guide');
+
+function bind(id, fn) { const el = document.getElementById(id); el.oninput = fn; fn(); }
+bind('width', () => { document.getElementById('widthVal').textContent = wIn.value; });
+bind('height', () => { document.getElementById('heightVal').textContent = hIn.value; });
+bind('amp', () => { document.getElementById('ampVal').textContent = aIn.value + '%'; });
+
+// 模拟信号
+const bufferLen = 1024;
+let phase = 0;
+function genTimeData(amp) {
+  const t = new Uint8Array(bufferLen);
+  for (let i = 0; i < bufferLen; i++) {
+    const v = 128 + Math.sin(phase + i * 0.045) * 60 * amp
+                + Math.sin(phase * 1.7 + i * 0.11) * 25 * amp
+                + (Math.random() - 0.5) * 14 * amp;
+    t[i] = Math.max(0, Math.min(255, v));
+  }
+  phase += 0.35;
+  return t;
+}
+function genFreqData(amp) {
+  const f = new Uint8Array(bufferLen);
+  let peak = 0;
+  for (let i = 0; i < f.length; i++) {
+    const t = i / f.length;
+    const v = Math.exp(-t * 4.2) * (150 + Math.sin(phase * 2 + t * 40) * 60) * amp;
+    f[i] = Math.max(0, Math.min(255, v));
+    if (f[i] > peak) peak = f[i];
+  }
+  return { f, peak };
+}
+
+// ── 以下绘制函数照抄 WaveformVisualizer.jsx ──
+function drawGrid(W, H, wfTop, wfH, spTop, spH, spBaseline) {
+  const wfBot = wfTop + wfH;
+  const spBot = spTop + spH;
+  const gridVCount = 16;
+  ctx.strokeStyle = GRID_COLOR; ctx.lineWidth = 0.5;
+  for (let i = 1; i < gridVCount; i++) {
+    const x = Math.round((W / gridVCount) * i) + 0.5;
+    ctx.beginPath(); ctx.moveTo(x, wfTop); ctx.lineTo(x, wfBot); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x, spTop); ctx.lineTo(x, spBot); ctx.stroke();
+  }
+  const wfMid = wfTop + wfH / 2;
+  ctx.strokeStyle = GRID_COLOR;
+  [0.25, 0.75].forEach(ratio => {
+    const y = Math.round(wfTop + wfH * ratio) + 0.5;
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
+  });
+  ctx.strokeStyle = GRID_MAJOR;
+  ctx.beginPath(); ctx.moveTo(0, Math.round(wfMid) + 0.5); ctx.lineTo(W, Math.round(wfMid) + 0.5); ctx.stroke();
+  [0.25, 0.5, 0.75].forEach(ratio => {
+    const y = Math.round(spTop + spH * (1 - ratio)) + 0.5;
+    ctx.strokeStyle = GRID_COLOR; ctx.lineWidth = 0.5;
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
+  });
+  ctx.strokeStyle = GRID_MAJOR; ctx.lineWidth = 0.6;
+  ctx.beginPath(); ctx.moveTo(0, Math.round(spBaseline) + 0.5); ctx.lineTo(W, Math.round(spBaseline) + 0.5); ctx.stroke();
+}
+
+function drawWaveform(timeData, W, wfTop, wfH) {
+  const midY = wfTop + wfH / 2;
+  const sliceW = W / timeData.length;
+  const amplitude = wfH * 0.46;
+  const trace = (color, width) => {
+    ctx.strokeStyle = color; ctx.lineWidth = width; ctx.beginPath();
+    for (let i = 0; i < timeData.length; i++) {
+      const v = timeData[i] / 128.0;
+      const y = midY + (v - 1) * amplitude;
+      const x = i * sliceW;
+      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+  };
+  trace(WAVEFORM_GLOW, 5);
+  trace('rgba(226, 67, 41, 0.38)', 2);
+  ctx.globalAlpha = 0.92; trace(WAVEFORM_COLOR, 1); ctx.globalAlpha = 1;
+}
+
+function drawSpectrum(freqData, W, spTop, spH) {
+  const barCount = 128;
+  const step = Math.floor(freqData.length / barCount);
+  const totalW = W - 20;
+  const startX = 10;
+  const barW = (totalW / barCount) * 0.68;
+  const gapW = (totalW / barCount) * 0.32;
+  for (let i = 0; i < barCount; i++) {
+    let sum = 0;
+    for (let j = 0; j < step; j++) sum += freqData[i * step + j];
+    const avg = sum / step;
+    const barH = (avg / 255) * spH;
+    const x = startX + i * (barW + gapW);
+    const y = spTop + spH - barH;
+    const t = avg / 255;
+    const r = Math.round(45 + t * 75), g = Math.round(100 + t * 50), b = Math.round(195 + t * 35);
+    ctx.fillStyle = `rgb(${r}, ${g}, ${b})`;
+    ctx.fillRect(x, y, Math.max(barW, 1.5), barH);
+  }
+}
+
+function drawLabels(W, H, wfTop, wfH, spBaseline) {
+  ctx.font = '10px "JetBrains Mono", monospace'; ctx.textBaseline = 'middle';
+  const wfMid = wfTop + wfH / 2;
+  ctx.fillStyle = LABEL_DIM; ctx.textAlign = 'left'; ctx.fillText('L', 12, wfMid);
+  ctx.textAlign = 'right'; ctx.fillText('R', W - 12, wfMid);
+  const ampTop = wfTop + wfH * 0.04, ampBot = wfTop + wfH * 0.96;
+  ctx.strokeStyle = LABEL_DIM; ctx.lineWidth = 0.5;
+  ctx.beginPath(); ctx.moveTo(8, ampTop); ctx.lineTo(16, ampTop); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(8, ampBot); ctx.lineTo(16, ampBot); ctx.stroke();
+  ctx.font = '7px "JetBrains Mono", monospace'; ctx.textAlign = 'left';
+  ctx.fillText('+1', 18, ampTop); ctx.fillText('−1', 18, ampBot);
+  const divY = wfTop + wfH;
+  ctx.strokeStyle = GRID_MAJOR; ctx.lineWidth = 0.5;
+  ctx.beginPath(); ctx.moveTo(10, Math.round(divY) + 0.5); ctx.lineTo(W - 10, Math.round(divY) + 0.5); ctx.stroke();
+  const freqY = spBaseline + 14;
+  ctx.font = '9px "JetBrains Mono", monospace'; ctx.fillStyle = LABEL_COLOR; ctx.textBaseline = 'top'; ctx.textAlign = 'center';
+  [['20',0.04],['100',0.22],['500',0.40],['2k',0.58],['8k',0.76],['20k',0.94]].forEach(([hz,xFrac]) => {
+    ctx.fillText(hz, 10 + (W - 20) * xFrac, freqY);
+  });
+  ctx.textAlign = 'right'; ctx.fillStyle = LABEL_DIM; ctx.fillText('Hz', W - 12, freqY);
+}
+
+// ── Spectrogram（完整照抄 WaveformVisualizer.jsx 的 drawSpectrogramMode）──
+const MIN_SPECTROGRAM_ROWS = 100;
+const MAX_SPECTROGRAM_ROWS = 800;
+let spectrogramBuffer = null;
+let offscreenCanvas = null;
+
+function spectrogramColor(t) {
+  if (t <= 0) return [15, 15, 20];
+  if (t < 0.2) {
+    const s = t / 0.2;
+    return [Math.round(15 + 30 * s), Math.round(15 + 30 * s), Math.round(20 + 160 * s)];
+  }
+  if (t < 0.4) {
+    const s = (t - 0.2) / 0.2;
+    return [Math.round(45 + 30 * s), Math.round(45 + 150 * s), Math.round(180 + 40 * s)];
+  }
+  if (t < 0.55) {
+    const s = (t - 0.4) / 0.15;
+    return [Math.round(75 + 80 * s), Math.round(195 + 40 * s), Math.round(220 - 100 * s)];
+  }
+  if (t < 0.7) {
+    const s = (t - 0.55) / 0.15;
+    return [Math.round(155 + 100 * s), Math.round(235 - 30 * s), Math.round(120 - 90 * s)];
+  }
+  if (t < 0.85) {
+    const s = (t - 0.7) / 0.15;
+    return [Math.round(255), Math.round(205 - 90 * s), Math.round(30)];
+  }
+  return [255, Math.round(115 - 30 * ((t - 0.85) / 0.15)), 0];
+}
+
+function drawSpectrogramMode(freqData, W, H) {
+  const marginTop = 18;
+  const marginBottom = 42;
+  const marginLeft = 12;
+  const marginRight = 12;
+  const plotW = W - marginLeft - marginRight;
+  const plotH = H - marginTop - marginBottom;
+
+  const numRows = Math.max(MIN_SPECTROGRAM_ROWS, Math.min(MAX_SPECTROGRAM_ROWS, Math.floor(plotH)));
+
+  if (!spectrogramBuffer) {
+    spectrogramBuffer = new Array(numRows);
+    for (let i = 0; i < numRows; i++) spectrogramBuffer[i] = new Uint8Array(bufferLen);
+  } else if (spectrogramBuffer.length !== numRows) {
+    const oldLen = spectrogramBuffer.length;
+    const newBuffer = new Array(numRows);
+    if (numRows > oldLen) {
+      const diff = numRows - oldLen;
+      for (let i = 0; i < diff; i++) newBuffer[i] = new Uint8Array(bufferLen);
+      for (let i = 0; i < oldLen; i++) newBuffer[diff + i] = spectrogramBuffer[i];
+    } else {
+      const diff = oldLen - numRows;
+      for (let i = 0; i < numRows; i++) newBuffer[i] = spectrogramBuffer[diff + i];
+    }
+    spectrogramBuffer = newBuffer;
+  }
+
+  spectrogramBuffer.copyWithin(0, 1);
+  spectrogramBuffer[numRows - 1] = new Uint8Array(freqData);
+
+  const binStep = bufferLen / plotW;
+  const rowH = Math.max(1, Math.ceil(plotH / numRows));
+
+  if (!offscreenCanvas || offscreenCanvas.width !== plotW || offscreenCanvas.height !== plotH) {
+    offscreenCanvas = document.createElement('canvas');
+    offscreenCanvas.width = plotW;
+    offscreenCanvas.height = plotH;
+  }
+  const offCtx = offscreenCanvas.getContext('2d');
+  const imageData = offCtx.createImageData(plotW, plotH);
+  const pixels = imageData.data;
+
+  for (let row = 0; row < numRows; row++) {
+    const imgY = plotH - 1 - Math.round((row / (numRows - 1)) * (plotH - 1));
+    const srcRow = spectrogramBuffer[row];
+    for (let px = 0; px < plotW; px++) {
+      const binIdx = Math.floor(px * binStep);
+      const val = srcRow[Math.min(binIdx, bufferLen - 1)] / 255;
+      const [r, g, b] = spectrogramColor(val);
+      for (let dy = 0; dy < rowH && (imgY + dy) < plotH; dy++) {
+        const base = ((imgY + dy) * plotW + px) * 4;
+        pixels[base] = r; pixels[base + 1] = g; pixels[base + 2] = b; pixels[base + 3] = 255;
+      }
+    }
+  }
+  offCtx.putImageData(imageData, 0, 0);
+  ctx.drawImage(offscreenCanvas, marginLeft, marginTop);
+
+  // Grid overlay
+  ctx.strokeStyle = 'rgba(16, 133, 72, 0.10)';
+  ctx.lineWidth = 0.5;
+  for (let i = 1; i < 8; i++) {
+    const y = Math.round(marginTop + (plotH / 8) * i) + 0.5;
+    ctx.beginPath(); ctx.moveTo(marginLeft, y); ctx.lineTo(W - marginRight, y); ctx.stroke();
+  }
+
+  // Frequency labels
+  const freqY = H - 14;
+  ctx.font = '9px "JetBrains Mono", monospace';
+  ctx.fillStyle = LABEL_COLOR;
+  ctx.textBaseline = 'bottom';
+  ctx.textAlign = 'center';
+  [['20',0.04],['100',0.22],['500',0.40],['2k',0.58],['8k',0.76],['20k',0.94]].forEach(([hz, xFrac]) => {
+    ctx.fillText(hz, marginLeft + plotW * xFrac, freqY);
+  });
+  ctx.textAlign = 'right';
+  ctx.fillStyle = LABEL_DIM;
+  ctx.fillText('Hz', W - marginRight, freqY);
+
+  // Time labels on right edge
+  ctx.textAlign = 'left';
+  ctx.font = '7px "JetBrains Mono", monospace';
+  ctx.fillStyle = LABEL_DIM;
+  ctx.fillText('now', W - marginRight + 4, marginTop + 8);
+  ctx.fillText('←', W - marginRight + 4, marginTop + plotH);
+
+  guide.textContent =
+    `SPECTROGRAM 布局: 上留白=${marginTop} 下留白=${marginBottom} 左=${marginLeft} 右=${marginRight}\n` +
+    `绘图区 ${plotW}x${plotH} @ (${marginLeft},${marginTop})  行数=${numRows} 行高=${rowH}\n` +
+    `滚动方向: 新数据在最上('now' 标签处)，历史向下沉   |  频率轴: 左低右高`;
+}
+
+function draw() {
+  const W = +wIn.value, H = +hIn.value;
+  cv.width = W; cv.height = H;
+  const amp = (+aIn.value / 100) * (playChk.checked ? 1 : 0);
+  const timeData = genTimeData(amp);
+  const { f: freqData, peak } = genFreqData(amp);
+
+  ctx.fillStyle = BG_COLOR; ctx.fillRect(0, 0, W, H);
+
+  if (modeSel.value === 'spectrogram') {
+    drawSpectrogramMode(freqData, W, H);
+  } else {
+    const wfTop = Math.round(H * LAYOUT.waveformTop);
+    const wfH = Math.round(H * LAYOUT.waveformHeight);
+    const divH = Math.round(H * LAYOUT.dividerH);
+    const spTop = wfTop + wfH + divH;
+    const spH = Math.round(H * LAYOUT.spectrumHeight);
+    const spBaseline = spTop + spH;
+    drawGrid(W, H, wfTop, wfH, spTop, spH, spBaseline);
+    drawWaveform(timeData, W, wfTop, wfH);
+    if (peak > 5) drawSpectrum(freqData, W, spTop, spH);
+    drawLabels(W, H, wfTop, wfH, spBaseline);
+    guide.textContent =
+      `布局参数 (LAYOUT): waveformTop=${LAYOUT.waveformTop} waveformHeight=${LAYOUT.waveformHeight} dividerH=${LAYOUT.dividerH} spectrumHeight=${LAYOUT.spectrumHeight}\n` +
+      `画布 ${W}x${H} → 波形区 y=${wfTop}..${wfTop + wfH} (${Math.round(wfH / H * 100)}%)  |  频谱区 y=${spTop}..${spBaseline} (${Math.round(spH / H * 100)}%)  |  底部留白 ${H - spBaseline}px`;
+  }
+  requestAnimationFrame(draw);
+}
+draw();
+</script>
+</body>
+</html>
