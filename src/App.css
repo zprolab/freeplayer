@@ -802,8 +802,8 @@ body {
   display: flex;
   align-items: center;
   gap: 14px;
-  width: 240px;
-  min-width: 200px;
+  width: 350px;
+  min-width: 320px;
   justify-content: flex-end;
 }
 
