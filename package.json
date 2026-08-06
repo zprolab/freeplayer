@@ -2,71 +2,22 @@
   "name": "freeplayer",
   "version": "1.0.0",
   "description": "A local music player with metadata tracking and listening statistics",
-  "main": "electron/main.js",
   "scripts": {
-    "postinstall": "electron-rebuild -f -w better-sqlite3",
-    "dev": "concurrently \"vite\" \"wait-on http://localhost:5173 && electron .\"",
+    "dev": "bash shell/scripts/dev.sh",
     "build": "vite build",
     "vite:dev": "vite",
-    "electron:dev": "electron .",
     "test": "vitest run",
     "test:watch": "vitest",
-    "pack": "vite build && electron-builder --dir",
-    "dist": "vite build && electron-builder",
-    "dist:mac": "vite build && electron-builder --mac",
-    "dist:win": "vite build && electron-builder --win",
-    "dist:linux": "vite build && electron-builder --linux"
-  },
-  "dependencies": {
-    "better-sqlite3": "^11.7.0",
-    "iconv-lite": "^0.7.2",
-    "music-metadata": "^10.5.0"
+    "shell:dev": "bash shell/scripts/dev.sh",
+    "shell:bundle": "vite build && make -C shell bundle",
+    "shell:dist": "bash shell/scripts/package.sh"
   },
   "devDependencies": {
-    "@electron/rebuild": "^4.0.4",
     "@vitejs/plugin-react": "^4.3.4",
-    "concurrently": "^9.1.2",
-    "electron": "^33.3.1",
-    "electron-builder": "^26.8.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "vite": "^6.0.7",
-    "vitest": "^4.1.7",
-    "wait-on": "^8.0.3"
+    "vitest": "^4.1.7"
   },
-  "build": {
-    "appId": "com.freeplayer.app",
-    "productName": "FreePlayer",
-    "directories": {
-      "output": "release"
-    },
-    "files": [
-      "dist/**/*",
-      "electron/**/*",
-      "node_modules/**/*",
-      "package.json"
-    ],
-    "mac": {
-      "category": "public.app-category.music",
-      "target": [
-        "dmg",
-        "zip"
-      ],
-      "hardenedRuntime": true,
-      "entitlements": "build/entitlements.mac.plist",
-      "entitlementsInherit": "build/entitlements.mac.plist"
-    },
-    "win": {
-      "target": [
-        "nsis"
-      ]
-    },
-    "linux": {
-      "target": [
-        "AppImage",
-        "deb"
-      ],
-      "category": "Audio"
-    }
-  }
+  "packageManager": "pnpm@11.9.0+sha512.bd682d5d03fe525ef7c9fd6780c6884d1e756ac4c9c9fe00c538782824310dcf90e3ddc4f53835f06dfaebd5085e41855e0bcbb3b60de2ac5bbab89e5036f03b"
 }
