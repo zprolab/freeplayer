@@ -13,12 +13,22 @@ export default function Settings({
 }) {
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [trayEnabled, setTrayEnabled] = useState(true); // default true
+  const [trayNotify, setTrayNotify] = useState(true);
+  const [startOnBoot, setStartOnBoot] = useState(false);
 
   React.useEffect(() => {
     window.freeplayer.getSetting('tray_enabled').then(val => {
       if (val !== undefined && val !== null) {
         setTrayEnabled(val === true || val === 'true' || val === 1 || val === '1');
       }
+    }).catch(() => {});
+    window.freeplayer.getSetting('tray_notify').then(val => {
+      if (val !== undefined && val !== null) {
+        setTrayNotify(val === true || val === 'true' || val === 1 || val === '1');
+      }
+    }).catch(() => {});
+    window.freeplayer.getLoginItemSettings().then(settings => {
+      setStartOnBoot(settings.openAtLogin);
     }).catch(() => {});
   }, []);
 
@@ -160,6 +170,49 @@ export default function Settings({
             <span className="toggle-slider" />
           </label>
         </div>
+
+        {trayEnabled && (
+          <>
+            <div className="playback-row">
+              <div className="playback-label-group">
+                <span className="playback-label">Tray Notification</span>
+                <span className="playback-hint">Show a notification when the app is minimized to the system tray</span>
+              </div>
+              <label className="toggle-switch">
+                <input
+                  type="checkbox"
+                  checked={trayNotify}
+                  onChange={(e) => {
+                    const val = e.target.checked;
+                    setTrayNotify(val);
+                    window.freeplayer.setSetting({ key: 'tray_notify', value: val });
+                  }}
+                />
+                <span className="toggle-slider" />
+              </label>
+            </div>
+
+            <div className="playback-row">
+              <div className="playback-label-group">
+                <span className="playback-label">Launch at Login</span>
+                <span className="playback-hint">Automatically start FreePlayer when you log in</span>
+              </div>
+              <label className="toggle-switch">
+                <input
+                  type="checkbox"
+                  checked={startOnBoot}
+                  onChange={(e) => {
+                    const val = e.target.checked;
+                    setStartOnBoot(val);
+                    window.freeplayer.setSetting({ key: 'start_on_boot', value: val });
+                    window.freeplayer.setLoginItemSettings({ openAtLogin: val, openAsHidden: true });
+                  }}
+                />
+                <span className="toggle-slider" />
+              </label>
+            </div>
+          </>
+        )}
       </div>
 
       {/* Danger Zone */}
