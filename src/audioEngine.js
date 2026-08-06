@@ -9,6 +9,13 @@ export class AudioEngine {
     this.sourceNode = null;
     this.connectedElement = null;
     this._pendingGainDb = 0;
+    // WKWebView/Safari freeze the AudioContext without a user gesture;
+    // any interaction unlocks it so late-mounted visualizers get data.
+    this._unlock = () => this.resume();
+    if (typeof document !== 'undefined') {
+      document.addEventListener('pointerdown', this._unlock);
+      document.addEventListener('keydown', this._unlock);
+    }
   }
 
   connect(audioElement) {
@@ -39,6 +46,10 @@ export class AudioEngine {
         this.gainNode.connect(this.ctx.destination);
         this.connectedElement = audioElement;
       }
+      // Late graph wiring (e.g. visualizer mounted after playback started)
+      // must not leave the context suspended — that freezes the analyser
+      // AND silences the element routed through it.
+      this.resume();
       return this.analyser;
     } catch (err) {
       console.warn('Audio graph wiring failed:', err.message);
@@ -49,9 +60,22 @@ export class AudioEngine {
   }
 
   resume() {
-    if (this.ctx?.state === 'suspended') {
-      this.ctx.resume();
-    }
+    if (!this.ctx || this.ctx.state === 'closed') return;
+    if (this.ctx.state === 'running') return;
+    const tryOnce = () => {
+      if (!this.ctx || this.ctx.state === 'closed') return;
+      if (this.ctx.state === 'running') return;
+      try {
+        this.ctx.resume().then(() => {
+          if (this.ctx && this.ctx.state === 'suspended') {
+            setTimeout(tryOnce, 250);
+          }
+        }).catch(() => setTimeout(tryOnce, 250));
+      } catch {
+        setTimeout(tryOnce, 250);
+      }
+    };
+    tryOnce();
   }
 
   setGain(gainDb) {

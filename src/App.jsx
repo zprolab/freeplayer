@@ -29,6 +29,15 @@ export default function App() {
     handleAddToPlaylist, handleRemoveFromPlaylist, handleOpenCreateForTrack,
   } = usePlaylists();
 
+  // Native shell: file drops arrive with real filesystem paths
+  React.useEffect(() => {
+    if (!window.freeplayer?.onDropFiles) return;
+    window.freeplayer.onDropFiles((paths) => {
+      if (state.view !== VIEWS.LIBRARY || state.importModalOpen) return;
+      dispatch({ type: 'SET', payload: { initialPaths: paths, importModalOpen: true } });
+    });
+  }, [state.view, state.importModalOpen, dispatch]);
+
   // Load playlists on mount
   React.useEffect(() => {
     loadPlaylists();
@@ -265,8 +274,6 @@ export default function App() {
                   audioElement={audioRef.current}
                   visualizerMode={state.visualizerMode}
                   onVisualizerModeChange={(m) => dispatch({ type: 'SET', payload: { visualizerMode: m } })}
-                  playMode={state.playMode}
-                  onPlayModeChange={(m) => dispatch({ type: 'SET_PLAY_MODE', payload: m })}
                 />
               )}
               {state.view === VIEWS.STATS && <Stats />}
