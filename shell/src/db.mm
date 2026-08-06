@@ -94,6 +94,9 @@ NSString *defaultDbPath() {
 
 BOOL open(NSString *path) {
   gDbPath = path;
+  // sqlite3 creates the file but not its parent directory
+  [NSFileManager.defaultManager createDirectoryAtPath:path.stringByDeletingLastPathComponent
+                          withIntermediateDirectories:YES attributes:nil error:nil];
   if (sqlite3_open_v2(path.UTF8String, &gDb,
                       SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_FULLMUTEX,
                       nullptr) != SQLITE_OK) {
@@ -381,8 +384,14 @@ BOOL clearTrackLrc(int64_t trackId) {
 }
 
 BOOL resetDatabase() {
-  return runExec(@"DELETE FROM playlist_tracks; DELETE FROM play_history; DELETE FROM playlists;"
-                 @" DELETE FROM tracks; DELETE FROM settings;", @[]);
+  // sqlite3_exec runs ALL statements; runExec only compiles the first
+  char *err = nullptr;
+  int rc = sqlite3_exec(gDb,
+    "DELETE FROM playlist_tracks; DELETE FROM play_history; DELETE FROM playlists;"
+    " DELETE FROM tracks; DELETE FROM settings;",
+    nullptr, nullptr, &err);
+  if (err) sqlite3_free(err);
+  return rc == SQLITE_OK;
 }
 
 } // namespace fpdb
