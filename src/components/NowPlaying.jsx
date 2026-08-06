@@ -17,12 +17,13 @@ export default function NowPlaying({
   queue, queueIndex, onPlayFromQueue,
   audioElement,
   visualizerMode, onVisualizerModeChange,
-  playMode, onPlayModeChange,
 }) {
   const [coverUrl, setCoverUrl] = useState(null);
   const [lrcContent, setLrcContent] = useState(null);
   const [lrcPath, setLrcPath] = useState(null);
   const [isImmersive, setIsImmersive] = useState(false);
+  const [tab, setTab] = useState('overview');
+  const [queueOpen, setQueueOpen] = useState(false);
 
   useEffect(() => {
     let stale = false;
@@ -105,173 +106,158 @@ export default function NowPlaying({
     );
   }
 
-  const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
+  const specRows = [];
+  if (currentTrack.file_format) specRows.push(['Format', currentTrack.file_format.toUpperCase()]);
+  if (currentTrack.bitrate) specRows.push(['Bitrate', `${currentTrack.bitrate} kbps`]);
+  if (currentTrack.sample_rate) specRows.push(['Sample', `${(currentTrack.sample_rate / 1000).toFixed(1)} kHz`]);
+  if (currentTrack.year) specRows.push(['Year', currentTrack.year]);
+  if (currentTrack.genre) specRows.push(['Genre', currentTrack.genre]);
+
+  const lyrics = (
+    <LyricsDisplay
+      lrcContent={lrcContent}
+      currentTime={currentTime}
+      isPlaying={isPlaying}
+      onUpload={handleUploadLrc}
+      onImmersive={() => setIsImmersive(true)}
+      onRemove={handleRemoveLrc}
+      autoScroll
+    />
+  );
 
   return (
     <div className="now-playing">
-      {/* Waveform Visualizer — hero element */}
-      <WaveformVisualizer
-        audioElement={audioElement}
-        isPlaying={isPlaying}
-        trackId={currentTrack?.id}
-        mode={visualizerMode}
-        onModeChange={onVisualizerModeChange}
-      />
+      {/* View tabs */}
+      <div className="np-tabs" role="tablist">
+        <button
+          className={`np-tab-btn ${tab === 'overview' ? 'np-tab-btn--active' : ''}`}
+          onClick={() => setTab('overview')}
+        >
+          Overview
+        </button>
+        <button
+          className={`np-tab-btn ${tab === 'lyrics' ? 'np-tab-btn--active' : ''}`}
+          onClick={() => setTab('lyrics')}
+        >
+          Lyrics
+        </button>
+        <button
+          className={`np-tab-btn ${tab === 'scope' ? 'np-tab-btn--active' : ''}`}
+          onClick={() => setTab('scope')}
+        >
+          Scope
+        </button>
+      </div>
 
-      {/* Track info + cover */}
-      <div className="np-hero">
-        <div className={`np-cover ${isPlaying ? 'np-cover--spinning' : ''}`}>
-          {coverUrl ? (
-            <img src={coverUrl} alt="" className="np-cover-img" />
-          ) : (
-            <div className="np-cover-placeholder">
-              <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1">
-                <path d="M9 18V5l12-2v13"/>
-                <circle cx="6" cy="18" r="3"/>
-                <circle cx="18" cy="16" r="3"/>
-              </svg>
+      {/* ── Overview: cover + track sheet (left) / lyrics (right) ── */}
+      {tab === 'overview' && (
+        <div className="np-overview">
+          <div className="np-left">
+            <div className="np-cover">
+              {coverUrl ? (
+                <img src={coverUrl} alt="" className="np-cover-img" />
+              ) : (
+                <div className="np-cover-placeholder">
+                  <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1">
+                    <path d="M9 18V5l12-2v13"/>
+                    <circle cx="6" cy="18" r="3"/>
+                    <circle cx="18" cy="16" r="3"/>
+                  </svg>
+                </div>
+              )}
             </div>
-          )}
-        </div>
 
-        <div className="np-info">
-          <h2 className="np-title">{currentTrack.title}</h2>
-          <p className="np-artist">{currentTrack.artist}</p>
-          {currentTrack.album !== 'Unknown Album' && (
-            <p className="np-album">{currentTrack.album}</p>
-          )}
-          <div className="np-meta-tags">
-            {currentTrack.year && <span className="meta-tag">{currentTrack.year}</span>}
-            {currentTrack.genre && <span className="meta-tag">{currentTrack.genre}</span>}
-            <span className="meta-tag">{currentTrack.file_format?.toUpperCase()}</span>
-            {currentTrack.bitrate && <span className="meta-tag">{currentTrack.bitrate} kbps</span>}
-            {currentTrack.sample_rate && (
-              <span className="meta-tag">{((currentTrack.sample_rate) / 1000).toFixed(1)} kHz</span>
+            <div className="np-info">
+              <h2 className="np-title">{currentTrack.title}</h2>
+              <p className="np-artist">{currentTrack.artist}</p>
+              {currentTrack.album !== 'Unknown Album' && (
+                <p className="np-album">{currentTrack.album}</p>
+              )}
+              {specRows.length > 0 && (
+                <dl className="np-spec">
+                  {specRows.map(([label, value]) => (
+                    <React.Fragment key={label}>
+                      <dt className="np-spec-label">{label}</dt>
+                      <dd className="np-spec-value">{value}</dd>
+                    </React.Fragment>
+                  ))}
+                </dl>
+              )}
+            </div>
+          </div>
+
+          <div className="np-lyrics-pane">{lyrics}</div>
+        </div>
+      )}
+
+      {/* ── Full lyrics ── */}
+      {tab === 'lyrics' && (
+        <div className="np-lyrics-tab">{lyrics}</div>
+      )}
+
+      {/* ── Scope: full-size visualizer ── */}
+      {tab === 'scope' && (
+        <div className="np-scope">
+          <div className="np-scope-track mono">
+            <span className="np-scope-label">MONITORING</span>
+            <span className="np-scope-sep">·</span>
+            <span className="np-scope-title">{currentTrack.title}</span>
+            <span className="np-scope-sep">—</span>
+            <span className="np-scope-artist">{currentTrack.artist}</span>
+            {currentTrack.file_format && (
+              <span className="np-scope-format">{currentTrack.file_format.toUpperCase()}</span>
             )}
           </div>
+          <WaveformVisualizer
+            audioElement={audioElement}
+            isPlaying={isPlaying}
+            trackId={currentTrack?.id}
+            mode={visualizerMode}
+            onModeChange={onVisualizerModeChange}
+          />
         </div>
-      </div>
+      )}
 
-      {/* Lyrics */}
-      <LyricsDisplay
-        lrcContent={lrcContent}
-        currentTime={currentTime}
-        isPlaying={isPlaying}
-        onUpload={handleUploadLrc}
-        onImmersive={() => setIsImmersive(true)}
-        onRemove={handleRemoveLrc}
-      />
-
-      {/* Progress */}
-      <div className="np-progress-section">
-        <div className="np-progress-bar" onClick={(e) => {
-          const rect = e.currentTarget.getBoundingClientRect();
-          onSeek((e.clientX - rect.left) / rect.width * duration);
-        }}>
-          <div className="np-progress-fill" style={{ width: `${progress}%` }} />
-        </div>
-        <div className="np-time-row mono">
-          <span>{formatTime(currentTime)}</span>
-          <span>{formatTime(duration)}</span>
-        </div>
-      </div>
-
-      {/* Controls */}
-      <div className="np-controls">
-        <button className="np-ctrl-btn" onClick={onPrev}>
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
-            <polygon points="19,20 9,12 19,4 19,20"/>
-            <rect x="4" y="4" width="3" height="16"/>
-          </svg>
-        </button>
-        <button className="np-ctrl-btn np-ctrl-btn--play" onClick={onTogglePlay}>
-          {isPlaying ? (
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor">
-              <rect x="5" y="3" width="5" height="18" rx="1.5"/>
-              <rect x="14" y="3" width="5" height="18" rx="1.5"/>
-            </svg>
-          ) : (
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor">
-              <polygon points="6,3 20,12 6,21"/>
-            </svg>
-          )}
-        </button>
-        <button className="np-ctrl-btn" onClick={onNext}>
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
-            <polygon points="5,4 15,12 5,20 5,4"/>
-            <rect x="17" y="4" width="3" height="16"/>
-          </svg>
-        </button>
-      </div>
-
-      {/* Play Mode */}
-      <div className="np-play-mode">
-        <div className="np-play-mode-group">
-          <button
-            className={`np-play-mode-btn ${playMode === 'sequential' ? 'np-play-mode-btn--active' : ''}`}
-            onClick={() => onPlayModeChange('sequential')}
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="1 4 1 10 7 10"/>
-              <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>
-            </svg>
-            List Loop
-          </button>
-          <button
-            className={`np-play-mode-btn ${playMode === 'repeat-one' ? 'np-play-mode-btn--active' : ''}`}
-            onClick={() => onPlayModeChange('repeat-one')}
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="1 4 1 10 7 10"/>
-              <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>
-              <path d="M13 15v-4l-1.5 1.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-            Repeat One
-          </button>
-          <button
-            className={`np-play-mode-btn ${playMode === 'shuffle' ? 'np-play-mode-btn--active' : ''}`}
-            onClick={() => onPlayModeChange('shuffle')}
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="16 3 21 3 21 8"/>
-              <line x1="4" y1="20" x2="21" y2="3"/>
-              <polyline points="21 16 21 21 16 21"/>
-              <line x1="15" y1="15" x2="21" y2="21"/>
-              <line x1="4" y1="4" x2="9" y2="9"/>
-            </svg>
-            Shuffle
-          </button>
-        </div>
-      </div>
-
-      {/* Queue */}
-      {queue.length > 1 && (
+      {/* ── Queue (overview only, collapsible) ── */}
+      {tab === 'overview' && queue.length > 1 && (
         <div className="np-queue">
-          <h3 className="np-section-title">Queue</h3>
-          <div className="queue-list">
-            {queue.map((track, idx) => (
-              <button
-                key={`${track.id}-${idx}`}
-                className={`queue-item ${idx === queueIndex ? 'queue-item--active' : ''} ${idx < queueIndex ? 'queue-item--played' : ''}`}
-                onClick={() => onPlayFromQueue(track, queue)}
-              >
-                <span className="queue-idx mono">
-                  {idx === queueIndex && isPlaying ? (
-                    <span className="playing-indicator">
-                      <span className="eq-bar" />
-                      <span className="eq-bar" />
-                      <span className="eq-bar" />
-                    </span>
-                  ) : (
-                    idx + 1
-                  )}
-                </span>
-                <span className="queue-title">{track.title}</span>
-                <span className="queue-artist">{track.artist}</span>
-                <span className="queue-duration mono">{formatTime(track.duration)}</span>
-              </button>
-            ))}
-          </div>
+          <button className="np-queue-toggle" onClick={() => setQueueOpen((o) => !o)}>
+            <h3 className="np-section-title">Queue</h3>
+            <span className="np-queue-count mono">{queue.length}</span>
+            <svg
+              className={`np-queue-chevron ${queueOpen ? 'np-queue-chevron--open' : ''}`}
+              width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+            >
+              <polyline points="6 9 12 15 18 9"/>
+            </svg>
+          </button>
+          {queueOpen && (
+            <div className="queue-list">
+              {queue.map((track, idx) => (
+                <button
+                  key={`${track.id}-${idx}`}
+                  className={`queue-item ${idx === queueIndex ? 'queue-item--active' : ''} ${idx < queueIndex ? 'queue-item--played' : ''}`}
+                  onClick={() => onPlayFromQueue(track, queue)}
+                >
+                  <span className="queue-idx mono">
+                    {idx === queueIndex && isPlaying ? (
+                      <span className="playing-indicator">
+                        <span className="eq-bar" />
+                        <span className="eq-bar" />
+                        <span className="eq-bar" />
+                      </span>
+                    ) : (
+                      idx + 1
+                    )}
+                  </span>
+                  <span className="queue-title">{track.title}</span>
+                  <span className="queue-artist">{track.artist}</span>
+                  <span className="queue-duration mono">{formatTime(track.duration)}</span>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       )}
 

@@ -39,39 +39,6 @@ function formatTime(seconds) {
   return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
-/* ── Color extraction from cover image ── */
-
-function extractColorFromCover(coverUrl) {
-  return new Promise((resolve) => {
-    if (!coverUrl) { resolve('160,140,100'); return; }
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.onload = () => {
-      const canvas = document.createElement('canvas');
-      const size = 4; // tiny sample
-      canvas.width = size;
-      canvas.height = size;
-      const ctx = canvas.getContext('2d');
-      try {
-        ctx.drawImage(img, 0, 0, size, size);
-        const data = ctx.getImageData(0, 0, size, size).data;
-        let r = 0, g = 0, b = 0, count = 0;
-        for (let i = 0; i < data.length; i += 4) {
-          r += data[i];
-          g += data[i + 1];
-          b += data[i + 2];
-          count++;
-        }
-        resolve(`${Math.round(r / count)},${Math.round(g / count)},${Math.round(b / count)}`);
-      } catch (_) {
-        resolve('160,140,100');
-      }
-    };
-    img.onerror = () => resolve('160,140,100');
-    img.src = coverUrl;
-  });
-}
-
 export default function ImmersiveMode({
   track, lrcContent, currentTime, duration, coverUrl,
   isPlaying, onSeek, onTogglePlay, onNext, onPrev, onClose,
@@ -79,18 +46,10 @@ export default function ImmersiveMode({
   const lyrics = useMemo(() => parseLRC(lrcContent), [lrcContent]);
   const listRef = useRef(null);
   const prevActiveRef = useRef(-1);
-  const [bgColor, setBgColor] = useState('30,25,18');
   const [zoom, setZoom] = useState(0); // 0=normal, each ±1 = step
   const ZOOM_STEPS = [-2, -1, 0, 1, 2, 3, 4];
   const baseSize = 22;
   const fontSize = baseSize + zoom * 4;
-
-  // Extract dominant color from cover for background
-  useEffect(() => {
-    let stale = false;
-    extractColorFromCover(coverUrl).then((c) => { if (!stale) setBgColor(c); });
-    return () => { stale = true; };
-  }, [coverUrl]);
 
   // Active line
   const activeIndex = useMemo(() => {
@@ -135,20 +94,15 @@ export default function ImmersiveMode({
   }, []);
 
   return (
-    <div
-      className="immersive-overlay"
-      style={{
-        '--im-bg-rgb': bgColor,
-      }}
-    >
-      {/* Animated background gradient */}
+    <div className="immersive-overlay">
+      {/* Animated background gradient — brand orange on dark */}
       <div
         className="immersive-bg"
         style={{
           background: `
-            radial-gradient(ellipse 80% 60% at 50% 40%, rgba(${bgColor},0.22) 0%, transparent 70%),
-            radial-gradient(ellipse 50% 80% at 20% 20%, rgba(${bgColor},0.12) 0%, transparent 60%),
-            radial-gradient(ellipse 40% 60% at 80% 80%, rgba(${bgColor},0.08) 0%, transparent 50%),
+            radial-gradient(ellipse 80% 60% at 50% 40%, rgba(226, 67, 41, 0.28) 0%, transparent 70%),
+            radial-gradient(ellipse 50% 80% at 20% 20%, rgba(226, 67, 41, 0.16) 0%, transparent 60%),
+            radial-gradient(ellipse 40% 60% at 80% 80%, rgba(226, 67, 41, 0.10) 0%, transparent 50%),
             #0d0d10
           `,
         }}
