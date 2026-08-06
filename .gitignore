@@ -8,3 +8,5 @@ release/
 Thumbs.db
 .superpowers/
 docs/
+shell/build/
+shell/release/
