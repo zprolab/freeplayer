@@ -23,10 +23,17 @@ export function useLibrary() {
       dispatch({ type: 'SET', payload: { isSetup: result.setup, libraryDir: result.libraryDir || '' } });
       const impMode = await window.freeplayer.getSetting('import_mode');
       if (impMode) dispatch({ type: 'SET', payload: { importMode: impMode } });
-      const defVol = await window.freeplayer.getSetting('default_volume');
-      if (defVol) {
+      // Global persistent volume: restore last-used value; fall back to
+      // default_volume (first run), then 0.8 — no jumps on restart.
+      const savedVol = await window.freeplayer.getSetting('volume');
+      const defVol = savedVol != null
+        ? savedVol
+        : await window.freeplayer.getSetting('default_volume');
+      if (defVol != null) {
         const vol = parseFloat(defVol);
-        dispatch({ type: 'SET', payload: { defaultVolume: vol, volume: vol } });
+        if (isFinite(vol)) {
+          dispatch({ type: 'SET', payload: { defaultVolume: vol, volume: vol } });
+        }
       }
       const defVis = await window.freeplayer.getSetting('default_visualizer');
       if (defVis) {

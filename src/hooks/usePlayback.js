@@ -33,7 +33,7 @@ export function usePlayback() {
 
   const playTrack = useCallback(async (track) => {
     dispatch({ type: 'SET_CURRENT_TRACK', payload: track });
-    audioRef.current.src = `media://${track.file_path}`;
+    audioRef.current.src = `media://${encodeURI(track.file_path)}`;
     const gainDb = track.replaygain_gain || 0;
     audioEngine.setGain(gainDb);
     try {
@@ -120,6 +120,9 @@ export function usePlayback() {
   const handleVolumeChange = useCallback((vol) => {
     audioRef.current.volume = vol;
     dispatch({ type: 'SET_VOLUME', payload: vol });
+    // Persist globally so volume survives restarts (shared by all views)
+    window.freeplayer.setSetting({ key: 'volume', value: String(vol) })
+      .catch(() => {});
   }, [audioRef, dispatch]);
 
   const playTrackFromList = useCallback(async (track, trackList) => {
@@ -195,9 +198,10 @@ export function usePlayback() {
   }, [audioRef, playSessionIdRef, playStartTimeRef]);
 
   // Push playback state to main process for tray menu
+  // (fires on play/pause AND track change so the tray stays in sync)
   useEffect(() => {
     window.freeplayer?.sendPlaybackState(state.isPlaying);
-  }, [state.isPlaying]);
+  }, [state.isPlaying, state.currentTrack]);
 
   // System media key support
   useEffect(() => {
