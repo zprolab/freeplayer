@@ -311,8 +311,10 @@ function drawSpectrogramMode(ctx, freqData, bufferLen, W, H) {
   const rowH = Math.max(1, Math.ceil(plotH / numRows));
 
   // ── Render spectrogram via putImageData at device-pixel resolution ──
-  // Reuse the ImageData buffer across frames (only realloc on size change)
-  const dpr = window.devicePixelRatio || 1;
+  // Reuse the ImageData buffer across frames (only realloc on size change).
+  // dpr MUST match sizeCanvas' cap (min(devicePixelRatio, 1.5)) — putImageData
+  // writes raw device pixels and clips at the canvas backing store.
+  const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
   const dw = Math.round(W * dpr);
   const dh = Math.round(H * dpr);
   const dmTop = Math.round(18 * dpr);
