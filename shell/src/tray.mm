@@ -9,6 +9,7 @@
 #import <ServiceManagement/ServiceManagement.h>
 #import <ServiceManagement/SMAppService.h>
 #include "tray.h"
+#include "db.h"
 
 static NSStatusItem *gStatusItem = nil;
 static NSMenuItem *gPlayPauseItem = nil;
@@ -178,16 +179,38 @@ BOOL fptrayLoginItemEnabled(void) {
 
 BOOL fptraySetLoginItem(BOOL enabled) {
   if (@available(macOS 13.0, *)) {
-    @try {
-      if (enabled) {
-        [SMAppService.mainAppService registerAndReturnError:NULL];
-      } else {
-        [SMAppService.mainAppService unregisterAndReturnError:NULL];
-      }
-      return YES;
-    } @catch (NSException *e) {
-      return NO;
+    NSError *err = nil;
+    BOOL ok = enabled
+      ? [SMAppService.mainAppService registerAndReturnError:&err]
+      : [SMAppService.mainAppService unregisterAndReturnError:&err];
+    if (!ok) {
+      NSLog(@"[tray] login item %@ failed: %@", enabled ? @"register" : @"unregister",
+            err ?: @"unknown error");
     }
+    return ok;
   }
   return NO;
+}
+
+// Coerce a DB setting (may be NSString or NSNumber) to a boolean
+BOOL fptraySettingBool(NSString *key, BOOL fallback) {
+  id val = fpdb::getSetting(key, nil);
+  if (val == nil || [val isKindOfClass:NSNull.class]) return fallback;
+  if ([val isKindOfClass:NSNumber.class]) return [val boolValue];
+  if ([val isKindOfClass:NSString.class]) {
+    NSString *s = [(NSString *)val lowercaseString];
+    return [s isEqualToString:@"true"] || [s isEqualToString:@"1"]
+        || [s isEqualToString:@"1.0"] || [s isEqualToString:@"yes"]
+        || [s isEqualToString:@"on"] || [val boolValue];
+  }
+  return fallback;
+}
+
+// Notification when minimized to tray (tray_notify setting)
+void fptrayShowHiddenNotification(void) {
+  if (!fptraySettingBool(@"tray_notify", YES)) return;
+  NSUserNotification *n = [[NSUserNotification alloc] init];
+  n.title = @"FreePlayer";
+  n.informativeText = @"App is still running in the system tray";
+  [[NSUserNotificationCenter defaultUserNotificationCenter] deliverNotification:n];
 }

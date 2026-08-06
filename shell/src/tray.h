@@ -15,3 +15,5 @@ extern NSWindow *gWindow;
 
 BOOL fptrayLoginItemEnabled(void);
 BOOL fptraySetLoginItem(BOOL enabled);
+BOOL fptraySettingBool(NSString *key, BOOL fallback);
+void fptrayShowHiddenNotification(void);

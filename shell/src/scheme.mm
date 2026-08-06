@@ -4,12 +4,34 @@
 
 #import <Foundation/Foundation.h>
 #import <WebKit/WebKit.h>
+#include <atomic>
 
 static NSString *gWebRoot = nil;
 void fpSetWebRoot(NSString *root) { gWebRoot = [root copy]; }
 
+// Per-task cancellation flags (main-thread dictionary of atomics; the
+// streaming loop reads the atomic from a background queue).
+static NSMutableDictionary *gStoppedTasks = nil;
+static std::atomic<bool> *stoppedFlagForTask(id<WKURLSchemeTask> task) {
+  if (!gStoppedTasks) gStoppedTasks = [NSMutableDictionary dictionary];
+  NSNumber *key = @((uintptr_t)task);
+  std::atomic<bool> *flag = (std::atomic<bool> *)[gStoppedTasks[key] pointerValue];
+  if (!flag) {
+    flag = new std::atomic<bool>(false);
+    gStoppedTasks[key] = [NSValue valueWithPointer:flag];
+  }
+  return flag;
+}
+static void clearStoppedFlag(id<WKURLSchemeTask> task) {
+  NSNumber *key = @((uintptr_t)task);
+  std::atomic<bool> *flag = (std::atomic<bool> *)[gStoppedTasks[key] pointerValue];
+  if (flag) {
+    delete flag;
+    [gStoppedTasks removeObjectForKey:key];
+  }
+}
+
 @interface MediaSchemeHandler : NSObject <WKURLSchemeHandler>
-@property (nonatomic) BOOL stopped;
 @end
 
 static NSString *mimeForPath(NSString *path) {
@@ -122,9 +144,10 @@ static NSString *mimeForPath(NSString *path) {
   headers[@"Content-Length"] = [NSString stringWithFormat:@"%llu", length];
   NSHTTPURLResponse *response = [[NSHTTPURLResponse alloc] initWithURL:url statusCode:status HTTPVersion:@"HTTP/1.1" headerFields:headers];
 
-  self.stopped = NO;
+  // Per-task cancellation flag (stop on THIS task must not kill others)
+  std::atomic<bool> *stopped = stoppedFlagForTask(task);
   dispatch_async(dispatch_get_main_queue(), ^{
-    if (self.stopped) return;
+    if (stopped->load()) return;
     [task didReceiveResponse:response];
   });
 
@@ -133,13 +156,13 @@ static NSString *mimeForPath(NSString *path) {
   __block unsigned long long remaining = length;
   __block BOOL finished = NO;
   dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
-    while (remaining > 0 && !self.stopped) {
+    while (remaining > 0 && !stopped->load()) {
       NSUInteger n = (NSUInteger)MIN(remaining, chunk);
       NSData *data = [fh readDataOfLength:n];
       if (data.length == 0) break;
       NSData *copy = [data copy];
       dispatch_async(dispatch_get_main_queue(), ^{
-        if (!self.stopped && !finished) {
+        if (!stopped->load() && !finished) {
           @try { [task didReceiveData:copy]; } @catch (NSException *e) {}
         }
       });
@@ -147,16 +170,18 @@ static NSString *mimeForPath(NSString *path) {
     }
     dispatch_async(dispatch_get_main_queue(), ^{
       [fh closeFile];
-      if (!self.stopped && !finished) {
+      if (!stopped->load() && !finished) {
         finished = YES;
         @try { [task didFinish]; } @catch (NSException *e) {}
       }
+      clearStoppedFlag(task);
     });
   });
 }
 
 - (void)webView:(WKWebView *)webView stopURLSchemeTask:(id<WKURLSchemeTask>)task {
-  self.stopped = YES;
+  std::atomic<bool> *stopped = stoppedFlagForTask(task);
+  stopped->store(true);
 }
 
 @end

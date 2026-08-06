@@ -16,16 +16,22 @@ export default function Settings({
   const [trayNotify, setTrayNotify] = useState(true);
   const [startOnBoot, setStartOnBoot] = useState(false);
 
+  const coerceBool = (val) => {
+    if (val === true || val === 1) return true;
+    if (val === false || val === 0 || val == null) return false;
+    if (typeof val === 'string') {
+      const s = val.toLowerCase();
+      return s === 'true' || s === '1' || s === '1.0' || s === 'yes' || s === 'on';
+    }
+    return false;
+  };
+
   React.useEffect(() => {
     window.freeplayer.getSetting('tray_enabled').then(val => {
-      if (val !== undefined && val !== null) {
-        setTrayEnabled(val === true || val === 'true' || val === 1 || val === '1');
-      }
+      setTrayEnabled(coerceBool(val));
     }).catch(() => {});
     window.freeplayer.getSetting('tray_notify').then(val => {
-      if (val !== undefined && val !== null) {
-        setTrayNotify(val === true || val === 'true' || val === 1 || val === '1');
-      }
+      setTrayNotify(coerceBool(val));
     }).catch(() => {});
     window.freeplayer.getLoginItemSettings().then(settings => {
       setStartOnBoot(settings.openAtLogin);

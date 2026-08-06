@@ -59,9 +59,25 @@ NSWindow *gWindow = nil;
   NSLog(@"[shell] window delegate set: %@", window.delegate ? @"yes" : @"NO");
   [window center];
 
+  // Prod/dev decision FIRST — WKWebViewConfiguration is copied at
+  // initWithFrame:configuration:, so everything must be set before.
+  NSUserDefaults *defs = NSUserDefaults.standardUserDefaults;
+  NSString *webRoot = nil;
+  if ([[[NSBundle mainBundle] bundlePath] hasSuffix:@".app"]) {
+    webRoot = [[NSBundle mainBundle].resourcePath stringByAppendingPathComponent:@"web"];
+  }
+  NSString *defRoot = [defs stringForKey:@"FP_WEB_ROOT"];
+  if (defRoot.length > 0) webRoot = defRoot;
+  NSString *envRoot = NSProcessInfo.processInfo.environment[@"FP_WEB_ROOT"];
+  if (envRoot.length > 0) webRoot = envRoot;
+
   WKWebViewConfiguration *config = [[WKWebViewConfiguration alloc] init];
   config.mediaTypesRequiringUserActionForPlayback = WKAudiovisualMediaTypeNone;
   config.preferences.javaScriptCanOpenWindowsAutomatically = NO;
+  if (webRoot.length > 0 && [NSFileManager.defaultManager fileExistsAtPath:webRoot]) {
+    // Prod: no persistent cache/disk store needed
+    config.websiteDataStore = WKWebsiteDataStore.nonPersistentDataStore;
+  }
 
   gScheme = [[MediaSchemeHandler alloc] init];
   [config setURLSchemeHandler:gScheme forURLScheme:@"media"];
@@ -96,26 +112,10 @@ NSWindow *gWindow = nil;
     });
   }
 
-  // Prod: bundled .app serves UI from Resources/web via app://
-  // Dev:  FP_WEB_ROOT override, else vite dev server on :5173
-  // Config comes from NSUserDefaults first (settable via `defaults write`),
-  // falling back to env vars — so the app can be launched via `open`.
-  NSUserDefaults *defs = NSUserDefaults.standardUserDefaults;
-  NSString *webRoot = nil;
-  if ([[[NSBundle mainBundle] bundlePath] hasSuffix:@".app"]) {
-    webRoot = [[NSBundle mainBundle].resourcePath stringByAppendingPathComponent:@"web"];
-  }
-  NSString *defRoot = [defs stringForKey:@"FP_WEB_ROOT"];
-  if (defRoot.length > 0) webRoot = defRoot;
-  NSString *envRoot = NSProcessInfo.processInfo.environment[@"FP_WEB_ROOT"];
-  if (envRoot.length > 0) webRoot = envRoot;
-
   NSURL *loadURL = nil;
   if (webRoot.length > 0 && [NSFileManager.defaultManager fileExistsAtPath:webRoot]) {
     fpSetWebRoot(webRoot);
     loadURL = [NSURL URLWithString:@"app://index.html"];
-    // Prod: no persistent cache/disk store needed
-    config.websiteDataStore = WKWebsiteDataStore.nonPersistentDataStore;
     NSLog(@"[shell] prod mode, webRoot=%@", webRoot);
   } else {
     NSString *url = [defs stringForKey:@"FP_URL"];
@@ -141,12 +141,11 @@ NSWindow *gWindow = nil;
 }
 
 - (BOOL)windowShouldClose:(NSWindow *)sender {
-  id val = fpdb::getSetting(@"tray_enabled", @"true");
-  BOOL trayOn = val == nil || [val isEqualToString:@"true"] || [val isEqualToString:@"1"]
-             || ([val respondsToSelector:@selector(boolValue)] && [val boolValue]);
+  BOOL trayOn = fptraySettingBool(@"tray_enabled", YES);
   if (trayOn) {
     [sender orderOut:nil]; // hide, keep playing in the tray
     [self setBackgroundPlayback:YES];
+    fptrayShowHiddenNotification();
     return NO;
   }
   // Tray disabled: closing the window quits the app explicitly
