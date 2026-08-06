@@ -49,6 +49,11 @@ function spectrogramColor(t) {
 // ── Spectrogram history buffer (module-level, survives remount) ──
 let spectrogramBuffer = null;
 
+// Reusable per-frame buffers (avoid 2+ heap allocations per animation frame)
+let sharedTimeData = null;
+let sharedFreqData = null;
+let specImageData = null;
+
 // ═══════════════════════════════════════════════════════════════
 //  Component
 // ═══════════════════════════════════════════════════════════════
@@ -74,12 +79,13 @@ export default function WaveformVisualizer({ audioElement, isPlaying, trackId, m
     return () => audioElement.removeEventListener('play', resume);
   }, [audioElement]);
 
-  // Canvas sizing
+  // Canvas sizing — cap the backing scale: the visualizer is a live display,
+  // 1.5x keeps it sharp while halving canvas + ImageData memory vs 2x Retina
   const sizeCanvas = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const rect = canvas.getBoundingClientRect();
-    const dpr = window.devicePixelRatio || 1;
+    const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
     if (canvas.width !== rect.width * dpr || canvas.height !== rect.height * dpr) {
       canvas.width = rect.width * dpr;
       canvas.height = rect.height * dpr;
@@ -121,15 +127,17 @@ export default function WaveformVisualizer({ audioElement, isPlaying, trackId, m
       }
 
       const bufferLen = an.frequencyBinCount;
-      const freqData = new Uint8Array(bufferLen);
-      const timeData = new Uint8Array(bufferLen);
-      an.getByteFrequencyData(freqData);
-      an.getByteTimeDomainData(timeData);
+      if (!sharedFreqData || sharedFreqData.length !== bufferLen) {
+        sharedFreqData = new Uint8Array(bufferLen);
+        sharedTimeData = new Uint8Array(bufferLen);
+      }
+      an.getByteFrequencyData(sharedFreqData);
+      an.getByteTimeDomainData(sharedTimeData);
 
       if (mode === 'spectrogram') {
-        drawSpectrogramMode(ctx, freqData, bufferLen, W, H);
+        drawSpectrogramMode(ctx, sharedFreqData, bufferLen, W, H);
       } else {
-        drawWaveformMode(ctx, freqData, timeData, bufferLen, W, H);
+        drawWaveformMode(ctx, sharedFreqData, sharedTimeData, bufferLen, W, H);
       }
 
       animFrameRef.current = requestAnimationFrame(draw);
@@ -303,8 +311,7 @@ function drawSpectrogramMode(ctx, freqData, bufferLen, W, H) {
   const rowH = Math.max(1, Math.ceil(plotH / numRows));
 
   // ── Render spectrogram via putImageData at device-pixel resolution ──
-  // putImageData ignores the context transform, so we compute everything in
-  // device pixels — no offscreen canvas, no drawImage scaling ambiguity.
+  // Reuse the ImageData buffer across frames (only realloc on size change)
   const dpr = window.devicePixelRatio || 1;
   const dw = Math.round(W * dpr);
   const dh = Math.round(H * dpr);
@@ -316,8 +323,10 @@ function drawSpectrogramMode(ctx, freqData, bufferLen, W, H) {
   const dplotH = dh - dmTop - dmBottom;
   if (dplotW <= 0 || dplotH <= 0) return;
 
-  const imageData = ctx.createImageData(dplotW, dplotH);
-  const pixels = imageData.data;
+  if (!specImageData || specImageData.width !== dplotW || specImageData.height !== dplotH) {
+    specImageData = ctx.createImageData(dplotW, dplotH);
+  }
+  const pixels = specImageData.data;
 
   const dRowH = Math.max(1, Math.round(dplotH / numRows));
   for (let row = 0; row < numRows; row++) {
@@ -339,7 +348,7 @@ function drawSpectrogramMode(ctx, freqData, bufferLen, W, H) {
     }
   }
 
-  ctx.putImageData(imageData, dmLeft, dmTop);
+  ctx.putImageData(specImageData, dmLeft, dmTop);
 
   // Grid overlay
   ctx.strokeStyle = 'rgba(16, 133, 72, 0.10)';
