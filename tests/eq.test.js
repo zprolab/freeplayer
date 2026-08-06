@@ -1,5 +1,6 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { EQ_PRESETS, EQ_MIN, EQ_MAX, sliderFrac } from '../src/eqPresets';
+import { AudioEngine } from '../src/audioEngine';
 
 describe('EQ presets data', () => {
   it('has 6 presets with 10 bands each', () => {
@@ -28,5 +29,51 @@ describe('EQ presets data', () => {
     expect(sliderFrac(-12)).toBe(0);
     expect(sliderFrac(0)).toBe(0.5);
     expect(sliderFrac(12)).toBe(1);
+  });
+});
+
+describe('AudioEngine EQ', () => {
+  let engine;
+  beforeEach(() => {
+    engine = new AudioEngine();
+  });
+
+  it('creates 10 peaking filters on connect', () => {
+    engine.connect({});
+    expect(engine.eqFilters).toHaveLength(10);
+    engine.eqFilters.forEach((f, i) => {
+      expect(f.type).toBe('peaking');
+      expect(f.frequency.value).toBe([31, 62, 125, 250, 500, 1000, 2000, 4000, 8000, 16000][i]);
+      expect(f.Q.value).toBe(1.4142);
+    });
+  });
+
+  it('applyEq sets target gains per band with 0.05s smoothing', () => {
+    engine.connect({});
+    const gains = [6, 6, 5, 3.5, 2, 0, 0, 0, 0, 0];
+    const spies = engine.eqFilters.map((f) => vi.spyOn(f.gain, 'setTargetAtTime'));
+    engine.applyEq(gains, true);
+    spies.forEach((spy, i) => {
+      expect(spy).toHaveBeenCalledWith(gains[i], expect.any(Number), 0.05);
+    });
+  });
+
+  it('applyEq disabled flattens to 0dB', () => {
+    engine.connect({});
+    const spies = engine.eqFilters.map((f) => vi.spyOn(f.gain, 'setTargetAtTime'));
+    engine.applyEq([6, 6, 5, 3.5, 2, 0, 0, 0, 0, 0], false);
+    spies.forEach((spy) => {
+      expect(spy).toHaveBeenCalledWith(0, expect.any(Number), 0.05);
+    });
+  });
+
+  it('applyEq before connect is a no-op', () => {
+    expect(() => engine.applyEq([0, 0, 0, 0, 0, 0, 0, 0, 0, 0], true)).not.toThrow();
+  });
+
+  it('dispose releases eq filters', () => {
+    engine.connect({});
+    engine.dispose();
+    expect(engine.eqFilters).toBeNull();
   });
 });

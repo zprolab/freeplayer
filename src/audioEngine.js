@@ -1,12 +1,15 @@
 // AudioEngine — manages Web Audio API graph lifecycle
 // Single instance per app; survives React remount
 
+import { EQ_BANDS } from './eqPresets';
+
 export class AudioEngine {
   constructor() {
     this.ctx = null;
     this.analyser = null;
     this.gainNode = null;
     this.sourceNode = null;
+    this.eqFilters = null;
     this.connectedElement = null;
     this._pendingGainDb = 0;
     // WKWebView/Safari freeze the AudioContext without a user gesture;
@@ -26,6 +29,10 @@ export class AudioEngine {
 
     try {
       if (!this.ctx || this.ctx.state === 'closed') {
+        if (this.eqFilters) {
+          this.eqFilters.forEach((f) => { try { f.disconnect(); } catch {} });
+          this.eqFilters = null;
+        }
         this.ctx = new (window.AudioContext || window.webkitAudioContext)();
       }
       if (!this.analyser) {
@@ -39,10 +46,24 @@ export class AudioEngine {
         this.gainNode = this.ctx.createGain();
         this.gainNode.gain.value = Math.pow(10, this._pendingGainDb / 20);
       }
+      if (!this.eqFilters) {
+        this.eqFilters = EQ_BANDS.map((freq) => {
+          const f = this.ctx.createBiquadFilter();
+          f.type = 'peaking';
+          f.frequency.value = freq;
+          f.Q.value = 1.4142;
+          return f;
+        });
+      }
       if (this.connectedElement !== audioElement) {
         this.sourceNode = this.ctx.createMediaElementSource(audioElement);
         this.sourceNode.connect(this.analyser);
         this.analyser.connect(this.gainNode);
+        this.analyser.connect(this.eqFilters[0]);
+        for (let i = 1; i < this.eqFilters.length; i++) {
+          this.eqFilters[i - 1].connect(this.eqFilters[i]);
+        }
+        this.eqFilters[this.eqFilters.length - 1].connect(this.gainNode);
         this.gainNode.connect(this.ctx.destination);
         this.connectedElement = audioElement;
       }
@@ -87,6 +108,19 @@ export class AudioEngine {
     this.gainNode.gain.setTargetAtTime(targetGain, now, 0.05);
   }
 
+  applyEq(gains, enabled = true) {
+    this._pendingEqGains = gains;
+    this._pendingEqEnabled = enabled;
+    if (!this.eqFilters || !this.ctx) return;
+    const now = this.ctx.currentTime;
+    const targets = enabled ? gains : gains.map(() => 0);
+    this.eqFilters.forEach((f, i) => {
+      const t = Math.min(Math.max(targets[i] ?? 0, -12), 12);
+      f.gain.cancelScheduledValues(now);
+      f.gain.setTargetAtTime(t, now, 0.05);
+    });
+  }
+
   dispose() {
     if (this.sourceNode) {
       try { this.sourceNode.disconnect(); } catch {}
@@ -99,6 +133,10 @@ export class AudioEngine {
     if (this.gainNode) {
       try { this.gainNode.disconnect(); } catch {}
       this.gainNode = null;
+    }
+    if (this.eqFilters) {
+      this.eqFilters.forEach((f) => { try { f.disconnect(); } catch {} });
+      this.eqFilters = null;
     }
     if (this.ctx && this.ctx.state !== 'closed') {
       this.ctx.close();
