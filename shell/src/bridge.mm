@@ -93,6 +93,11 @@ static const char *kBridgeScript = R"JS(
     // Login item (M5)
     getLoginItemSettings: () => api._invoke('getLoginItemSettings'),
     setLoginItemSettings: (data) => api._invoke('setLoginItemSettings', data),
+    // Equalizer (10-band)
+    openEq: () => api._invoke('openEqWindow'),
+    getEqState: () => api._invoke('getEqState'),
+    setEq: (data) => api._invoke('setEq', data),
+    onEqChange: (callback) => { window.__freeplayerEqHandler = callback; },
     // Native file drop -> renderer import flow
     onDropFiles: (callback) => { window.__freeplayerDropHandler = callback; },
   };
@@ -132,6 +137,11 @@ static const char *kBridgeScript = R"JS(
   window.freeplayer._pushDrop = (paths) => {
     if (window.__freeplayerDropHandler) {
       try { window.__freeplayerDropHandler(paths); } catch (e) {}
+    }
+  };
+  window.freeplayer._pushEq = (state) => {
+    if (window.__freeplayerEqHandler) {
+      try { window.__freeplayerEqHandler(state); } catch (e) {}
     }
   };
 
@@ -195,6 +205,50 @@ static const char *kBridgeScript = R"JS(
 
 NSString *fpBridgeScript() {
   return [NSString stringWithUTF8String:kBridgeScript];
+}
+
+// ── Equalizer state: settings table + cross-window broadcast ──
+static NSString *eqKey(NSString *suffix) {
+  return [NSString stringWithFormat:@"eq.%@", suffix];
+}
+
+static NSDictionary *fpEqStateDict(void) {
+  NSMutableArray *gains = [NSMutableArray array];
+  NSString *raw = fpdb::getSetting(eqKey(@"gains"), nil);
+  for (NSString *p in [raw componentsSeparatedByString:@","]) {
+    [gains addObject:@(p.doubleValue)];
+  }
+  while (gains.count < 10) [gains addObject:@0];
+  id enabled = fpdb::getSetting(eqKey(@"enabled"), nil);
+  id preset = fpdb::getSetting(eqKey(@"preset"), nil);
+  return @{
+    @"enabled": @([enabled isKindOfClass:NSString.class] ? [enabled boolValue] : NO),
+    @"preset": [preset isKindOfClass:NSString.class] ? preset : @"平坦",
+    @"gains": gains,
+  };
+}
+
+static void fpSaveEq(NSDictionary *d) {
+  NSArray *g = d[@"gains"];
+  NSMutableArray *vals = [NSMutableArray array];
+  for (id v in g) {
+    [vals addObject:[NSString stringWithFormat:@"%.1f", [v doubleValue]]];
+  }
+  fpdb::setSetting(eqKey(@"enabled"), [d[@"enabled"] boolValue] ? @"1" : @"0");
+  fpdb::setSetting(eqKey(@"preset"), [d[@"preset"] isKindOfClass:NSString.class] ? d[@"preset"] : @"自定义");
+  fpdb::setSetting(eqKey(@"gains"), [vals componentsJoinedByString:@","]);
+}
+
+static void fpBroadcastEq(void) {
+  dispatch_async(dispatch_get_main_queue(), ^{
+    NSError *err = nil;
+    NSData *data = [NSJSONSerialization dataWithJSONObject:fpEqStateDict() options:0 error:&err];
+    if (err || !data) return;
+    NSString *json = [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
+    NSString *js = [NSString stringWithFormat:@"window.freeplayer._pushEq(%@)", json];
+    if (gWebView) [gWebView evaluateJavaScript:js completionHandler:nil];
+    if (gEqWebView) [gEqWebView evaluateJavaScript:js completionHandler:nil];
+  });
 }
 
 // Native file drop (ShellWebView) -> renderer import flow
@@ -306,6 +360,16 @@ static NSWindow *shellWindow(void) {
     } else if ([method isEqualToString:@"setSetting"]) {
       NSDictionary *d = args.firstObject;
       reply(idNum, @(fpdb::setSetting(d[@"key"], d[@"value"])));
+    } else if ([method isEqualToString:@"getEqState"]) {
+      reply(idNum, fpEqStateDict());
+    } else if ([method isEqualToString:@"setEq"]) {
+      NSDictionary *d = args.firstObject;
+      fpSaveEq(d);
+      fpBroadcastEq();
+      reply(idNum, @YES);
+    } else if ([method isEqualToString:@"openEqWindow"]) {
+      fpOpenEqWindow();
+      reply(idNum, @YES);
     } else if ([method isEqualToString:@"resetDatabase"]) {
       reply(idNum, @(fpdb::resetDatabase()));
     }

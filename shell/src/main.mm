@@ -22,6 +22,9 @@ MediaSchemeHandler *gScheme = nil;
 BridgeHandler *gBridge = nil;
 WKWebView *gWebView = nil;
 NSWindow *gWindow = nil;
+WKWebView *gEqWebView = nil;
+static NSWindow *gEqWindow = nil;
+static NSURL *gMainLoadURL = nil;
 
 // ── App lifecycle ──
 @interface ShellAppDelegate : NSObject <NSApplicationDelegate, NSWindowDelegate>
@@ -125,6 +128,7 @@ NSWindow *gWindow = nil;
     NSLog(@"[shell] dev mode, loading %@", url);
   }
   [webView loadRequest:[NSURLRequest requestWithURL:loadURL]];
+  gMainLoadURL = loadURL;
 }
 
 // ── Close-to-tray: a music player must survive window close ──
@@ -144,6 +148,7 @@ NSWindow *gWindow = nil;
   BOOL trayOn = fptraySettingBool(@"tray_enabled", YES);
   if (trayOn) {
     [sender orderOut:nil]; // hide, keep playing in the tray
+    fpHideEqWindow();
     [self setBackgroundPlayback:YES];
     fptrayShowHiddenNotification();
     return NO;
@@ -172,6 +177,67 @@ NSWindow *gWindow = nil;
 
 - (void)applicationWillTerminate:(NSNotification *)notification {
   fpdb::close();
+}
+
+// ── Equalizer window: second native window + WKWebView ──
+
+void fpOpenEqWindow(void) {
+  dispatch_async(dispatch_get_main_queue(), ^{
+    if (gEqWindow) {
+      [gEqWindow makeKeyAndOrderFront:nil];
+      [NSApp activateIgnoringOtherApps:YES];
+      return;
+    }
+    NSRect frame = NSMakeRect(0, 0, 580, 340);
+    NSWindow *win = [[NSWindow alloc] initWithContentRect:frame
+        styleMask:(NSWindowStyleMaskTitled |
+                   NSWindowStyleMaskClosable |
+                   NSWindowStyleMaskMiniaturizable |
+                   NSWindowStyleMaskFullSizeContentView)
+          backing:NSBackingStoreBuffered
+            defer:NO];
+    win.title = @"Equalizer";
+    win.titlebarAppearsTransparent = YES;
+    win.titleVisibility = NSWindowTitleHidden;
+    win.releasedWhenClosed = NO;
+    win.backgroundColor = [NSColor colorWithSRGBRed:0.13 green:0.13 blue:0.15 alpha:1.0];
+    [win center];
+
+    WKWebViewConfiguration *config = [[WKWebViewConfiguration alloc] init];
+    config.mediaTypesRequiringUserActionForPlayback = WKAudiovisualMediaTypeNone;
+    config.preferences.javaScriptCanOpenWindowsAutomatically = NO;
+    if (gScheme && gBridge) {
+      [config setURLSchemeHandler:gScheme forURLScheme:@"media"];
+      [config setURLSchemeHandler:gScheme forURLScheme:@"app"];
+      [config.userContentController addScriptMessageHandler:gBridge name:@"freeplayer"];
+    }
+    WKUserScript *bridgeScript = [[WKUserScript alloc]
+        initWithSource:fpBridgeScript()
+         injectionTime:WKUserScriptInjectionTimeAtDocumentStart
+      forMainFrameOnly:YES];
+    [config.userContentController addUserScript:bridgeScript];
+
+    ShellWebView *webView = [[ShellWebView alloc] initWithFrame:frame configuration:config];
+    webView.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
+    win.contentView = webView;
+    gEqWebView = webView;
+    gEqWindow = win;
+
+    NSURL *eqURL = nil;
+    if ([gMainLoadURL.scheme isEqualToString:@"app"]) {
+      eqURL = [NSURL URLWithString:@"app://index.html?view=eq"];
+    } else {
+      eqURL = [NSURL URLWithString:[gMainLoadURL.absoluteString stringByAppendingString:@"?view=eq"]];
+    }
+    [webView loadRequest:[NSURLRequest requestWithURL:eqURL]];
+    [win makeKeyAndOrderFront:nil];
+  });
+}
+
+void fpHideEqWindow(void) {
+  dispatch_async(dispatch_get_main_queue(), ^{
+    [gEqWindow orderOut:nil];
+  });
 }
 
 @end
