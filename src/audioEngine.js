@@ -58,7 +58,6 @@ export class AudioEngine {
       if (this.connectedElement !== audioElement) {
         this.sourceNode = this.ctx.createMediaElementSource(audioElement);
         this.sourceNode.connect(this.analyser);
-        this.analyser.connect(this.gainNode);
         this.analyser.connect(this.eqFilters[0]);
         for (let i = 1; i < this.eqFilters.length; i++) {
           this.eqFilters[i - 1].connect(this.eqFilters[i]);

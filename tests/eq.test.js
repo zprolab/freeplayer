@@ -76,4 +76,23 @@ describe('AudioEngine EQ', () => {
     engine.dispose();
     expect(engine.eqFilters).toBeNull();
   });
+
+  it('wires EQ chain as sole analyser→gain path (no parallel edge)', () => {
+    const elA = {};
+    const elB = { src: 'b' };
+    engine.connect(elA);
+    const analyserConnect = vi.spyOn(engine.analyser, 'connect');
+    const gainConnect = vi.spyOn(engine.gainNode, 'connect');
+    const filterConnects = engine.eqFilters.map((f) => vi.spyOn(f, 'connect'));
+
+    engine.connect(elB);
+
+    expect(analyserConnect).toHaveBeenCalledWith(engine.eqFilters[0]);
+    expect(analyserConnect).not.toHaveBeenCalledWith(engine.gainNode);
+    engine.eqFilters.slice(0, -1).forEach((f, i) => {
+      expect(filterConnects[i]).toHaveBeenCalledWith(engine.eqFilters[i + 1]);
+    });
+    expect(filterConnects[9]).toHaveBeenCalledWith(engine.gainNode);
+    expect(gainConnect).toHaveBeenCalledWith(engine.ctx.destination);
+  });
 });
