@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pnpm dist:mac *)",
+      "Bash(pnpm ls *)",
+      "WebFetch(domain:github.com)",
+      "Read(//Users/eason/Library/Caches/electron-builder/downloads/**)",
+      "Read(//Users/eason/Library/Caches/electron-builder/dmg-builder@1.2.0/**)",
+      "Bash(npx pnpm *)"
+    ]
+  }
+}
