@@ -1,0 +1,19 @@
+{
+    "logs": [
+        {
+            "outputFile": "com.zprolab.FreePlayer.app-mergeDebugResources-43:/values-v30/values-v30.xml",
+            "map": [
+                {
+                    "source": "/Users/tyc/.gradle/caches/9.5.0/transforms/7d72a44a9dea3f5eb634bde7c9e1b50f/transformed/material3/res/values-v30/values-v30.xml",
+                    "from": {
+                        "startLines": "2",
+                        "startColumns": "4",
+                        "startOffsets": "55",
+                        "endColumns": "72",
+                        "endOffsets": "123"
+                    }
+                }
+            ]
+        }
+    ]
+}
