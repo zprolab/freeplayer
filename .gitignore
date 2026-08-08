@@ -10,3 +10,9 @@ Thumbs.db
 docs/
 shell/build/
 shell/release/
+macos/.build/
+macos/build/
+
+# Local IDE/tooling config
+/.claude/settings.local.json
+/.idea/
