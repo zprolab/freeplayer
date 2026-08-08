@@ -1,6 +1,6 @@
 # FreePlayer (Android)
 
-FreePlayer 的 Android 客户端（Kotlin + Jetpack Compose）。本地音乐播放器，不联网、不登录、不收集任何数据。你的音乐在你硬盘上，用你自己的文件夹结构管理。
+本地音乐播放器，不联网、不登录、不收集任何数据。你的音乐在你硬盘上，用你自己的文件夹结构管理。
 
 > 另有 macOS（SwiftUI）实现，见仓库 `Swift` 分支；历史 Web 版本见 `master`。
 
@@ -44,3 +44,9 @@ SQLite，位于应用私有数据目录：
 ## 许可证
 
 GPL v3，详见 LICENSE 文件。
+
+---
+
+## Language / 语言
+
+[English](README.en.md) · [简体中文](README.md) · [繁體中文](README.zh-TW.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Français](README.fr.md) · [Deutsch](README.de.md) · [Español](README.es.md) · [Português](README.pt.md) · [Русский](README.ru.md) · [Italiano](README.it.md) · [العربية](README.ar.md) · [हिन्दी](README.hi.md)
