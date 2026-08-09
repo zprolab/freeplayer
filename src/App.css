@@ -2947,7 +2947,9 @@ input[type="range"]::-webkit-slider-thumb {
 }
 
 .lyrics-line--distant .lyrics-time {
-  opacity: 0;
+  /* Same dimming level as the distant lyric text — every line shows its
+     timestamp, but future lines fade with the text */
+  color: rgba(48, 48, 48, 0.28);
 }
 
 /* Past lines — subdued */
@@ -3348,7 +3350,8 @@ input[type="range"]::-webkit-slider-thumb {
 }
 
 .immersive-line--distant .immersive-time {
-  opacity: 0;
+  /* Same dimming level as the distant lyric text */
+  color: rgba(255, 255, 255, 0.06);
 }
 
 /* Active line — the centerpiece */

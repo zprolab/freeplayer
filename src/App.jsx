@@ -23,7 +23,7 @@ export default function App() {
   const {
     handleImportComplete, handleImportModeChange,
     handleDefaultVolumeChange, handleDefaultVisualizerChange,
-    handleResetDatabase,
+    handleResetDatabase, loadTracks,
   } = useLibrary();
   const {
     handleSelectPlaylist, handleCreatePlaylist, handleRenamePlaylist, handleDeletePlaylist,
@@ -237,7 +237,13 @@ export default function App() {
               importMode={state.importMode}
               onImportModeChange={handleImportModeChange}
               libraryDir={state.libraryDir}
-              onLibraryDirChange={(dir) => dispatch({ type: 'SET', payload: { libraryDir: dir } })}
+              onLibraryDirChange={(dir) => {
+                dispatch({ type: 'SET', payload: { libraryDir: dir } });
+                // Minor-1: the library changed — drop stale tracks so the
+                // list reflects the new directory instead of erroring on play
+                dispatch({ type: 'SET', payload: { tracks: [], currentTrack: null, queue: [], queueIndex: -1 } });
+                loadTracks();
+              }}
               defaultVolume={state.defaultVolume}
               onDefaultVolumeChange={handleDefaultVolumeChange}
               defaultVisualizer={state.defaultVisualizer}

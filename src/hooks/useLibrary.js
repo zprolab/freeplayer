@@ -110,6 +110,7 @@ export function useLibrary() {
   }, [dispatch]);
 
   return {
+    loadTracks,
     handleImportComplete,
     handleImportModeChange,
     handleDefaultVolumeChange,
