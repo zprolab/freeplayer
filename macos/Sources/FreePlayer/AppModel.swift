@@ -10,6 +10,40 @@ struct PlaylistSheetState: Identifiable {
     var playlist: Playlist?
 }
 
+/// Accumulates only intervals in which audio is actively playing.
+struct PlaybackSessionClock {
+    private(set) var accumulated: TimeInterval = 0
+    private var resumedAt: Date?
+
+    mutating func start(at date: Date = Date()) {
+        accumulated = 0
+        resumedAt = date
+    }
+
+    mutating func pause(at date: Date = Date()) {
+        guard let resumedAt else { return }
+        accumulated += max(0, date.timeIntervalSince(resumedAt))
+        self.resumedAt = nil
+    }
+
+    mutating func resume(at date: Date = Date()) {
+        guard resumedAt == nil else { return }
+        resumedAt = date
+    }
+
+    mutating func finish(at date: Date = Date()) -> TimeInterval {
+        pause(at: date)
+        let elapsed = accumulated
+        reset()
+        return elapsed
+    }
+
+    mutating func reset() {
+        accumulated = 0
+        resumedAt = nil
+    }
+}
+
 /// Central observable app state — the native mirror of the old React
 /// PlayerContext + hooks (usePlayback / useLibrary / usePlaylists).
 @MainActor
@@ -49,6 +83,11 @@ final class AppModel: ObservableObject {
     @Published var defaultVolume: Double = 0.8
     @Published var defaultVisualizer: VisualizerMode = .waveform
     @Published var visualizerMode: VisualizerMode = .waveform
+    @Published var autoFetchMeta = false
+    @Published var lyricsFetchState: MetadataFetchState = .idle
+    @Published var coverFetchState: MetadataFetchState = .idle
+    @Published var metadataBackfillProgress: MetadataBackfillProgress?
+    @Published var metadataRevision = 0
 
     // ── UI transient state ──
     @Published var importSheetPresented = false
@@ -62,10 +101,13 @@ final class AppModel: ObservableObject {
     // ── Services ──
     let engine = AudioEngine()
     let analyzer = AudioAnalyzer()
+    private let metadataFetcher = MetadataFetchService.shared
 
     private var playSessionId: Int64?
-    private var playStartTime: Date?
+    private var playClock = PlaybackSessionClock()
     private var timeTimer: Timer?
+    private var autoMetadataAttempts: Set<Int64> = []
+    private var metadataBackfillRunning = false
 
     var displayedTracks: [Track] {
         activePlaylistId == nil ? tracks : playlistTracks
@@ -74,7 +116,7 @@ final class AppModel: ObservableObject {
     // MARK: Bootstrap
 
     func start() {
-        Database.shared.open(path: Database.defaultDbPath())
+        _ = Database.shared.open(path: Database.defaultDbPath())
         TrayController.shared.onPlayPause = { [weak self] in self?.togglePlayPause() }
         TrayController.shared.onNext = { [weak self] in self?.next() }
         TrayController.shared.onPrevious = { [weak self] in self?.previous() }
@@ -83,7 +125,9 @@ final class AppModel: ObservableObject {
         checkSetup()
         loadPlaylists()
         timeTimer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak self] _ in
-            self?.tick()
+            Task { @MainActor [weak self] in
+                self?.tick()
+            }
         }
     }
 
@@ -130,6 +174,7 @@ final class AppModel: ObservableObject {
             defaultVisualizer = mode
             visualizerMode = mode
         }
+        autoFetchMeta = Database.shared.getBoolSetting("auto_fetch_meta", fallback: false)
 
         if isSetup {
             loadTracks()
@@ -165,6 +210,8 @@ final class AppModel: ObservableObject {
     private func play(track: Track) {
         endPlaySession()
         currentTrack = track
+        lyricsFetchState = .idle
+        coverFetchState = .idle
         currentTime = 0
         duration = track.duration
         TrayController.shared.setNowPlaying(track: track)
@@ -177,6 +224,7 @@ final class AppModel: ObservableObject {
             isPlaying = true
             startPlaySession(trackId: track.id)
             TrayController.shared.setPlaying(true)
+            startAutomaticMetadataFetch(for: track)
         } catch {
             NSLog("[playback] failed to play %@: %@", track.filePath, error.localizedDescription)
             isPlaying = false
@@ -190,6 +238,7 @@ final class AppModel: ObservableObject {
             return
         }
         if engine.isPlaying {
+            playClock.pause()
             engine.pause()
             isPlaying = false
             TrayController.shared.setPlaying(false)
@@ -201,6 +250,7 @@ final class AppModel: ObservableObject {
                 seek(to: 0)
             }
             engine.resume()
+            playClock.resume()
             isPlaying = true
             TrayController.shared.setPlaying(true)
         }
@@ -288,22 +338,21 @@ final class AppModel: ObservableObject {
     private func startPlaySession(trackId: Int64) {
         endPlaySession()
         playSessionId = Database.shared.startPlaySession(trackId: trackId)
-        playStartTime = Date()
+        playClock.start()
     }
 
     private func endPlaySession() {
-        guard let sid = playSessionId, let start = playStartTime else {
+        guard let sid = playSessionId else {
             playSessionId = nil
-            playStartTime = nil
+            playClock.reset()
             return
         }
-        let elapsed = Date().timeIntervalSince(start)
+        let elapsed = playClock.finish()
         let percentage = duration > 0 ? min((elapsed / duration) * 100, 100) : 0
         Database.shared.endPlaySession(sessionId: sid,
                                        durationSeconds: elapsed.rounded(),
                                        playPercentage: percentage.rounded())
         playSessionId = nil
-        playStartTime = nil
     }
 
     // ── Settings actions ──
@@ -321,6 +370,14 @@ final class AppModel: ObservableObject {
     func setDefaultVisualizer(_ mode: VisualizerMode) {
         defaultVisualizer = mode
         Database.shared.setSetting("default_visualizer", mode.rawValue)
+    }
+
+    func setAutoFetchMeta(_ enabled: Bool) {
+        autoFetchMeta = enabled
+        Database.shared.setSetting("auto_fetch_meta", enabled ? "true" : "false")
+        if enabled, let track = currentTrack {
+            startAutomaticMetadataFetch(for: track)
+        }
     }
 
     func selectLibraryDir() {
@@ -352,13 +409,17 @@ final class AppModel: ObservableObject {
         currentTime = 0
         duration = 0
         playSessionId = nil
-        playStartTime = nil
+        playClock.reset()
         libraryDir = ""
         isSetup = false
         importMode = .copy
         defaultVolume = 0.8
         defaultVisualizer = .waveform
         visualizerMode = .waveform
+        autoFetchMeta = false
+        autoMetadataAttempts = []
+        metadataBackfillProgress = nil
+        metadataBackfillRunning = false
     }
 
     // ── Track editing ──
@@ -386,7 +447,23 @@ final class AppModel: ObservableObject {
     }
 
     func deleteTrack(_ track: Track) {
+        if currentTrack?.id == track.id {
+            endPlaySession()
+            engine.stop()
+            currentTrack = nil
+            isPlaying = false
+            currentTime = 0
+            duration = 0
+            TrayController.shared.clearNowPlaying()
+        }
         _ = Database.shared.deleteTrack(id: track.id)
+        queue.removeAll { $0.id == track.id }
+        shuffledQueue.removeAll { $0.id == track.id }
+        if let currentTrack {
+            queueIndex = queue.firstIndex { $0.id == currentTrack.id } ?? -1
+        } else {
+            queueIndex = -1
+        }
         if activePlaylistId == nil {
             refreshAfterMutation()
         } else {
@@ -431,7 +508,8 @@ final class AppModel: ObservableObject {
         if let idx = tracks.firstIndex(where: { $0.id == track.id }) {
             tracks[idx].lrcPath = target
         }
-        objectWillChange.send()
+        updateTrackMetadataInMemory(trackId: track.id, lrcPath: target)
+        metadataRevision += 1
     }
 
     func removeLrc(for track: Track) {
@@ -439,7 +517,134 @@ final class AppModel: ObservableObject {
         if let idx = tracks.firstIndex(where: { $0.id == track.id }) {
             tracks[idx].lrcPath = nil
         }
-        objectWillChange.send()
+        updateTrackMetadataInMemory(trackId: track.id, lrcPath: nil)
+        metadataRevision += 1
+    }
+
+    // ── Remote metadata ──
+
+    @discardableResult
+    func fetchLyrics(for track: Track, reportState: Bool = true) async -> Bool {
+        if reportState { lyricsFetchState = .fetching }
+        guard let content = await metadataFetcher.fetchLyrics(for: track),
+              saveFetchedLyrics(content, for: track) else {
+            if reportState, currentTrack?.id == track.id { lyricsFetchState = .notFound }
+            return false
+        }
+        if reportState, currentTrack?.id == track.id { lyricsFetchState = .idle }
+        return true
+    }
+
+    @discardableResult
+    func fetchCover(for track: Track, reportState: Bool = true) async -> Bool {
+        if reportState { coverFetchState = .fetching }
+        guard let data = await metadataFetcher.fetchCover(for: track),
+              NSImage(data: data) != nil,
+              saveFetchedCover(data, for: track) else {
+            if reportState, currentTrack?.id == track.id { coverFetchState = .notFound }
+            return false
+        }
+        if reportState, currentTrack?.id == track.id { coverFetchState = .idle }
+        return true
+    }
+
+    func startMetadataBackfill() {
+        guard !metadataBackfillRunning, !tracks.isEmpty else { return }
+        metadataBackfillRunning = true
+        let snapshot = tracks
+        metadataBackfillProgress = MetadataBackfillProgress(done: 0, total: snapshot.count, saved: 0, failed: 0, noMatch: 0)
+        Task { [weak self] in
+            guard let self else { return }
+            var progress = MetadataBackfillProgress(done: 0, total: snapshot.count, saved: 0, failed: 0, noMatch: 0)
+            for track in snapshot {
+                var missing = false
+                var saved = false
+                if track.coverPath == nil || !(track.coverPath.map(FileManager.default.fileExists(atPath:)) ?? false) {
+                    missing = true
+                    if await self.fetchCover(for: track, reportState: false) {
+                        saved = true
+                        progress.saved += 1
+                    }
+                }
+                if self.lrcContent(for: track) == nil {
+                    missing = true
+                    if await self.fetchLyrics(for: track, reportState: false) {
+                        saved = true
+                        progress.saved += 1
+                    }
+                }
+                if missing && !saved { progress.noMatch += 1 }
+                progress.done += 1
+                self.metadataBackfillProgress = progress
+                try? await Task.sleep(nanoseconds: 1_500_000_000)
+            }
+            self.metadataBackfillRunning = false
+            self.metadataBackfillProgress = nil
+        }
+    }
+
+    private func startAutomaticMetadataFetch(for track: Track) {
+        guard autoFetchMeta, !autoMetadataAttempts.contains(track.id) else { return }
+        autoMetadataAttempts.insert(track.id)
+        Task { [weak self] in
+            guard let self else { return }
+            if track.coverPath == nil || !(track.coverPath.map(FileManager.default.fileExists(atPath:)) ?? false) {
+                _ = await self.fetchCover(for: track, reportState: false)
+            }
+            guard self.autoFetchMeta else { return }
+            if self.lrcContent(for: track) == nil {
+                _ = await self.fetchLyrics(for: track, reportState: false)
+            }
+        }
+    }
+
+    private func saveFetchedLyrics(_ content: String, for track: Track) -> Bool {
+        let source = URL(fileURLWithPath: track.filePath)
+        let stem = MetadataExtractor.cleanStem(source.deletingPathExtension().lastPathComponent)
+        let target = source.deletingLastPathComponent().appendingPathComponent("\(stem).\(track.id).lrc")
+        do {
+            try content.write(to: target, atomically: true, encoding: .utf8)
+            Database.shared.setTrackLrc(trackId: track.id, lrcPath: target.path)
+            updateTrackMetadataInMemory(trackId: track.id, lrcPath: target.path)
+            metadataRevision += 1
+            return true
+        } catch {
+            NSLog("[metadata] failed to save lyrics: %@", error.localizedDescription)
+            return false
+        }
+    }
+
+    private func saveFetchedCover(_ data: Data, for track: Track) -> Bool {
+        let audioURL = URL(fileURLWithPath: track.filePath)
+        let directory = audioURL.deletingLastPathComponent().appendingPathComponent(".covers", isDirectory: true)
+        let target = directory.appendingPathComponent("cover-\(track.id).jpg")
+        do {
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            try data.write(to: target, options: .atomic)
+            Database.shared.setTrackCover(trackId: track.id, coverPath: target.path)
+            CoverCache.shared.clear()
+            updateTrackMetadataInMemory(trackId: track.id, coverPath: target.path)
+            metadataRevision += 1
+            return true
+        } catch {
+            NSLog("[metadata] failed to save cover: %@", error.localizedDescription)
+            return false
+        }
+    }
+
+    private func updateTrackMetadataInMemory(trackId: Int64, coverPath: String? = nil, lrcPath: String? = nil) {
+        func update(_ track: inout Track) {
+            if let coverPath { track.coverPath = coverPath }
+            if lrcPath != nil || Database.shared.trackLrc(trackId: trackId) == nil { track.lrcPath = lrcPath }
+        }
+        if let index = tracks.firstIndex(where: { $0.id == trackId }) { update(&tracks[index]) }
+        if let index = playlistTracks.firstIndex(where: { $0.id == trackId }) { update(&playlistTracks[index]) }
+        if let index = queue.firstIndex(where: { $0.id == trackId }) { update(&queue[index]) }
+        if let index = shuffledQueue.firstIndex(where: { $0.id == trackId }) { update(&shuffledQueue[index]) }
+        if currentTrack?.id == trackId, var fresh = currentTrack {
+            update(&fresh)
+            currentTrack = fresh
+        }
     }
 
     // ── Playlists ──

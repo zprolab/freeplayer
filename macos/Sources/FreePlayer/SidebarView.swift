@@ -3,6 +3,8 @@ import SwiftUI
 struct SidebarView: View {
     @EnvironmentObject private var model: AppModel
     @State private var playlistContext: Playlist?
+    @State private var hoveredView: AppView?
+    @State private var hoveredPlaylist: Int64?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -19,7 +21,7 @@ struct SidebarView: View {
                 Spacer()
             }
             .padding(.horizontal, 16)
-            .padding(.top, 36)
+            .padding(.top, 48)
             .padding(.bottom, 16)
 
             // Nav
@@ -33,11 +35,10 @@ struct SidebarView: View {
 
             // Playlists
             HStack {
-                Text("Playlists")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(Theme.sidebarTextSecondary)
-                    .textCase(.uppercase)
-                    .tracking(0.6)
+                Text("PLAYLISTS")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(Color(red: 0.549, green: 0.549, blue: 0.576))   // #8c8c93
+                    .tracking(0.8)
                 Spacer()
                 Button {
                     model.playlistSheet = PlaylistSheetState(mode: .create, playlist: nil)
@@ -73,6 +74,12 @@ struct SidebarView: View {
                         }
                     }
                     .padding(.vertical, 4)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(model.activePlaylistId == nil ? Theme.sidebarActive : (hoveredPlaylist == nil ? Color.clear : Theme.sidebarHover))
+                    .clipShape(RoundedRectangle(cornerRadius: 4))
+                    .onHover { hovering in
+                        hoveredPlaylist = hovering ? 0 : nil
+                    }
                 }
                 .buttonStyle(.plain)
 
@@ -86,7 +93,13 @@ struct SidebarView: View {
                         Spacer()
                     }
                     .padding(.vertical, 4)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(model.activePlaylistId == pl.id ? Theme.sidebarActive : (hoveredPlaylist == pl.id ? Theme.sidebarHover : Color.clear))
+                    .clipShape(RoundedRectangle(cornerRadius: 4))
                     .contentShape(Rectangle())
+                    .onHover { hovering in
+                        hoveredPlaylist = hovering ? pl.id : nil
+                    }
                     .onTapGesture {
                         model.selectPlaylist(pl.id)
                     }
@@ -125,10 +138,11 @@ struct SidebarView: View {
         }
         .background(Theme.sidebarBg)
         .overlay(alignment: .trailing) {
-            Rectangle().fill(Color.black.opacity(0.15)).frame(width: 1)
+            Rectangle().fill(Theme.sidebarDivider).frame(width: 1)
         }
-        // Drag & drop import overlay
+        // Drag & drop import overlay (library view only, matches web)
         .onDrop(of: [.fileURL], isTargeted: nil) { providers in
+            guard model.view == .library else { return false }
             model.handleDroppedProviders(providers)
             return true
         }
@@ -158,8 +172,11 @@ struct SidebarView: View {
             .font(.system(size: 13))
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
-            .background(active ? Theme.sidebarActive : .clear)
+            .background(active ? Theme.sidebarActive : (hoveredView == view ? Theme.sidebarHover : .clear))
             .clipShape(RoundedRectangle(cornerRadius: 4))
+            .onHover { hovering in
+                hoveredView = hovering ? view : nil
+            }
         }
         .buttonStyle(.plain)
     }

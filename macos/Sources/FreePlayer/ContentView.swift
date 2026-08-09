@@ -6,16 +6,21 @@ struct ContentView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            HSplitView {
+            // Sidebar spans full height; player bar sits right of it
+            // (matches web layout: .player-bar fixed with left: 220px).
+            HStack(spacing: 0) {
                 SidebarView()
                     .frame(width: 220)
-                MainContent()
-                    .frame(minWidth: 620)
+                VStack(spacing: 0) {
+                    MainContent()
+                        .frame(minWidth: 620)
+                    PlayerBarView()
+                        .frame(height: 76)
+                }
             }
-            PlayerBarView()
-                .frame(height: 72)
         }
         .background(Theme.sidebarBg)
+        .ignoresSafeArea(.container, edges: .top)
         .onAppear {
             if let window = NSApp.windows.first(where: { !$0.isVisible || $0.title.isEmpty }) {
                 (NSApp.delegate as? AppDelegate)?.configure(window: window)
@@ -91,14 +96,14 @@ struct MainContent: View {
                 ProgressView().controlSize(.large)
                 Text("Loading FreePlayer...").foregroundStyle(Theme.textSecondary)
             }
+        } else if !model.isSetup {
+            // Before the library is set up every view shows the welcome
+            // state (matches web App.jsx: !isSetup -> welcome).
+            welcomeState
         } else {
             switch model.view {
             case .library:
-                if !model.isSetup {
-                    welcomeState
-                } else {
-                    LibraryView()
-                }
+                LibraryView()
             case .nowPlaying:
                 NowPlayingView()
             case .stats:
@@ -157,7 +162,7 @@ struct TopBar: View {
     var body: some View {
         HStack(spacing: 12) {
             Text(title)
-                .font(.system(size: 20, weight: .bold))
+                .font(.system(size: 16, weight: .semibold))
                 .foregroundStyle(Theme.textPrimary)
             if model.view == .library {
                 Text("\(model.displayedTracks.count) tracks")
@@ -186,14 +191,23 @@ struct TopBar: View {
                     .padding(.horizontal, 14)
                     .padding(.vertical, 6)
                     .background(Theme.accent)
-                    .clipShape(RoundedRectangle(cornerRadius: 6))
+                    .clipShape(RoundedRectangle(cornerRadius: 4))
                 }
                 .buttonStyle(.plain)
+                .onHover { hovering in
+                    if hovering {
+                        NSCursor.pointingHand.push()
+                    } else {
+                        NSCursor.pop()
+                    }
+                }
             }
         }
         .padding(.horizontal, 16)
-        .padding(.vertical, 12)
-        .background(Theme.background)
+        .padding(.vertical, 10)
+        .frame(height: 60)
+        .background(Theme.panel)
+        .overlay(alignment: .bottom) { Rectangle().fill(Theme.border.opacity(0.8)).frame(height: 1) }
     }
 }
 
@@ -224,8 +238,8 @@ private struct SearchField: View {
         .padding(.vertical, 6)
         .frame(width: 240, height: 32)
         .background(Theme.panel)
-        .clipShape(RoundedRectangle(cornerRadius: 6))
-        .overlay(RoundedRectangle(cornerRadius: 6).stroke(Theme.border))
+        .clipShape(RoundedRectangle(cornerRadius: 4))
+        .overlay(RoundedRectangle(cornerRadius: 4).stroke(Theme.border))
     }
 
     /// Renders the original SVG magnifying glass icon into an NSImage.

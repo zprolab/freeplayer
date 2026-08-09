@@ -207,6 +207,50 @@ final class MetadataTests: XCTestCase {
     }
 }
 
+final class RemoteMetadataTests: XCTestCase {
+    private func track(title: String = "Sun", artist: String = "A", album: String = "Album") -> Track {
+        Track(id: 7, title: title, artist: artist, album: album,
+              trackNumber: nil, discNumber: nil, genre: nil, year: nil,
+              duration: 65.4, filePath: "/tmp/sun.mp3", fileName: "sun.mp3",
+              fileSize: 1, fileFormat: "mp3", bitrate: nil, sampleRate: nil,
+              channels: nil, coverPath: nil, replaygainGain: 0, replaygainPeak: 0,
+              lrcPath: nil, playCount: 0, lastPlayedAt: nil, importedAt: nil, updatedAt: nil)
+    }
+
+    func testMatchNormalizationAndSimilarity() {
+        XCTAssertEqual(MetadataFetchService.normalizeForMatch("  新视野3中的CC! "), "新视野3中的cc")
+        XCTAssertEqual(MetadataFetchService.similarity("Life Goes On", "life-goes-on"), 1)
+        XCTAssertEqual(MetadataFetchService.similarity("Life Goes On (Deluxe)", "Life Goes On"), 0.9)
+    }
+
+    func testBestMatchRejectsWrongArtist() {
+        let candidates = [
+            MetadataFetchService.Candidate(title: "Sun", artist: "Wrong"),
+            MetadataFetchService.Candidate(title: "Sun", artist: "A"),
+        ]
+        XCTAssertEqual(MetadataFetchService.bestMatchIndex(in: candidates, for: track()), 1)
+    }
+
+    func testUnknownArtistMatchesByTitle() {
+        let candidates = [MetadataFetchService.Candidate(title: "Sun", artist: "Anybody")]
+        XCTAssertEqual(MetadataFetchService.bestMatchIndex(in: candidates,
+                                                            for: track(artist: Track.unknownArtist)), 0)
+    }
+
+    func testServiceURLs() {
+        let song = track()
+        let components = MetadataFetchService.lrclibGetURL(for: song)
+            .flatMap { URLComponents(url: $0, resolvingAgainstBaseURL: false) }
+        let values = Dictionary(uniqueKeysWithValues: (components?.queryItems ?? []).map { ($0.name, $0.value ?? "") })
+        XCTAssertEqual(values["artist_name"], "A")
+        XCTAssertEqual(values["track_name"], "Sun")
+        XCTAssertEqual(values["duration"], "65")
+        XCTAssertTrue(MetadataFetchService.itunesSearchURL(for: song)?.absoluteString.contains("itunes.apple.com/search") == true)
+        XCTAssertEqual(MetadataFetchService.largeArtworkURL("https://img/100x100bb.jpg"),
+                       "https://img/600x600bb.jpg")
+    }
+}
+
 // Helpers to build a valid 1s 16-bit PCM WAV
 func makeTestWav(sampleRate: Int = 8000, seconds: Int = 1) -> Data {
     let samples = sampleRate * seconds
@@ -243,14 +287,18 @@ func makeTestWav(sampleRate: Int = 8000, seconds: Int = 1) -> Data {
 
 final class ImportTests: XCTestCase {
     private let db = Database.shared
+    private var dbPath: String!
 
     override func setUpWithError() throws {
-        let dbPath = NSTemporaryDirectory() + "/fp-import-test-\(UUID().uuidString).db"
+        dbPath = NSTemporaryDirectory() + "/fp-import-test-\(UUID().uuidString).db"
         XCTAssertTrue(db.open(path: dbPath))
     }
 
     override func tearDownWithError() throws {
         db.close()
+        try? FileManager.default.removeItem(atPath: dbPath)
+        try? FileManager.default.removeItem(atPath: dbPath + "-wal")
+        try? FileManager.default.removeItem(atPath: dbPath + "-shm")
     }
 
     func testImportPipeline() throws {
@@ -290,6 +338,65 @@ final class ImportTests: XCTestCase {
         XCTAssertEqual(tracks[0].duration, 1.0, accuracy: 0.2)
     }
 
+    func testExistingFileWithoutDatabaseRowIsRecoveredThenSkipped() throws {
+        let temp = NSTemporaryDirectory().hasSuffix("/") ? String(NSTemporaryDirectory().dropLast()) : NSTemporaryDirectory()
+        let root = temp + "/fp-import-recovery-\(UUID().uuidString)"
+        let source = root + "/source"
+        let library = root + "/library"
+        try FileManager.default.createDirectory(atPath: source, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(atPath: root) }
+        try makeTestWav().write(to: URL(fileURLWithPath: source + "/recover.wav"))
+
+        func runImport() -> ImportResult {
+            let done = expectation(description: "import done")
+            var output = ImportResult()
+            ImportManager().importFiles(files: [source + "/recover.wav"], libraryDir: library, importMode: .copy) {
+                output = $0
+                done.fulfill()
+            }
+            waitForExpectations(timeout: 15)
+            return output
+        }
+
+        XCTAssertEqual(runImport().imported, 1)
+        let inserted = try XCTUnwrap(db.getAllTracks().first)
+        XCTAssertTrue(db.deleteTrack(id: inserted.id))
+        XCTAssertEqual(db.trackCount(), 0)
+
+        let recovered = runImport()
+        XCTAssertEqual(recovered.imported, 1)
+        XCTAssertEqual(recovered.skipped, 0)
+        XCTAssertEqual(db.trackCount(), 1)
+
+        let duplicate = runImport()
+        XCTAssertEqual(duplicate.imported, 0)
+        XCTAssertEqual(duplicate.skipped, 1)
+        XCTAssertEqual(db.trackCount(), 1)
+    }
+
+    func testCopyFailureDoesNotCreateDatabaseTrack() throws {
+        let temp = NSTemporaryDirectory().hasSuffix("/") ? String(NSTemporaryDirectory().dropLast()) : NSTemporaryDirectory()
+        let root = temp + "/fp-import-failure-\(UUID().uuidString)"
+        let source = root + "/source.wav"
+        let invalidLibrary = root + "/not-a-directory"
+        try FileManager.default.createDirectory(atPath: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(atPath: root) }
+        try makeTestWav().write(to: URL(fileURLWithPath: source))
+        try Data("file blocks directory creation".utf8).write(to: URL(fileURLWithPath: invalidLibrary))
+
+        let done = expectation(description: "failed import done")
+        var output = ImportResult()
+        ImportManager().importFiles(files: [source], libraryDir: invalidLibrary, importMode: .copy) {
+            output = $0
+            done.fulfill()
+        }
+        waitForExpectations(timeout: 15)
+
+        XCTAssertEqual(output.imported, 0)
+        XCTAssertEqual(output.errors.count, 1)
+        XCTAssertEqual(db.trackCount(), 0)
+    }
+
     func testScanRecursive() throws {
         let temp = NSTemporaryDirectory().hasSuffix("/") ? String(NSTemporaryDirectory().dropLast()) : NSTemporaryDirectory()
         let root = temp + "/fp-scan-\(UUID().uuidString)"
@@ -313,6 +420,31 @@ final class ImportTests: XCTestCase {
         XCTAssertEqual(ImportManager.coverExtension(for: Data(png)), "png")
         XCTAssertEqual(ImportManager.coverExtension(for: Data(gif)), "gif")
         XCTAssertEqual(ImportManager.coverExtension(for: Data(jpeg)), "jpg")
+    }
+}
+
+final class PlaybackSessionClockTests: XCTestCase {
+    func testPausedTimeIsNotAccumulated() {
+        let origin = Date(timeIntervalSinceReferenceDate: 1_000)
+        var clock = PlaybackSessionClock()
+        clock.start(at: origin)
+        clock.pause(at: origin.addingTimeInterval(10))
+        clock.resume(at: origin.addingTimeInterval(310))
+
+        let elapsed = clock.finish(at: origin.addingTimeInterval(320))
+        XCTAssertEqual(elapsed, 20, accuracy: 0.001)
+    }
+
+    func testRepeatedPauseAndResumeAreIdempotent() {
+        let origin = Date(timeIntervalSinceReferenceDate: 2_000)
+        var clock = PlaybackSessionClock()
+        clock.start(at: origin)
+        clock.pause(at: origin.addingTimeInterval(5))
+        clock.pause(at: origin.addingTimeInterval(50))
+        clock.resume(at: origin.addingTimeInterval(100))
+        clock.resume(at: origin.addingTimeInterval(150))
+
+        XCTAssertEqual(clock.finish(at: origin.addingTimeInterval(110)), 15, accuracy: 0.001)
     }
 }
 

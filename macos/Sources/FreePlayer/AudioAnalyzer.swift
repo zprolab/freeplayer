@@ -15,12 +15,18 @@ final class AudioAnalyzer {
     private var timeData = [UInt8]()
     private var hasData = false
 
+    // AnalyserNode.smoothingTimeConstant = 0.65: exponential smoothing on the
+    // dB-scaled spectrum so bars don't flicker (Web audioEngine.js:33-36).
+    private var smoothedDb = [Float]()
+    private let smoothing: Float = 0.65
+
     init() {
         log2n = vDSP_Length(log2(Double(fftSize)))
         fftSetup = vDSP_create_fftsetup(log2n, FFTRadix(kFFTRadix2))!
         binCount = fftSize / 2
         freqData = [UInt8](repeating: 0, count: binCount)
         timeData = [UInt8](repeating: 0, count: binCount)
+        smoothedDb = [Float](repeating: 0, count: binCount)
     }
 
     deinit {
@@ -35,31 +41,33 @@ final class AudioAnalyzer {
             padded.replaceSubrange(0..<n, with: samples[0..<n])
         }
 
-        // ── Time domain (byte, 0-255, 128 = zero) ──
-        var window = [Float](repeating: 0, count: fftSize)
-        vDSP_hann_window(&window, vDSP_Length(fftSize), Int32(vDSP_HANN_NORM))
-        var winSamples = [Float](repeating: 0, count: fftSize)
-        vDSP_vmul(padded, 1, window, 1, &winSamples, 1, vDSP_Length(fftSize))
-
+        // ── Time domain (byte, 0-255, 128 = zero) — raw samples, no window
+        // (matches WebAudio getByteTimeDomainData).
         for i in 0..<binCount {
-            let v = winSamples[i]
+            let v = padded[i]
             timeData[i] = UInt8(clamping: Int((v + 1.0) * 127.5))
         }
 
         // ── FFT → magnitude spectrum ──
         var realp = [Float](repeating: 0, count: binCount)
         var imagp = [Float](repeating: 0, count: binCount)
-        var split = DSPSplitComplex(realp: &realp, imagp: &imagp)
-        winSamples.withUnsafeBufferPointer { buf in
-            buf.baseAddress!.withMemoryRebound(to: DSPComplex.self, capacity: binCount) { dspComplex in
-                vDSP_ctoz(dspComplex, 2, &split, 1, vDSP_Length(binCount))
+        var magnitudes = [Float](repeating: 0, count: binCount)
+        realp.withUnsafeMutableBufferPointer { realBuffer in
+            imagp.withUnsafeMutableBufferPointer { imagBuffer in
+                var split = DSPSplitComplex(realp: realBuffer.baseAddress!, imagp: imagBuffer.baseAddress!)
+                padded.withUnsafeBufferPointer { buf in
+                    buf.baseAddress!.withMemoryRebound(to: DSPComplex.self, capacity: binCount) { dspComplex in
+                        vDSP_ctoz(dspComplex, 2, &split, 1, vDSP_Length(binCount))
+                    }
+                }
+                vDSP_fft_zrip(fftSetup, &split, 1, log2n, FFTDirection(FFT_FORWARD))
+                magnitudes.withUnsafeMutableBufferPointer { magnitudeBuffer in
+                    vDSP_zvabs(&split, 1, magnitudeBuffer.baseAddress!, 1, vDSP_Length(binCount))
+                }
             }
         }
-        vDSP_fft_zrip(fftSetup, &split, 1, log2n, FFTDirection(FFT_FORWARD))
 
         // magnitudes
-        var magnitudes = [Float](repeating: 0, count: binCount)
-        vDSP_zvabs(&split, 1, &magnitudes, 1, vDSP_Length(binCount))
         // scale: /fftSize, then dB
         var scale = Float(1.0 / Double(fftSize))
         vDSP_vsmul(magnitudes, 1, &scale, &magnitudes, 1, vDSP_Length(binCount))
@@ -69,7 +77,9 @@ final class AudioAnalyzer {
         for k in 0..<binCount {
             let mag = max(magnitudes[k], 1e-12)
             let db = 20 * log10(mag)
-            let clamped = min(max((db - minDb) / (maxDb - minDb), 0), 1)
+            // smoothingTimeConstant 0.65: next = 0.65*prev + 0.35*current
+            smoothedDb[k] = smoothing * smoothedDb[k] + (1 - smoothing) * db
+            let clamped = min(max((smoothedDb[k] - minDb) / (maxDb - minDb), 0), 1)
             freqData[k] = UInt8(clamping: Int(clamped * 255))
         }
         hasData = true

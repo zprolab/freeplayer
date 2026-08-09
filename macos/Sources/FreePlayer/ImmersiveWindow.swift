@@ -1,29 +1,6 @@
 import SwiftUI
 import AppKit
 
-/// Average color of an image (downsampled to 32x32 for speed).
-private extension CGImage {
-    func averageColor() -> CGColor? {
-        let size = 32
-        guard let ctx = CGContext(data: nil, width: size, height: size,
-                                  bitsPerComponent: 8, bytesPerRow: size * 4,
-                                  space: CGColorSpaceCreateDeviceRGB(),
-                                  bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return nil }
-        ctx.draw(self, in: CGRect(x: 0, y: 0, width: size, height: size))
-        guard let data = ctx.data else { return nil }
-        let buf = data.assumingMemoryBound(to: UInt8.self)
-        var r = 0.0, g = 0.0, b = 0.0
-        let count = size * size
-        for i in 0..<count {
-            r += Double(buf[i * 4])
-            g += Double(buf[i * 4 + 1])
-            b += Double(buf[i * 4 + 2])
-        }
-        r /= Double(count); g /= Double(count); b /= Double(count)
-        return CGColor(red: r / 255, green: g / 255, blue: b / 255, alpha: 1)
-    }
-}
-
 /// Manages a borderless, screen-sized window for immersive mode.
 final class ImmersiveWindowController {
     static let shared = ImmersiveWindowController()
@@ -77,42 +54,60 @@ struct ImmersiveView: View {
         model.duration > 0 ? model.currentTime / model.duration : 0
     }
 
+    private var coverImage: NSImage? {
+        guard let path = track.coverPath else { return nil }
+        return CoverLoader.shared.image(for: path)
+    }
+
     var body: some View {
-        ZStack {
-            // Radial gradients on near-black; tint follows cover art when available
-            backgroundTint.opacity(0.28)
-                .ignoresSafeArea()
-            RadialGradient(colors: [Theme.accent.opacity(0.16), .clear],
-                           center: .topLeading, startRadius: 0, endRadius: 500)
-            RadialGradient(colors: [Theme.accent.opacity(0.10), .clear],
-                           center: .bottomTrailing, startRadius: 0, endRadius: 400)
-            Color.black.opacity(0.55)
-        }
-        .overlay {
-            VStack {
-                topBar
-                Spacer()
-                if lyrics.isEmpty {
-                    noLyrics
-                } else {
-                    karaokeLyrics
+        GeometryReader { geometry in
+            ZStack {
+                immersiveBackground
+
+                Group {
+                    if lyrics.isEmpty {
+                        noLyrics
+                    } else {
+                        karaokeLyrics
+                    }
                 }
-                Spacer()
+                .frame(width: max(geometry.size.width - 64, 1),
+                       height: max(geometry.size.height - 264, 1))
+                .position(x: geometry.size.width / 2,
+                          y: geometry.size.height / 2 - 20)
+                .clipped()
+
+                topBar
+                    .frame(width: max(geometry.size.width - 64, 1), height: 64)
+                    .position(x: geometry.size.width / 2, y: 64)
+
                 bottomControls
+                    .frame(width: max(geometry.size.width - 64, 1), height: 120, alignment: .bottom)
+                    .position(x: geometry.size.width / 2,
+                              y: geometry.size.height - 92)
             }
-            .padding(32)
         }
     }
 
-    /// Dominant color of the cover art (falls back to the orange accent).
-    private var backgroundTint: Color {
-        guard let path = track.coverPath,
-              let img = NSImage(contentsOfFile: path),
-              let cg = img.cgImage(forProposedRect: nil, context: nil, hints: nil),
-              let avg = cg.averageColor() else {
-            return Theme.accent
+    @ViewBuilder
+    private var immersiveBackground: some View {
+        if let coverImage {
+            Image(nsImage: coverImage)
+                .resizable()
+                .scaledToFill()
+                .scaleEffect(1.12)
+                .blur(radius: 72, opaque: true)
+                .saturation(1.15)
+                .ignoresSafeArea()
+            Color.black.opacity(0.58)
+                .ignoresSafeArea()
+        } else {
+            Color(red: 0.051, green: 0.051, blue: 0.063)
+                .ignoresSafeArea()
+            RadialGradient(colors: [Theme.accent.opacity(0.22), .clear],
+                           center: .topLeading, startRadius: 0, endRadius: 700)
+                .ignoresSafeArea()
         }
-        return Color(cgColor: avg)
     }
 
     private var topBar: some View {
@@ -130,7 +125,7 @@ struct ImmersiveView: View {
                     .foregroundStyle(.white.opacity(0.7))
             }
             Spacer()
-            HStack(spacing: 10) {
+            HStack(spacing: 0) {
                 zoomButton("-", enabled: zoom > zoomSteps[0]) { zoom -= 1 }
                 Text("\(Int(fontSize))px")
                     .font(Theme.mono)
@@ -138,12 +133,20 @@ struct ImmersiveView: View {
                     .frame(width: 52)
                 zoomButton("+", enabled: zoom < zoomSteps.last ?? 4) { zoom += 1 }
             }
+            .padding(.horizontal, 4)
+            .frame(height: 34)
+            .background(.white.opacity(0.06))
+            .clipShape(RoundedRectangle(cornerRadius: 5))
+            .overlay(RoundedRectangle(cornerRadius: 5).stroke(.white.opacity(0.10)))
             Button {
                 model.immersivePresented = false
             } label: {
                 Image(systemName: "xmark")
                     .font(.system(size: 16))
                     .foregroundStyle(.white.opacity(0.8))
+                    .frame(width: 38, height: 38)
+                    .background(Circle().fill(.white.opacity(0.04)))
+                    .overlay(Circle().stroke(.white.opacity(0.12)))
             }
             .buttonStyle(.plain)
             .help("Exit immersive mode (Esc)")
@@ -152,12 +155,10 @@ struct ImmersiveView: View {
 
     private func zoomButton(_ symbol: String, enabled: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            Image(systemName: symbol)
+            Text(symbol)
                 .font(.system(size: 14))
                 .foregroundStyle(enabled ? .white : .white.opacity(0.25))
                 .frame(width: 28, height: 28)
-                .background(.white.opacity(0.1))
-                .clipShape(Circle())
         }
         .buttonStyle(.plain)
         .disabled(!enabled)
@@ -166,7 +167,7 @@ struct ImmersiveView: View {
     private var noLyrics: some View {
         VStack(spacing: 12) {
             CoverArtLarge(path: track.coverPath)
-                .frame(width: 200, height: 200)
+                .frame(width: 170, height: 170)
             Text(track.title)
                 .font(.system(size: 26, weight: .bold))
                 .foregroundStyle(.white)
@@ -181,28 +182,38 @@ struct ImmersiveView: View {
                 .font(.system(size: 13))
                 .foregroundStyle(.white.opacity(0.3))
         }
+        .offset(y: -40)
     }
 
     private var karaokeLyrics: some View {
-        ScrollViewReader { proxy in
-            ScrollView {
-                VStack(spacing: 14) {
-                    ForEach(Array(lyrics.enumerated()), id: \.offset) { idx, line in
-                        karaokeLine(line, idx: idx)
-                            .id(idx)
+        GeometryReader { geometry in
+            ScrollViewReader { proxy in
+                ScrollView {
+                    VStack(spacing: 14) {
+                        ForEach(Array(lyrics.enumerated()), id: \.offset) { idx, line in
+                            karaokeLine(line, idx: idx)
+                                .id(idx)
+                        }
+                    }
+                    .padding(.horizontal, 80)
+                    .padding(.vertical, max(geometry.size.height / 2 - fontSize, 40))
+                }
+                .onAppear {
+                    let initialIndex = activeIndex
+                    guard initialIndex >= 0 else { return }
+                    DispatchQueue.main.async {
+                        proxy.scrollTo(initialIndex, anchor: .center)
                     }
                 }
-                .padding(.horizontal, 80)
-                .padding(.vertical, 40)
-            }
-            .onChange(of: activeIndex) { newIdx in
-                guard newIdx >= 0 else { return }
-                withAnimation(.easeInOut(duration: 0.3)) {
-                    proxy.scrollTo(newIdx, anchor: .center)
+                .onChange(of: activeIndex) { newIdx in
+                    guard newIdx >= 0 else { return }
+                    withAnimation(.easeInOut(duration: 0.28)) {
+                        proxy.scrollTo(newIdx, anchor: .center)
+                    }
                 }
             }
         }
-        .frame(maxWidth: .infinity)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private func karaokeLine(_ line: LyricLine, idx: Int) -> some View {
@@ -235,8 +246,9 @@ struct ImmersiveView: View {
                 ZStack(alignment: .leading) {
                     Capsule().fill(.white.opacity(0.15))
                     Capsule()
-                        .fill(Theme.accent)
-                        .frame(width: max(geo.size.width * progress, 2))
+                        .fill(LinearGradient(colors: [Theme.accent.opacity(0.8), Theme.accent],
+                                             startPoint: .leading, endPoint: .trailing))
+                        .frame(width: max(geo.size.width * progress, 0))
                 }
                 .contentShape(Rectangle())
                 .gesture(
@@ -247,7 +259,6 @@ struct ImmersiveView: View {
                 )
             }
             .frame(height: 4)
-            .frame(maxWidth: 900)
 
             HStack {
                 Text(Formatting.time(model.currentTime))
@@ -258,21 +269,22 @@ struct ImmersiveView: View {
                     .font(Theme.mono)
                     .foregroundStyle(.white.opacity(0.6))
             }
-            .frame(maxWidth: 900)
-
-            HStack(spacing: 24) {
+            HStack(spacing: 32) {
                 Button { model.previous() } label: {
-                    Image(systemName: "backward.fill").font(.system(size: 24)).foregroundStyle(.white)
+                    Image(systemName: "backward.fill").font(.system(size: 22)).foregroundStyle(.white.opacity(0.8))
                 }
                 .buttonStyle(.plain)
                 Button { model.togglePlayPause() } label: {
-                    Image(systemName: model.isPlaying ? "pause.circle.fill" : "play.circle.fill")
-                        .font(.system(size: 46))
+                    Image(systemName: model.isPlaying ? "pause.fill" : "play.fill")
+                        .font(.system(size: 30))
                         .foregroundStyle(.white)
+                        .frame(width: 72, height: 72)
+                        .background(Circle().fill(.white.opacity(0.1)))
+                        .shadow(color: .black.opacity(0.3), radius: 12, x: 0, y: 4)
                 }
                 .buttonStyle(.plain)
                 Button { model.next() } label: {
-                    Image(systemName: "forward.fill").font(.system(size: 24)).foregroundStyle(.white)
+                    Image(systemName: "forward.fill").font(.system(size: 22)).foregroundStyle(.white.opacity(0.8))
                 }
                 .buttonStyle(.plain)
             }

@@ -215,7 +215,10 @@ final class Database {
         let f = DateFormatter()
         f.dateFormat = "yyyy-MM-dd HH:mm:ss"
         f.locale = Locale(identifier: "en_US_POSIX")
-        f.timeZone = .current
+        // SQLite datetime('now') stores UTC; parse as UTC so wall-clock
+        // display (Added/Started columns) matches the web version
+        // (web appends 'Z' and uses toLocaleString).
+        f.timeZone = TimeZone(identifier: "UTC")
         if let d = f.date(from: s) { return d }
         f.dateFormat = "yyyy-MM-dd"
         return f.date(from: s)
@@ -277,6 +280,12 @@ final class Database {
     func getTrack(id: Int64) -> Track? {
         queue.sync {
             query("SELECT * FROM tracks WHERE id = ?", [id]).first.map(track(from:))
+        }
+    }
+
+    func getTrack(filePath: String) -> Track? {
+        queue.sync {
+            query("SELECT * FROM tracks WHERE file_path = ?", [filePath]).first.map(track(from:))
         }
     }
 
@@ -537,6 +546,12 @@ final class Database {
         queue.sync {
             let rows = query("SELECT lrc_path FROM tracks WHERE id = ?", [trackId])
             return rows.first?["lrc_path"] as? String
+        }
+    }
+
+    func setTrackCover(trackId: Int64, coverPath: String?) {
+        queue.sync {
+            _ = execute("UPDATE tracks SET cover_path = ? WHERE id = ?", [coverPath ?? NSNull(), trackId])
         }
     }
 

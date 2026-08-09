@@ -13,13 +13,16 @@ enum Theme {
     static let sidebarBg = Color(red: 0.161, green: 0.169, blue: 0.184)       // #292b2f
     static let sidebarHover = Color(red: 0.204, green: 0.212, blue: 0.231)    // #34363b
     static let sidebarActive = Color(red: 0.227, green: 0.235, blue: 0.259)   // #3a3c42
+    static let sidebarDivider = Color(red: 0.227, green: 0.235, blue: 0.259)   // #3a3c42
     static let playerBg = Color.white                                           // #ffffff
     static let playerBorder = Color(red: 0.859, green: 0.859, blue: 0.859)    // #dbdbdb
 
     // ── Accent ──
     static let accent = Color(red: 0.886, green: 0.263, blue: 0.161)          // #e24329
+    static let accentHover = Color(red: 0.773, green: 0.212, blue: 0.122)     // #c5361f
     static let green = Color(red: 0.063, green: 0.522, blue: 0.282)           // #108548
     static let blue = Color(red: 0.122, green: 0.459, blue: 0.796)            // #1f75cb
+    static let toggleChecked = Color(red: 0.388, green: 0.396, blue: 0.945)   // #6366f1
 
     // ── Text (for light background) ──
     static let textPrimary = Color(red: 0.188, green: 0.188, blue: 0.188)     // #303030
