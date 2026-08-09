@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { fetchLyricsForTrack, fetchCoverForTrack } from '../services/metaFetch';
+import { fetchAndSaveLyrics, fetchAndSaveCover } from '../services/metaPersistence';
 
 // One fetch attempt per track per app session; failures stay quiet.
 // Dispatch guards:
@@ -31,19 +31,13 @@ export function useAutoMeta(currentTrack, enabled, dispatch) {
         const coverMissing = !track.cover_path
           || !(await window.freeplayer.getCover(track.cover_path).catch(() => null));
         if (coverMissing) {
-          const cover = await fetchCoverForTrack(track);
-          if (cover) {
-            const res = await window.freeplayer.saveCover(track.id, cover);
-            if (res && res.success) coverPath = res.coverPath;
-          }
+          const { saved, coverPath: newCoverPath } = await fetchAndSaveCover(track);
+          if (saved && newCoverPath) coverPath = newCoverPath;
         }
         const lrc = await window.freeplayer.getLrc(track.id);
         if (!lrc || !lrc.content) {
-          const lyrics = await fetchLyricsForTrack(track);
-          if (lyrics) {
-            const res = await window.freeplayer.saveLrcContent(track.id, lyrics);
-            if (res && res.success) lyricsSaved = true;
-          }
+          const { saved } = await fetchAndSaveLyrics(track);
+          if (saved) lyricsSaved = true;
         }
         const changed = coverPath !== track.cover_path || lyricsSaved;
         if (changed && enabledRef.current && currentIdRef.current === track.id) {

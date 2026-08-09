@@ -1,6 +1,9 @@
 // Auto-fetch of lyrics (LRCLIB) and cover art (iTunes Search API).
-// Both sources send Access-Control-Allow-Origin: *, so plain fetch()
-// works from the WKWebView renderer.
+// ALL network requests go through the native bridge (window.freeplayer.
+// httpGetJson / httpGetBase64, NSURLSession with a 10s timeout): the native
+// stack has no CORS constraints (Chinese iTunes CDN edges omit
+// Access-Control-Allow-Origin) and is more reliable than the WKWebView
+// network process on unstable links.
 //
 // Rate limits (LRCLIB ~50 req/min/IP, iTunes ~20 req/min/IP): on 429/403
 // we set a short module-level cooldown and return null — later calls short-
@@ -38,9 +41,18 @@ export function resetRateLimitState() {
 }
 
 function retryAfterMs(res) {
-  const ra = res && res.headers ? res.headers.get('retry-after') : null;
-  const secs = ra ? parseInt(ra, 10) : NaN;
+  const secs = res && res.retryAfter ? parseInt(res.retryAfter, 10) : NaN;
   return (Number.isFinite(secs) ? secs : COOLDOWN_MS / 1000) * 1000;
+}
+
+// Native JSON GET → { ok, status, body } | { ok: false, status?, retryAfter?, error? }
+// Resolves null when the bridge is unavailable (e.g. plain-browser preview).
+async function httpGetJson(url) {
+  try {
+    return await window.freeplayer.httpGetJson(url);
+  } catch {
+    return null;
+  }
 }
 
 export function normalizeForMatch(s) {
@@ -104,25 +116,25 @@ export async function fetchLyricsForTrack(track) {
   const artistKnown = track.artist && track.artist !== 'Unknown Artist';
   if (artistKnown) {
     await pace('lrclib');
-    const getRes = await fetch(buildLrclibGetUrl(track));
-    if (getRes.status === 429) {
+    const getRes = await httpGetJson(buildLrclibGetUrl(track));
+    if (getRes && getRes.status === 429) {
       lrclibCooldownUntil = Date.now() + retryAfterMs(getRes);
       return null;
     }
-    if (getRes.ok) {
-      const lrc = lrclibResponseToLrc(await getRes.json());
+    if (getRes && getRes.ok) {
+      const lrc = lrclibResponseToLrc(getRes.body);
       if (lrc) return lrc;
     }
   }
   const q = [track.title, artistKnown ? track.artist : ''].filter(Boolean).join(' ');
   await pace('lrclib');
-  const searchRes = await fetch(`https://lrclib.net/api/search?q=${encodeURIComponent(q)}`);
-  if (searchRes.status === 429) {
+  const searchRes = await httpGetJson(`https://lrclib.net/api/search?q=${encodeURIComponent(q)}`);
+  if (searchRes && searchRes.status === 429) {
     lrclibCooldownUntil = Date.now() + retryAfterMs(searchRes);
     return null;
   }
-  if (!searchRes.ok) return null;
-  const list = await searchRes.json();
+  if (!searchRes || !searchRes.ok) return null;
+  const list = searchRes.body;
   if (!Array.isArray(list) || !list.length) return null;
   const normalized = list.map((c) => ({
     title: c.track_name, artist: c.artist_name, raw: c,
@@ -146,12 +158,12 @@ export async function fetchCoverForTrack(track) {
   if (Date.now() < itunesCooldownUntil) return null;
   await pace('itunes');
   // One-shot retry: iTunes' search API is served from many edge nodes and
-  // an occasional node omits CORS headers — a rejected fetch must not
+  // is intermittently unreachable — a failed native request must not
   // silently kill the cover for the whole session.
-  let res = await fetch(buildItunesUrl(track)).catch(() => null);
+  let res = await httpGetJson(buildItunesUrl(track));
   if (!res) {
     await new Promise((r) => setTimeout(r, rateConfig.retryDelayMs));
-    res = await fetch(buildItunesUrl(track)).catch(() => null);
+    res = await httpGetJson(buildItunesUrl(track));
   }
   if (!res) return null;
   // 403 = region throttle, 429 = rate limit (iTunes returns 403 when hit)
@@ -160,16 +172,26 @@ export async function fetchCoverForTrack(track) {
     return null;
   }
   if (!res.ok) return null;
-  const body = await res.json();
+  const body = res.body || {};
   const results = (body.results || []).map((r) => ({
     title: r.trackName, artist: r.artistName, artworkUrl: r.artworkUrl100,
   }));
   const best = pickBestMatch(results, track);
   if (!best) return null;
-  const img = await fetch(itunesArtworkLarge(best.artworkUrl)).catch(() => null);
-  if (!img || !img.ok) return null;
-  const buf = new Uint8Array(await img.arrayBuffer());
-  let bin = '';
-  for (let i = 0; i < buf.length; i++) bin += String.fromCharCode(buf[i]);
-  return btoa(bin);
+  // Artwork download also goes through the native stack (mzstatic is CORS-
+  // open, but the WKWebView network process is the same unstable path we
+  // route around everywhere else). Native timeout covers hung downloads.
+  const img = await httpGetBase64(itunesArtworkLarge(best.artworkUrl));
+  if (!img || !img.ok || !img.base64) return null;
+  return img.base64;
+}
+
+// Native binary GET → { ok, status, base64 } | { ok: false, error? }
+// Resolves null when the bridge is unavailable (e.g. plain-browser preview).
+async function httpGetBase64(url) {
+  try {
+    return await window.freeplayer.httpGetBase64(url);
+  } catch {
+    return null;
+  }
 }

@@ -1,15 +1,11 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, Fragment } from 'react';
 import WaveformVisualizer from './WaveformVisualizer';
 import LyricsDisplay from './LyricsDisplay';
 import ImmersiveMode from './ImmersiveMode';
-import { getCachedCover, setCachedCover } from '../coverCache';
-
-function formatTime(seconds) {
-  if (!seconds || !isFinite(seconds)) return '0:00';
-  const m = Math.floor(seconds / 60);
-  const s = Math.floor(seconds % 60);
-  return `${m}:${s.toString().padStart(2, '0')}`;
-}
+import CoverArt from './CoverArt';
+import { formatTime } from '../utils/format';
+import { useCoverArt } from '../hooks/useCoverArt';
+import { fetchAndSaveLyrics, fetchAndSaveCover } from '../services/metaPersistence';
 
 export default function NowPlaying({
   currentTrack, isPlaying, currentTime, duration,
@@ -17,33 +13,18 @@ export default function NowPlaying({
   queue, queueIndex, onPlayFromQueue,
   audioElement,
   visualizerMode, onVisualizerModeChange,
+  onCoverSaved,
 }) {
-  const [coverUrl, setCoverUrl] = useState(null);
   const [lrcContent, setLrcContent] = useState(null);
-  const [lrcPath, setLrcPath] = useState(null);
   const [isImmersive, setIsImmersive] = useState(false);
   const [tab, setTab] = useState('overview');
   const [queueOpen, setQueueOpen] = useState(false);
+  const [fetchingLyrics, setFetchingLyrics] = useState(false);
+  const [lyricsFetchFailed, setLyricsFetchFailed] = useState(false);
+  const [fetchingCover, setFetchingCover] = useState(false);
+  const [coverFetchFailed, setCoverFetchFailed] = useState(false);
 
-  useEffect(() => {
-    let stale = false;
-    if (currentTrack && currentTrack.cover_path) {
-      const cached = getCachedCover(currentTrack.cover_path);
-      if (cached) {
-        setCoverUrl(cached);
-        return;
-      }
-      window.freeplayer.getCover(currentTrack.cover_path).then((url) => {
-        if (!stale && url) {
-          setCachedCover(currentTrack.cover_path, url);
-          setCoverUrl(url);
-        }
-      });
-    } else {
-      setCoverUrl(null);
-    }
-    return () => { stale = true; };
-  }, [currentTrack]);
+  const coverUrl = useCoverArt(currentTrack);
 
   // Fetch LRC lyrics when track changes
   useEffect(() => {
@@ -51,24 +32,18 @@ export default function NowPlaying({
     if (currentTrack?.id) {
       window.freeplayer.getLrc(currentTrack.id).then((result) => {
         if (!stale) {
-          if (result && result.content) {
-            setLrcContent(result.content);
-            setLrcPath(result.path);
-          } else {
-            setLrcContent(null);
-            setLrcPath(null);
-          }
+          setLrcContent(result && result.content ? result.content : null);
         }
       }).catch(() => {
         if (!stale) {
           setLrcContent(null);
-          setLrcPath(null);
         }
       });
     } else {
       setLrcContent(null);
-      setLrcPath(null);
     }
+    setLyricsFetchFailed(false);
+    setCoverFetchFailed(false);
     return () => { stale = true; };
   }, [currentTrack]);
 
@@ -79,7 +54,6 @@ export default function NowPlaying({
       const lrcResult = await window.freeplayer.getLrc(currentTrack.id);
       if (lrcResult && lrcResult.content) {
         setLrcContent(lrcResult.content);
-        setLrcPath(lrcResult.path);
       }
     }
   }, [currentTrack]);
@@ -88,8 +62,36 @@ export default function NowPlaying({
     if (!currentTrack?.id) return;
     await window.freeplayer.removeLrc(currentTrack.id);
     setLrcContent(null);
-    setLrcPath(null);
   }, [currentTrack]);
+
+  const handleFetchLyrics = useCallback(async () => {
+    if (!currentTrack?.id || fetchingLyrics) return;
+    setFetchingLyrics(true);
+    setLyricsFetchFailed(false);
+    const { saved } = await fetchAndSaveLyrics(currentTrack);
+    if (saved) {
+      const lrcResult = await window.freeplayer.getLrc(currentTrack.id);
+      if (lrcResult && lrcResult.content) {
+        setLrcContent(lrcResult.content);
+      }
+    } else {
+      setLyricsFetchFailed(true);
+    }
+    setFetchingLyrics(false);
+  }, [currentTrack, fetchingLyrics]);
+
+  const handleFetchCover = useCallback(async () => {
+    if (!currentTrack?.id || fetchingCover) return;
+    setFetchingCover(true);
+    setCoverFetchFailed(false);
+    const { saved, coverPath } = await fetchAndSaveCover(currentTrack);
+    if (saved && coverPath) {
+      onCoverSaved(coverPath);
+    } else {
+      setCoverFetchFailed(true);
+    }
+    setFetchingCover(false);
+  }, [currentTrack, fetchingCover, onCoverSaved]);
 
   if (!currentTrack) {
     return (
@@ -117,8 +119,10 @@ export default function NowPlaying({
     <LyricsDisplay
       lrcContent={lrcContent}
       currentTime={currentTime}
-      isPlaying={isPlaying}
       onUpload={handleUploadLrc}
+      onFetchLyrics={handleFetchLyrics}
+      fetchingLyrics={fetchingLyrics}
+      lyricsFetchFailed={lyricsFetchFailed}
       onImmersive={() => setIsImmersive(true)}
       onRemove={handleRemoveLrc}
       autoScroll
@@ -154,17 +158,13 @@ export default function NowPlaying({
         <div className="np-overview">
           <div className="np-left">
             <div className="np-cover">
-              {coverUrl ? (
-                <img src={coverUrl} alt="" className="np-cover-img" />
-              ) : (
-                <div className="np-cover-placeholder">
-                  <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1">
-                    <path d="M9 18V5l12-2v13"/>
-                    <circle cx="6" cy="18" r="3"/>
-                    <circle cx="18" cy="16" r="3"/>
-                  </svg>
-                </div>
-              )}
+              <CoverArt
+                track={currentTrack}
+                variant="np"
+                onFetchCover={handleFetchCover}
+                fetchingCover={fetchingCover}
+                coverFetchFailed={coverFetchFailed}
+              />
             </div>
 
             <div className="np-info">
@@ -176,10 +176,10 @@ export default function NowPlaying({
               {specRows.length > 0 && (
                 <dl className="np-spec">
                   {specRows.map(([label, value]) => (
-                    <React.Fragment key={label}>
+                    <Fragment key={label}>
                       <dt className="np-spec-label">{label}</dt>
                       <dd className="np-spec-value">{value}</dd>
-                    </React.Fragment>
+                    </Fragment>
                   ))}
                 </dl>
               )}
@@ -210,7 +210,6 @@ export default function NowPlaying({
           </div>
           <WaveformVisualizer
             audioElement={audioElement}
-            isPlaying={isPlaying}
             trackId={currentTrack?.id}
             mode={visualizerMode}
             onModeChange={onVisualizerModeChange}

@@ -308,6 +308,7 @@ export default function App() {
                   audioElement={audioRef.current}
                   visualizerMode={state.visualizerMode}
                   onVisualizerModeChange={(m) => dispatch({ type: 'SET', payload: { visualizerMode: m } })}
+                  onCoverSaved={(coverPath) => dispatch({ type: 'SET_CURRENT_TRACK', payload: { ...state.currentTrack, cover_path: coverPath } })}
                 />
               )}
               {state.view === VIEWS.STATS && <Stats />}

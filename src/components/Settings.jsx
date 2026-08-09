@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { fetchLyricsForTrack, fetchCoverForTrack } from '../services/metaFetch';
+import { fetchAndSaveLyrics, fetchAndSaveCover } from '../services/metaPersistence';
 
 let batchRunning = false;
 
@@ -82,20 +82,14 @@ export default function Settings({
           || !(await window.freeplayer.getCover(t.cover_path).catch(() => null));
         if (coverMissing) {
           hadMissing = true;
-          const cover = await fetchCoverForTrack(t);
-          if (cover) {
-            const res = await window.freeplayer.saveCover(t.id, cover);
-            if (res && res.success) { ok++; saved = true; }
-          }
+          const { saved: coverSaved } = await fetchAndSaveCover(t);
+          if (coverSaved) { ok++; saved = true; }
         }
         const lrc = await window.freeplayer.getLrc(t.id);
         if (!lrc || !lrc.content) {
           hadMissing = true;
-          const lyrics = await fetchLyricsForTrack(t);
-          if (lyrics) {
-            const res = await window.freeplayer.saveLrcContent(t.id, lyrics);
-            if (res && res.success) { ok++; saved = true; }
-          }
+          const { saved: lrcSaved } = await fetchAndSaveLyrics(t);
+          if (lrcSaved) { ok++; saved = true; }
         }
       } catch {
         threw = true;

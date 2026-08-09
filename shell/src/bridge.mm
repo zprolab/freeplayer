@@ -57,6 +57,9 @@ static const char *kBridgeScript = R"JS(
     deleteTrack: (id) => api._invoke('deleteTrack', id),
     getTrackCount: () => api._invoke('getTrackCount'),
     getTotalDuration: () => api._invoke('getTotalDuration'),
+    // Network (native stack: no CORS, stable on unreliable links)
+    httpGetJson: (url) => api._invoke('httpGetJson', url),
+    httpGetBase64: (url) => api._invoke('httpGetBase64', url),
     // Playback history
     playStart: (trackId) => api._invoke('playStart', trackId),
     playEnd: (data) => api._invoke('playEnd', data),
@@ -426,6 +429,65 @@ static NSWindow *shellWindow(void) {
       } else {
         reply(idNum, NSNull.null);
       }
+    }
+    // ── Network: JSON GET via native stack (no CORS, stable) ──
+    else if ([method isEqualToString:@"httpGetJson"]) {
+      NSString *urlStr = args.firstObject;
+      if (urlStr.length == 0) { reply(idNum, @{ @"ok": @NO, @"error": @"empty url" }); return; }
+      NSURL *url = [NSURL URLWithString:urlStr];
+      if (!url) { reply(idNum, @{ @"ok": @NO, @"error": @"bad url" }); return; }
+      NSMutableURLRequest *req = [NSMutableURLRequest requestWithURL:url];
+      req.timeoutInterval = 10;
+      NSURLSessionDataTask *task = [NSURLSession.sharedSession dataTaskWithRequest:req
+        completionHandler:^(NSData *data, NSURLResponse *resp, NSError *err) {
+          NSHTTPURLResponse *http = (NSHTTPURLResponse *)resp;
+          NSMutableDictionary *result = [NSMutableDictionary dictionary];
+          if (err) {
+            result[@"ok"] = @NO;
+            result[@"error"] = err.localizedDescription ?: @"network error";
+          } else if (http.statusCode >= 400) {
+            result[@"ok"] = @NO;
+            result[@"status"] = @(http.statusCode);
+            result[@"error"] = @"http error";
+            NSString *ra = http.allHeaderFields[@"Retry-After"];
+            if (ra.length > 0) result[@"retryAfter"] = ra;
+          } else {
+            result[@"ok"] = @YES;
+            result[@"status"] = @(http.statusCode);
+            id parsed = data.length > 0 ? [NSJSONSerialization JSONObjectWithData:data options:0 error:nil] : nil;
+            result[@"body"] = parsed ?: NSNull.null;
+          }
+          dispatch_async(dispatch_get_main_queue(), ^{ reply(idNum, result); });
+        }];
+      [task resume];
+    }
+    // ── Network: binary GET via native stack (cover art downloads) ──
+    else if ([method isEqualToString:@"httpGetBase64"]) {
+      NSString *urlStr = args.firstObject;
+      if (urlStr.length == 0) { reply(idNum, @{ @"ok": @NO, @"error": @"empty url" }); return; }
+      NSURL *url = [NSURL URLWithString:urlStr];
+      if (!url) { reply(idNum, @{ @"ok": @NO, @"error": @"bad url" }); return; }
+      NSMutableURLRequest *req = [NSMutableURLRequest requestWithURL:url];
+      req.timeoutInterval = 10;
+      NSURLSessionDataTask *task = [NSURLSession.sharedSession dataTaskWithRequest:req
+        completionHandler:^(NSData *data, NSURLResponse *resp, NSError *err) {
+          NSHTTPURLResponse *http = (NSHTTPURLResponse *)resp;
+          NSMutableDictionary *result = [NSMutableDictionary dictionary];
+          if (err) {
+            result[@"ok"] = @NO;
+            result[@"error"] = err.localizedDescription ?: @"network error";
+          } else if (http.statusCode >= 400) {
+            result[@"ok"] = @NO;
+            result[@"status"] = @(http.statusCode);
+            result[@"error"] = @"http error";
+          } else {
+            result[@"ok"] = @YES;
+            result[@"status"] = @(http.statusCode);
+            result[@"base64"] = [data base64EncodedStringWithOptions:0] ?: @"";
+          }
+          dispatch_async(dispatch_get_main_queue(), ^{ reply(idNum, result); });
+        }];
+      [task resume];
     }
     // ── Playlists ──
     else if ([method isEqualToString:@"getPlaylists"]) {

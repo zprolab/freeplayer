@@ -15,16 +15,17 @@ afterEach(() => {
   rateConfig.retryDelayMs = 0;
 });
 
-function mockFetch(routes) {
+// All API requests go through the native bridge — mock it per test.
+function mockHttp(routes) {
   const fn = vi.fn(async (url) => {
     for (const [needle, body] of routes) {
       if (String(url).includes(needle)) {
-        return { ok: true, json: async () => body };
+        return { ok: true, status: 200, body };
       }
     }
-    return { ok: false, json: async () => null };
+    return { ok: false, status: 404, error: 'mock miss' };
   });
-  global.fetch = fn;
+  window.freeplayer.httpGetJson = fn;
   return fn;
 }
 
@@ -65,11 +66,11 @@ describe('LRCLIB', () => {
     expect(lrclibResponseToLrc(null)).toBeNull();
   });
   it('fetchLyricsForTrack: exact get hit', async () => {
-    mockFetch([['lrclib.net/api/get', { syncedLyrics: '[00:01.00]hi' }]]);
+    mockHttp([['lrclib.net/api/get', { syncedLyrics: '[00:01.00]hi' }]]);
     expect(await fetchLyricsForTrack({ title: 'Sun', artist: 'A' })).toBe('[00:01.00]hi');
   });
   it('fetchLyricsForTrack: unknown artist skips get (400s) and searches', async () => {
-    const fn = mockFetch([
+    const fn = mockHttp([
       ['lrclib.net/api/search', [{ track_name: 'Sun', artist_name: 'A', syncedLyrics: '[00:01.00]yes' }]],
     ]);
     expect(await fetchLyricsForTrack({ title: 'Sun', artist: 'Unknown Artist' })).toBe('[00:01.00]yes');
@@ -77,7 +78,7 @@ describe('LRCLIB', () => {
     expect(String(fn.mock.calls[0][0])).not.toContain('api/get');
   });
   it('fetchLyricsForTrack: falls back to search with best match', async () => {
-    mockFetch([
+    mockHttp([
       ['lrclib.net/api/get', null],
       ['lrclib.net/api/search', [
         { track_name: 'Sun', artist_name: 'A', syncedLyrics: '[00:01.00]yes' },
@@ -87,33 +88,37 @@ describe('LRCLIB', () => {
     expect(await fetchLyricsForTrack({ title: 'Sun', artist: 'A' })).toBe('[00:01.00]yes');
   });
   it('fetchLyricsForTrack: no acceptable match returns null', async () => {
-    mockFetch([
+    mockHttp([
       ['lrclib.net/api/get', null],
       ['lrclib.net/api/search', [{ track_name: 'Other Thing', artist_name: 'Z', syncedLyrics: '[00:01.00]x' }]],
     ]);
     expect(await fetchLyricsForTrack({ title: 'Sun', artist: 'A' })).toBeNull();
   });
+  it('fetchLyricsForTrack: bridge unavailable resolves null without throwing', async () => {
+    window.freeplayer.httpGetJson = vi.fn(async () => { throw new TypeError('bridge missing'); });
+    expect(await fetchLyricsForTrack({ title: 'Sun', artist: 'A' })).toBeNull();
+  });
   it('fetchLyricsForTrack: 429 throttling sets a cooldown and returns null', async () => {
-    global.fetch = vi.fn(async () => ({ ok: false, status: 429, headers: { get: () => null }, json: async () => null }));
+    window.freeplayer.httpGetJson = vi.fn(async () => ({ ok: false, status: 429, error: 'rate' }));
     expect(await fetchLyricsForTrack({ title: 'Sun', artist: 'A' })).toBeNull();
     // second call within cooldown must not hit the network at all
-    const calls = global.fetch.mock.calls.length;
+    const calls = window.freeplayer.httpGetJson.mock.calls.length;
     expect(await fetchLyricsForTrack({ title: 'Sun', artist: 'A' })).toBeNull();
-    expect(global.fetch.mock.calls.length).toBe(calls);
+    expect(window.freeplayer.httpGetJson.mock.calls.length).toBe(calls);
   });
   it('fetchLyricsForTrack: search path 429 sets cooldown', async () => {
-    global.fetch = vi.fn(async (url) => {
+    window.freeplayer.httpGetJson = vi.fn(async (url) => {
       if (String(url).includes('/api/get')) {
-        return { ok: false, status: 404, json: async () => null }; // get miss -> fall through to search
+        return { ok: false, status: 404, error: 'miss' }; // get miss -> fall through to search
       }
-      return { ok: false, status: 429, headers: { get: () => null }, json: async () => null };
+      return { ok: false, status: 429, error: 'rate' };
     });
     expect(await fetchLyricsForTrack({ title: 'Sun', artist: 'A' })).toBeNull();
-    expect(String(global.fetch.mock.calls[1][0])).toContain('api/search');
+    expect(String(window.freeplayer.httpGetJson.mock.calls[1][0])).toContain('api/search');
     // second call within cooldown must not hit the network at all
-    const calls = global.fetch.mock.calls.length;
+    const calls = window.freeplayer.httpGetJson.mock.calls.length;
     expect(await fetchLyricsForTrack({ title: 'Sun', artist: 'A' })).toBeNull();
-    expect(global.fetch.mock.calls.length).toBe(calls);
+    expect(window.freeplayer.httpGetJson.mock.calls.length).toBe(calls);
   });
 });
 
@@ -144,58 +149,57 @@ describe('iTunes cover', () => {
     expect(itunesArtworkLarge('https://a.com/art/abc100x100bb.jpg')).toBe('https://a.com/art/abc600x600bb.jpg');
   });
   it('fetchCoverForTrack: picks best result and returns base64', async () => {
-    global.fetch = vi.fn(async (url) => {
-      if (String(url).includes('itunes.apple.com')) {
-        return { ok: true, json: async () => ({
-          results: [
-            { trackName: 'Moon', artistName: 'Z', artworkUrl100: 'https://img/x100x100.jpg' },
-            { trackName: 'Sun', artistName: 'A', artworkUrl100: 'https://img/sun100x100bb.jpg' },
-          ],
-        }) };
-      }
-      // artwork image fetch
+    mockHttp([['itunes.apple.com', {
+      results: [
+        { trackName: 'Moon', artistName: 'Z', artworkUrl100: 'https://img/x100x100.jpg' },
+        { trackName: 'Sun', artistName: 'A', artworkUrl100: 'https://img/sun100x100bb.jpg' },
+      ],
+    }]]);
+    window.freeplayer.httpGetBase64 = vi.fn(async (url) => {
+      // artwork download through the native stack
       expect(String(url)).toContain('sun600x600bb.jpg');
-      return { ok: true, arrayBuffer: async () => new TextEncoder().encode('jpeg-bytes').buffer };
+      return { ok: true, status: 200, base64: Buffer.from('jpeg-bytes').toString('base64') };
     });
     const b64 = await fetchCoverForTrack({ title: 'Sun', artist: 'A' });
     expect(b64).toBe(Buffer.from('jpeg-bytes').toString('base64'));
   });
   it('fetchCoverForTrack: no results returns null', async () => {
-    global.fetch = vi.fn(async () => ({ ok: true, json: async () => ({ results: [] }) }));
+    mockHttp([['itunes.apple.com', { results: [] }]]);
     expect(await fetchCoverForTrack({ title: 'Sun', artist: 'A' })).toBeNull();
   });
   it('fetchCoverForTrack: network failure retries once, then succeeds', async () => {
     let calls = 0;
-    global.fetch = vi.fn(async (url) => {
+    window.freeplayer.httpGetJson = vi.fn(async () => {
       calls++;
-      if (calls === 1) throw new TypeError('Failed to fetch'); // CORS-less edge node
-      if (String(url).includes('itunes.apple.com')) {
-        return { ok: true, json: async () => ({
-          results: [{ trackName: 'Sun', artistName: 'A', artworkUrl100: 'https://img/s100x100bb.jpg' }],
-        }) };
-      }
-      return { ok: true, arrayBuffer: async () => new TextEncoder().encode('jpeg-bytes').buffer };
+      if (calls === 1) return null; // network error -> null
+      return { ok: true, status: 200, body: {
+        results: [{ trackName: 'Sun', artistName: 'A', artworkUrl100: 'https://img/s100x100bb.jpg' }],
+      } };
     });
+    window.freeplayer.httpGetBase64 = vi.fn(async () => ({ ok: true, status: 200, base64: Buffer.from('jpeg-bytes').toString('base64') }));
     const b64 = await fetchCoverForTrack({ title: 'Sun', artist: 'A' });
     expect(b64).toBe(Buffer.from('jpeg-bytes').toString('base64'));
     expect(calls).toBeGreaterThanOrEqual(2);
   });
-  it('fetchCoverForTrack: artwork fetch failure returns null', async () => {
-    global.fetch = vi.fn(async (url) => {
-      if (String(url).includes('itunes.apple.com')) {
-        return { ok: true, json: async () => ({
-          results: [{ trackName: 'Sun', artistName: 'A', artworkUrl100: 'https://img/s100x100bb.jpg' }],
-        }) };
-      }
-      throw new TypeError('Failed to fetch'); // mzstatic edge node without CORS
-    });
+  it('fetchCoverForTrack: artwork download failure returns null', async () => {
+    mockHttp([['itunes.apple.com', {
+      results: [{ trackName: 'Sun', artistName: 'A', artworkUrl100: 'https://img/s100x100bb.jpg' }],
+    }]]);
+    window.freeplayer.httpGetBase64 = vi.fn(async () => ({ ok: false, status: 500, error: 'http error' }));
+    expect(await fetchCoverForTrack({ title: 'Sun', artist: 'A' })).toBeNull();
+  });
+  it('fetchCoverForTrack: artwork bridge unavailable resolves null', async () => {
+    mockHttp([['itunes.apple.com', {
+      results: [{ trackName: 'Sun', artistName: 'A', artworkUrl100: 'https://img/s100x100bb.jpg' }],
+    }]]);
+    window.freeplayer.httpGetBase64 = vi.fn(async () => { throw new TypeError('bridge missing'); });
     expect(await fetchCoverForTrack({ title: 'Sun', artist: 'A' })).toBeNull();
   });
   it('fetchCoverForTrack: 403 throttling sets a cooldown and returns null', async () => {
-    global.fetch = vi.fn(async () => ({ ok: false, status: 403, json: async () => null }));
+    window.freeplayer.httpGetJson = vi.fn(async () => ({ ok: false, status: 403, error: 'region' }));
     expect(await fetchCoverForTrack({ title: 'Sun', artist: 'A' })).toBeNull();
-    const calls = global.fetch.mock.calls.length;
+    const calls = window.freeplayer.httpGetJson.mock.calls.length;
     expect(await fetchCoverForTrack({ title: 'Sun', artist: 'A' })).toBeNull();
-    expect(global.fetch.mock.calls.length).toBe(calls);
+    expect(window.freeplayer.httpGetJson.mock.calls.length).toBe(calls);
   });
 });
