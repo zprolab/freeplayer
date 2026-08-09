@@ -1,4 +1,4 @@
-import React from 'react';
+import { useEffect, useRef } from 'react';
 import Sidebar from './components/Sidebar';
 import Library from './components/Library';
 import NowPlaying from './components/NowPlaying';
@@ -11,12 +11,13 @@ import { usePlayer, VIEWS } from './context/PlayerContext';
 import { usePlayback } from './hooks/usePlayback';
 import { useLibrary } from './hooks/useLibrary';
 import { usePlaylists } from './hooks/usePlaylists';
+import { useAutoMeta } from './hooks/useAutoMeta';
 import { audioEngine } from './audioEngine';
 
 export default function App() {
   const { state, dispatch, audioRef } = usePlayer();
   const {
-    playTrack, togglePlayPause, handleNext, handlePrev,
+    togglePlayPause, handleNext, handlePrev,
     handleSeek, handleVolumeChange, playTrackFromList,
   } = usePlayback();
   const {
@@ -30,8 +31,10 @@ export default function App() {
     handleAddToPlaylist, handleRemoveFromPlaylist, handleOpenCreateForTrack,
   } = usePlaylists();
 
+  useAutoMeta(state.currentTrack, state.autoFetchMeta, dispatch);
+
   // Native shell: file drops arrive with real filesystem paths
-  React.useEffect(() => {
+  useEffect(() => {
     if (!window.freeplayer?.onDropFiles) return;
     window.freeplayer.onDropFiles((paths) => {
       if (state.view !== VIEWS.LIBRARY || state.importModalOpen) return;
@@ -40,12 +43,12 @@ export default function App() {
   }, [state.view, state.importModalOpen, dispatch]);
 
   // Load playlists on mount
-  React.useEffect(() => {
+  useEffect(() => {
     loadPlaylists();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Keyboard shortcuts
-  React.useEffect(() => {
+  useEffect(() => {
     const MODES = ['waveform', 'spectrogram', 'off'];
     const onKey = (e) => {
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
@@ -69,10 +72,10 @@ export default function App() {
   }, [dispatch, togglePlayPause, state.visualizerMode]);
 
   // Tray menu playback control — use ref to avoid listener leak on re-renders
-  const playbackHandlersRef = React.useRef({ togglePlayPause, handleNext, handlePrev });
+  const playbackHandlersRef = useRef({ togglePlayPause, handleNext, handlePrev });
   playbackHandlersRef.current = { togglePlayPause, handleNext, handlePrev };
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (!window.freeplayer?.onPlaybackControl) return;
     const handler = ({ action }) => {
       const h = playbackHandlersRef.current;
@@ -86,14 +89,14 @@ export default function App() {
   }, []); // register once; ref always has latest handlers
 
   // Equalizer: init from DB once, apply live curve changes
-  const eqHandlerRef = React.useRef();
+  const eqHandlerRef = useRef();
   eqHandlerRef.current = (s) => {
     if (!s) return;
     audioEngine.applyEq(s.gains, s.enabled);
     dispatch({ type: 'SET', payload: { eqEnabled: s.enabled } });
   };
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (!window.freeplayer?.getEqState) return;
     window.freeplayer.getEqState().then((s) => {
       if (s) {
@@ -103,7 +106,7 @@ export default function App() {
     }).catch((err) => console.warn('Failed to load EQ state:', err));
   }, []);
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (!window.freeplayer?.onEqChange) return;
     window.freeplayer.onEqChange((s) => eqHandlerRef.current(s));
   }, []);
