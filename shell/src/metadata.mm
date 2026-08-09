@@ -21,9 +21,18 @@ static NSString *firstValue(NSArray<AVMetadataItem *> *items, NSString *key) {
 }
 
 // Strip downloader suffixes: "Artist - Title_EM.flac" -> "Artist - Title"
+static NSRegularExpression *stemSuffixRegex(void) {
+  // M9: compile once, not per call (import loop + every getLrc sidecar lookup)
+  static NSRegularExpression *re = nil;
+  static dispatch_once_t once;
+  dispatch_once(&once, ^{
+    re = [NSRegularExpression regularExpressionWithPattern:@"_[A-Za-z]{1,4}$" options:0 error:nil];
+  });
+  return re;
+}
+
 NSString *cleanAudioStem(NSString *stem) {
-  NSRegularExpression *re = [NSRegularExpression regularExpressionWithPattern:@"_[A-Za-z]{1,4}$" options:0 error:nil];
-  return [re stringByReplacingMatchesInString:stem options:0 range:NSMakeRange(0, stem.length) withTemplate:@""];
+  return [stemSuffixRegex() stringByReplacingMatchesInString:stem options:0 range:NSMakeRange(0, stem.length) withTemplate:@""];
 }
 
 // Try to find a sidecar .lrc for an audio file (same dir, same stem,
@@ -185,13 +194,15 @@ static NSDictionary *parseId3v2(NSString *path) {
 }
 
 // Extract everything the import pipeline needs.
-// Returns nil on failure. Call on a background queue.
+// Returns nil if the asset cannot be loaded within 10s (M10: the timeout is
+// the only failure signal — the load error is intentionally not surfaced;
+// on timeout the caller falls back to filename-derived tags).
+// Call on a background queue.
 NSDictionary *extractAtPath(NSString *path) {
   NSURL *url = [NSURL fileURLWithPath:path];
   AVURLAsset *asset = [AVURLAsset URLAssetWithURL:url options:nil];
 
   __block BOOL loaded = NO;
-  __block NSError *loadError = nil;
   dispatch_semaphore_t sem = dispatch_semaphore_create(0);
   [asset loadValuesAsynchronouslyForKeys:@[ @"commonMetadata", @"duration", @"tracks" ]
                        completionHandler:^{
@@ -199,7 +210,7 @@ NSDictionary *extractAtPath(NSString *path) {
     dispatch_semaphore_signal(sem);
   }];
   dispatch_semaphore_wait(sem, dispatch_time(DISPATCH_TIME_NOW, (int64_t)(10 * NSEC_PER_SEC)));
-  if (!loaded || loadError) return nil;
+  if (!loaded) return nil;
 
   NSArray<AVMetadataItem *> *meta = asset.commonMetadata;
   NSMutableDictionary *out = [NSMutableDictionary dictionary];

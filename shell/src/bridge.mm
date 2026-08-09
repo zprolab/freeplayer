@@ -4,12 +4,21 @@
 
 #import <Cocoa/Cocoa.h>
 #import <WebKit/WebKit.h>
+#import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
+#include <atomic>
 #include "db.h"
 #include "bridge.h"
 #include "metadata.h"
 #include "tray.h"
 
 static const char *kAudioExtensions[] = { "mp3", "flac", "m4a", "aac", "ogg", "wav", "opus", "mp4" };
+
+// M12: in-flight import counter — app termination waits for it to drain
+std::atomic<int> gImportTasks{0};
+
+bool fpPendingImports(void) {
+  return gImportTasks.load() > 0;
+}
 
 static BOOL isAudioFile(NSString *path) {
   NSString *ext = path.pathExtension.lowercaseString;
@@ -19,21 +28,24 @@ static BOOL isAudioFile(NSString *path) {
   return NO;
 }
 
-// Recursive audio file scan
+// Recursive audio file scan (M3: skip hidden dirs without descending; use
+// the enumerator's own attributes instead of stat-ing every entry)
 static NSArray *scanAudioFiles(NSString *root) {
   NSMutableArray *found = [NSMutableArray array];
   NSFileManager *fm = NSFileManager.defaultManager;
   NSDirectoryEnumerator *en = [fm enumeratorAtPath:root];
   for (NSString *rel in en) {
-    if ([rel hasPrefix:@"."]) continue; // hidden dirs/files
+    NSDictionary *attrs = [en fileAttributes];
+    BOOL isDir = [attrs[NSFileType] isEqualToString:NSFileTypeDirectory];
+    if (isDir) {
+      // Hidden directory (.git, .Trashes, downloader caches): don't descend
+      if ([rel.lastPathComponent hasPrefix:@"."]) [en skipDescendants];
+      continue;
+    }
+    if ([rel.lastPathComponent hasPrefix:@"."]) continue; // hidden file
     NSString *full = [root stringByAppendingPathComponent:rel];
-    BOOL isDir = NO;
-    if ([fm fileExistsAtPath:full isDirectory:&isDir]) {
-      if (isDir) {
-        if ([rel hasPrefix:@"."]) [en skipDescendants];
-      } else if (isAudioFile(full)) {
-        [found addObject:full];
-      }
+    if (isAudioFile(full)) {
+      [found addObject:full];
     }
   }
   return found;
@@ -212,6 +224,85 @@ NSString *fpBridgeScript() {
   return [NSString stringWithUTF8String:kBridgeScript];
 }
 
+// M7: verbose IPC logging gated behind FP_VERBOSE (env or defaults)
+static BOOL fpVerboseLogging(void) {
+  static int v = -1;
+  if (v == -1) {
+    v = (getenv("FP_VERBOSE") != NULL
+         || [NSUserDefaults.standardUserDefaults boolForKey:@"FP_VERBOSE"]) ? 1 : 0;
+  }
+  return v == 1;
+}
+
+// Shared library containment check — the trust anchor for all renderer-
+// facing file reads (covers, LRC, media streaming). See NEW-2: library_dir
+// itself can only be set by the native NSOpenPanel flows.
+static BOOL fpPathInLibrary(NSString *path) {
+  NSString *libNorm = [fpdb::getSetting(@"library_dir", nil) stringByStandardizingPath];
+  if (libNorm.length == 0) return NO;
+  NSString *pathNorm = [path stringByStandardizingPath];
+  return [pathNorm hasPrefix:[libNorm stringByAppendingString:@"/"]]
+      || [pathNorm isEqualToString:libNorm];
+}
+
+// ── Native HTTP (M1: shared helper + one session for json/base64) ──
+static const NSUInteger kMaxHttpBytes = 8 * 1024 * 1024; // H5: response cap
+
+static NSURLSession *fpSharedSession(void) {
+  static NSURLSession *session = nil;
+  static dispatch_once_t once;
+  dispatch_once(&once, ^{
+    NSURLSessionConfiguration *cfg = [NSURLSessionConfiguration ephemeralSessionConfiguration];
+    cfg.waitsForConnectivity = YES;             // L1: don't fail instantly offline
+    cfg.timeoutIntervalForRequest = 10;
+    cfg.timeoutIntervalForResource = 30;
+    session = [NSURLSession sessionWithConfiguration:cfg];
+  });
+  return session;
+}
+
+// Shared GET pipeline: validates scheme (H5 — never file:// or friends),
+// enforces a size cap, shapes {ok, status, retryAfter?, error?}, hands the
+// body to `fill` on success, and hops back to the main thread to reply.
+static void fpHttpGet(NSString *urlStr, NSNumber *mid, void (^replyBlock)(NSNumber *, id),
+                      void (^fill)(NSMutableDictionary *, NSData *)) {
+  if (urlStr.length == 0) { replyBlock(mid, @{ @"ok": @NO, @"error": @"empty url" }); return; }
+  NSURL *url = [NSURL URLWithString:urlStr];
+  if (!url) { replyBlock(mid, @{ @"ok": @NO, @"error": @"bad url" }); return; }
+  // H5: http/https only — NSURLSession would happily serve file:// (arbitrary
+  // local file read from a compromised renderer)
+  if (![url.scheme isEqualToString:@"http"] && ![url.scheme isEqualToString:@"https"]) {
+    replyBlock(mid, @{ @"ok": @NO, @"error": @"unsupported scheme" });
+    return;
+  }
+  NSMutableURLRequest *req = [NSMutableURLRequest requestWithURL:url];
+  req.timeoutInterval = 10;
+  NSURLSessionDataTask *task = [fpSharedSession() dataTaskWithRequest:req
+    completionHandler:^(NSData *data, NSURLResponse *resp, NSError *err) {
+      NSHTTPURLResponse *http = (NSHTTPURLResponse *)resp;
+      NSMutableDictionary *result = [NSMutableDictionary dictionary];
+      if (err) {
+        result[@"ok"] = @NO;
+        result[@"error"] = err.localizedDescription ?: @"network error";
+      } else if (http.statusCode >= 400) {
+        result[@"ok"] = @NO;
+        result[@"status"] = @(http.statusCode);
+        result[@"error"] = @"http error";
+        NSString *ra = http.allHeaderFields[@"Retry-After"];
+        if (ra.length > 0) result[@"retryAfter"] = ra;
+      } else if (data.length > kMaxHttpBytes) {
+        result[@"ok"] = @NO;
+        result[@"error"] = @"response too large";
+      } else {
+        result[@"ok"] = @YES;
+        result[@"status"] = @(http.statusCode);
+        fill(result, data);
+      }
+      dispatch_async(dispatch_get_main_queue(), ^{ replyBlock(mid, result); });
+    }];
+  [task resume];
+}
+
 // ── Equalizer state: settings table + cross-window broadcast ──
 static NSString *eqKey(NSString *suffix) {
   return [NSString stringWithFormat:@"eq.%@", suffix];
@@ -239,9 +330,13 @@ static void fpSaveEq(NSDictionary *d) {
   for (id v in g) {
     [vals addObject:[NSString stringWithFormat:@"%.1f", [v doubleValue]]];
   }
+  // M6: one transaction instead of three autocommits (fsync per write);
+  // if the transaction can't start, fall back to plain autocommit writes
+  BOOL tx = fpdb::beginTransaction();
   fpdb::setSetting(eqKey(@"enabled"), [d[@"enabled"] boolValue] ? @"1" : @"0");
   fpdb::setSetting(eqKey(@"preset"), [d[@"preset"] isKindOfClass:NSString.class] ? d[@"preset"] : @"自定义");
   fpdb::setSetting(eqKey(@"gains"), [vals componentsJoinedByString:@","]);
+  if (tx) fpdb::commitTransaction();
 }
 
 static void fpBroadcastEq(void) {
@@ -345,15 +440,18 @@ static NSWindow *shellWindow(void) {
                     (long)mid.integerValue, json];
     [message.webView evaluateJavaScript:js completionHandler:nil];
   };
+  // M2: JSON-encode the message — a JSON string is always valid JS, unlike
+  // hand-escaping which broke on newlines / double quotes / U+2028
   auto reject = ^(NSNumber *mid, NSString *why) {
-    NSString *escaped = [why stringByReplacingOccurrencesOfString:@"\\" withString:@"\\\\"];
-    escaped = [escaped stringByReplacingOccurrencesOfString:@"'" withString:@"\\'"];
-    NSString *js = [NSString stringWithFormat:@"window.freeplayer._reject(%ld, '%@')",
-                    (long)mid.integerValue, escaped];
+    NSData *data = [NSJSONSerialization dataWithJSONObject:why ?: @"error" options:0 error:nil];
+    NSString *json = data ? [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding] : @"\"error\"";
+    NSString *js = [NSString stringWithFormat:@"window.freeplayer._reject(%ld, %@)",
+                    (long)mid.integerValue, json];
     [message.webView evaluateJavaScript:js completionHandler:nil];
   };
 
-  NSLog(@"[shell] method=%@", method);
+  // M7: every-IPC NSLog is syscall spam on the playback hot path — gate it
+  if (fpVerboseLogging()) NSLog(@"[shell] method=%@", method);
 
   @try {
     // ── Settings / setup ──
@@ -364,7 +462,16 @@ static NSWindow *shellWindow(void) {
       reply(idNum, fpdb::getSetting(args.firstObject, nil) ?: NSNull.null);
     } else if ([method isEqualToString:@"setSetting"]) {
       NSDictionary *d = args.firstObject;
-      reply(idNum, @(fpdb::setSetting(d[@"key"], d[@"value"])));
+      NSString *key = d[@"key"];
+      // NEW-2: library_dir is the trust anchor for the file-read boundary —
+      // only the native NSOpenPanel flows (importDialog/selectLibraryDir) may
+      // set it; a renderer-writable anchor would let XSS widen the boundary
+      // and read arbitrary files via getCover/media:///getLrc.
+      if ([key isEqualToString:@"library_dir"]) {
+        reply(idNum, @NO);
+        return;
+      }
+      reply(idNum, @(fpdb::setSetting(key, d[@"value"])));
     } else if ([method isEqualToString:@"getEqState"]) {
       reply(idNum, fpEqStateDict());
     } else if ([method isEqualToString:@"setEq"]) {
@@ -378,21 +485,41 @@ static NSWindow *shellWindow(void) {
     } else if ([method isEqualToString:@"resetDatabase"]) {
       reply(idNum, @(fpdb::resetDatabase()));
     }
-    // ── Tracks ──
+    // ── Tracks (H2: read-heavy queries + reply JSON off the main thread) ──
     else if ([method isEqualToString:@"getTracks"]) {
       NSDictionary *p = args.firstObject;
-      reply(idNum, fpdb::getAllTracks(p[@"search"] ?: @"", p[@"sortBy"] ?: @"imported_at", p[@"sortDir"] ?: @"DESC"));
+      NSString *search = p[@"search"] ?: @"";
+      NSString *sortBy = p[@"sortBy"] ?: @"imported_at";
+      NSString *sortDir = p[@"sortDir"] ?: @"DESC";
+      NSNumber *mid = idNum;
+      dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+        NSArray *rows = fpdb::getAllTracks(search, sortBy, sortDir);
+        dispatch_async(dispatch_get_main_queue(), ^{ reply(mid, rows); });
+      });
     } else if ([method isEqualToString:@"getTrack"]) {
-      reply(idNum, fpdb::getTrackById([args.firstObject longLongValue]));
+      int64_t tid = [args.firstObject longLongValue];
+      NSNumber *mid = idNum;
+      dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+        id track = fpdb::getTrackById(tid);
+        dispatch_async(dispatch_get_main_queue(), ^{ reply(mid, track); });
+      });
     } else if ([method isEqualToString:@"updateTrack"]) {
       NSDictionary *d = args.firstObject;
       reply(idNum, @(fpdb::updateTrack([d[@"id"] longLongValue], d)));
     } else if ([method isEqualToString:@"deleteTrack"]) {
       reply(idNum, @(fpdb::deleteTrack([args.firstObject longLongValue])));
     } else if ([method isEqualToString:@"getTrackCount"]) {
-      reply(idNum, @(fpdb::getTrackCount()));
+      NSNumber *mid = idNum;
+      dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+        int64_t n = fpdb::getTrackCount();
+        dispatch_async(dispatch_get_main_queue(), ^{ reply(mid, @(n)); });
+      });
     } else if ([method isEqualToString:@"getTotalDuration"]) {
-      reply(idNum, @(fpdb::getTotalDuration()));
+      NSNumber *mid = idNum;
+      dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+        double d = fpdb::getTotalDuration();
+        dispatch_async(dispatch_get_main_queue(), ^{ reply(mid, @(d)); });
+      });
     }
     // ── Playback history ──
     else if ([method isEqualToString:@"playStart"]) {
@@ -410,88 +537,66 @@ static NSWindow *shellWindow(void) {
                                           [d[@"durationSeconds"] doubleValue],
                                           [d[@"playPercentage"] doubleValue])));
     }
-    // ── Stats ──
+    // ── Stats (H2: off main thread) ──
     else if ([method isEqualToString:@"getPlayHistory"]) {
-      reply(idNum, fpdb::getPlayHistory([args.firstObject longValue] ?: 50));
+      long limit = [args.firstObject longValue] ?: 50;
+      NSNumber *mid = idNum;
+      dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+        NSArray *rows = fpdb::getPlayHistory(limit);
+        dispatch_async(dispatch_get_main_queue(), ^{ reply(mid, rows); });
+      });
     } else if ([method isEqualToString:@"getStats"]) {
-      reply(idNum, fpdb::getListeningStats());
+      NSNumber *mid = idNum;
+      dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+        NSDictionary *stats = fpdb::getListeningStats();
+        dispatch_async(dispatch_get_main_queue(), ^{ reply(mid, stats); });
+      });
     }
-    // ── Cover art ──
+    // ── Cover art (H3: file read + base64 off the main thread; L2: the path
+    // must live inside the library — getCover is a renderer-facing arbitrary
+    // file read otherwise) ──
     else if ([method isEqualToString:@"getCover"]) {
       NSString *coverPath = args.firstObject;
-      NSData *data = [NSData dataWithContentsOfFile:coverPath];
-      if (data) {
-        NSString *ext = coverPath.pathExtension.lowercaseString;
-        NSString *mime = [ext isEqualToString:@"png"] ? @"image/png"
-                        : [ext isEqualToString:@"webp"] ? @"image/webp"
-                        : @"image/jpeg";
-        reply(idNum, [NSString stringWithFormat:@"data:%@;base64,%@", mime, [data base64EncodedStringWithOptions:0]]);
-      } else {
+      if (!fpPathInLibrary(coverPath)) {
         reply(idNum, NSNull.null);
+        return;
       }
+      NSNumber *mid = idNum;
+      dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+        NSData *data = [NSData dataWithContentsOfFile:coverPath];
+        dispatch_async(dispatch_get_main_queue(), ^{
+          if (data) {
+            NSString *ext = coverPath.pathExtension.lowercaseString;
+            NSString *mime = [ext isEqualToString:@"png"] ? @"image/png"
+                            : [ext isEqualToString:@"webp"] ? @"image/webp"
+                            : @"image/jpeg";
+            reply(mid, [NSString stringWithFormat:@"data:%@;base64,%@", mime, [data base64EncodedStringWithOptions:0]]);
+          } else {
+            reply(mid, NSNull.null);
+          }
+        });
+      });
     }
     // ── Network: JSON GET via native stack (no CORS, stable) ──
     else if ([method isEqualToString:@"httpGetJson"]) {
-      NSString *urlStr = args.firstObject;
-      if (urlStr.length == 0) { reply(idNum, @{ @"ok": @NO, @"error": @"empty url" }); return; }
-      NSURL *url = [NSURL URLWithString:urlStr];
-      if (!url) { reply(idNum, @{ @"ok": @NO, @"error": @"bad url" }); return; }
-      NSMutableURLRequest *req = [NSMutableURLRequest requestWithURL:url];
-      req.timeoutInterval = 10;
-      NSURLSessionDataTask *task = [NSURLSession.sharedSession dataTaskWithRequest:req
-        completionHandler:^(NSData *data, NSURLResponse *resp, NSError *err) {
-          NSHTTPURLResponse *http = (NSHTTPURLResponse *)resp;
-          NSMutableDictionary *result = [NSMutableDictionary dictionary];
-          if (err) {
-            result[@"ok"] = @NO;
-            result[@"error"] = err.localizedDescription ?: @"network error";
-          } else if (http.statusCode >= 400) {
-            result[@"ok"] = @NO;
-            result[@"status"] = @(http.statusCode);
-            result[@"error"] = @"http error";
-            NSString *ra = http.allHeaderFields[@"Retry-After"];
-            if (ra.length > 0) result[@"retryAfter"] = ra;
-          } else {
-            result[@"ok"] = @YES;
-            result[@"status"] = @(http.statusCode);
-            id parsed = data.length > 0 ? [NSJSONSerialization JSONObjectWithData:data options:0 error:nil] : nil;
-            result[@"body"] = parsed ?: NSNull.null;
-          }
-          dispatch_async(dispatch_get_main_queue(), ^{ reply(idNum, result); });
-        }];
-      [task resume];
+      fpHttpGet(args.firstObject, idNum, reply, ^(NSMutableDictionary *result, NSData *data) {
+        id parsed = data.length > 0 ? [NSJSONSerialization JSONObjectWithData:data options:0 error:nil] : nil;
+        result[@"body"] = parsed ?: NSNull.null;
+      });
     }
     // ── Network: binary GET via native stack (cover art downloads) ──
     else if ([method isEqualToString:@"httpGetBase64"]) {
-      NSString *urlStr = args.firstObject;
-      if (urlStr.length == 0) { reply(idNum, @{ @"ok": @NO, @"error": @"empty url" }); return; }
-      NSURL *url = [NSURL URLWithString:urlStr];
-      if (!url) { reply(idNum, @{ @"ok": @NO, @"error": @"bad url" }); return; }
-      NSMutableURLRequest *req = [NSMutableURLRequest requestWithURL:url];
-      req.timeoutInterval = 10;
-      NSURLSessionDataTask *task = [NSURLSession.sharedSession dataTaskWithRequest:req
-        completionHandler:^(NSData *data, NSURLResponse *resp, NSError *err) {
-          NSHTTPURLResponse *http = (NSHTTPURLResponse *)resp;
-          NSMutableDictionary *result = [NSMutableDictionary dictionary];
-          if (err) {
-            result[@"ok"] = @NO;
-            result[@"error"] = err.localizedDescription ?: @"network error";
-          } else if (http.statusCode >= 400) {
-            result[@"ok"] = @NO;
-            result[@"status"] = @(http.statusCode);
-            result[@"error"] = @"http error";
-          } else {
-            result[@"ok"] = @YES;
-            result[@"status"] = @(http.statusCode);
-            result[@"base64"] = [data base64EncodedStringWithOptions:0] ?: @"";
-          }
-          dispatch_async(dispatch_get_main_queue(), ^{ reply(idNum, result); });
-        }];
-      [task resume];
+      fpHttpGet(args.firstObject, idNum, reply, ^(NSMutableDictionary *result, NSData *data) {
+        result[@"base64"] = [data base64EncodedStringWithOptions:0] ?: @"";
+      });
     }
-    // ── Playlists ──
+    // ── Playlists (H2: reads off main thread) ──
     else if ([method isEqualToString:@"getPlaylists"]) {
-      reply(idNum, fpdb::getAllPlaylists());
+      NSNumber *mid = idNum;
+      dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+        NSArray *rows = fpdb::getAllPlaylists();
+        dispatch_async(dispatch_get_main_queue(), ^{ reply(mid, rows); });
+      });
     } else if ([method isEqualToString:@"createPlaylist"]) {
       NSDictionary *d = args.firstObject;
       reply(idNum, @{ @"lastInsertRowid": @(fpdb::createPlaylist(d[@"name"], d[@"description"])) });
@@ -501,7 +606,12 @@ static NSWindow *shellWindow(void) {
     } else if ([method isEqualToString:@"deletePlaylist"]) {
       reply(idNum, @(fpdb::deletePlaylist([args.firstObject longLongValue])));
     } else if ([method isEqualToString:@"getPlaylistTracks"]) {
-      reply(idNum, fpdb::getPlaylistTracks([args.firstObject longLongValue]));
+      int64_t pid = [args.firstObject longLongValue];
+      NSNumber *mid = idNum;
+      dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+        NSArray *rows = fpdb::getPlaylistTracks(pid);
+        dispatch_async(dispatch_get_main_queue(), ^{ reply(mid, rows); });
+      });
     } else if ([method isEqualToString:@"addToPlaylist"]) {
       NSDictionary *d = args.firstObject;
       reply(idNum, @(fpdb::addTrackToPlaylist([d[@"playlistId"] longLongValue], [d[@"trackId"] longLongValue])));
@@ -529,6 +639,12 @@ static NSWindow *shellWindow(void) {
       if (!lrcPath || ![[NSFileManager defaultManager] fileExistsAtPath:lrcPath]) {
         reply(idNum, NSNull.null);
       } else {
+        // NEW-1: lrc_path is stored verbatim from setLrc — never read a file
+        // outside the library (arbitrary local-file read via getLrc)
+        if (!fpPathInLibrary(lrcPath)) {
+          reply(idNum, NSNull.null);
+          return;
+        }
         NSData *raw = [NSData dataWithContentsOfFile:lrcPath];
         NSString *content = [[NSString alloc] initWithData:raw encoding:NSUTF8StringEncoding];
         if (!content) { // fall back to GB18030 for CJK LRC files
@@ -539,7 +655,13 @@ static NSWindow *shellWindow(void) {
       }
     } else if ([method isEqualToString:@"setLrc"]) {
       NSDictionary *d = args.firstObject;
-      reply(idNum, @(fpdb::setTrackLrc([d[@"trackId"] longLongValue], d[@"lrcPath"])));
+      NSString *lrcPath = d[@"lrcPath"];
+      // NEW-1: reject out-of-library lrc paths (getLrc would read them back)
+      if (!fpPathInLibrary(lrcPath)) {
+        reply(idNum, @NO);
+        return;
+      }
+      reply(idNum, @(fpdb::setTrackLrc([d[@"trackId"] longLongValue], lrcPath)));
     } else if ([method isEqualToString:@"saveLrcContent"]) {
       int64_t tid = [args.firstObject longLongValue];
       NSString *content = args.count > 1 ? args[1] : nil;
@@ -600,7 +722,7 @@ static NSWindow *shellWindow(void) {
       if ([track isKindOfClass:NSNull.class]) { reply(idNum, @{ @"error": @"Track not found" }); return; }
       NSOpenPanel *panel = [NSOpenPanel openPanel];
       panel.title = @"Select LRC Lyrics File";
-      panel.allowedFileTypes = @[ @"lrc" ];
+      panel.allowedContentTypes = @[ UTTypePlainText ];
       panel.canChooseFiles = YES;
       panel.canChooseDirectories = NO;
       panel.allowsMultipleSelection = NO;
@@ -614,8 +736,10 @@ static NSWindow *shellWindow(void) {
         if (raw) {
           [raw writeToFile:target atomically:YES];
           chosen = target;
+          // Minor-2: only persist lrc_path when the copy actually succeeded —
+          // otherwise the DB entry points outside the library (dead entry)
+          fpdb::setTrackLrc(tid, chosen);
         }
-        fpdb::setTrackLrc(tid, chosen);
         NSString *content = [[NSString alloc] initWithData:raw encoding:NSUTF8StringEncoding];
         if (!content) {
           NSStringEncoding gb = CFStringConvertEncodingToNSStringEncoding(kCFStringEncodingGB_18030_2000);
@@ -654,79 +778,132 @@ static NSWindow *shellWindow(void) {
       }
       reply(idNum, @{ @"canceled": @NO, @"sourceDir": sourceDir, @"libraryDir": libraryDir });
     } else if ([method isEqualToString:@"scanDirectory"]) {
-      NSArray *files = scanAudioFiles(args.firstObject);
-      reply(idNum, files);
+      // M3: directory walk off the main thread
+      NSString *dir = args.firstObject;
+      NSNumber *mid = idNum;
+      dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+        NSArray *files = scanAudioFiles(dir);
+        dispatch_async(dispatch_get_main_queue(), ^{ reply(mid, files); });
+      });
     } else if ([method isEqualToString:@"importFiles"]) {
       NSDictionary *data = args.firstObject;
       NSArray *files = data[@"files"];
       NSString *libraryDir = data[@"libraryDir"];
+      // Minor-3: the renderer-supplied target must match the stored library —
+      // otherwise crafted metadata (../ in tags) could write outside it
+      NSString *storedLib = fpdb::getSetting(@"library_dir", nil);
+      if (![libraryDir isEqualToString:storedLib]) {
+        reply(idNum, @{ @"imported": @0, @"skipped": @0, @"errors": @[ @{ @"error": @"library_dir mismatch" } ] });
+        return;
+      }
       NSString *importMode = fpdb::getSetting(@"import_mode", @"copy"); // copy | symlink
       NSMutableArray *errors = [NSMutableArray array];
       __block NSInteger imported = 0, skipped = 0;
+      NSNumber *mid = idNum;
+
+      // M12: count in-flight imports so app termination can wait for them
+      gImportTasks.fetch_add(1);
 
       dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
-        NSFileManager *fm = NSFileManager.defaultManager;
+        // H4: extract metadata concurrently (bounded), keep order-insensitive
+        dispatch_queue_t extractQ = dispatch_queue_create("fp.extract", DISPATCH_QUEUE_CONCURRENT);
+        dispatch_queue_t collectQ = dispatch_queue_create("fp.collect", DISPATCH_QUEUE_SERIAL);
+        dispatch_group_t group = dispatch_group_create();
+        NSMutableArray *prepared = [NSMutableArray array];
         for (NSString *filePath in files) {
-          @autoreleasepool {
-            NSString *baseName = filePath.lastPathComponent;
-            NSString *ext = filePath.pathExtension.lowercaseString;
-            // Replace path separators with underscores to match the electron app
-            auto safe = ^NSString *(NSString *s) {
-              return [s stringByReplacingOccurrencesOfString:@"/" withString:@"_"];
-            };
+          dispatch_group_async(group, extractQ, ^{
             NSDictionary *meta = fpmeta::extractAtPath(filePath);
-            if (!meta) {
-              [errors addObject:@{ @"file": filePath, @"error": @"Unreadable audio file" }];
-              continue;
-            }
-            NSString *artist = safe(meta[@"artist"]);
-            NSString *album = safe(meta[@"album"]);
-            NSString *albumDir = [NSString pathWithComponents:@[ libraryDir, artist, album ]];
-            if (![fm fileExistsAtPath:albumDir]) {
-              [fm createDirectoryAtPath:albumDir withIntermediateDirectories:YES attributes:nil error:nil];
-            }
-            NSString *targetPath = [albumDir stringByAppendingPathComponent:baseName];
-            BOOL exists = [fm fileExistsAtPath:targetPath];
-            if (!exists) {
-              if ([importMode isEqualToString:@"symlink"]) {
-                [fm createSymbolicLinkAtPath:targetPath withDestinationPath:filePath error:nil];
-              } else {
-                [fm copyItemAtPath:filePath toPath:targetPath error:nil];
-              }
-            }
-
-            // Cover art -> <albumDir>/.covers/cover.ext
-            NSString *coverPath = nil;
-            NSData *artwork = meta[@"artwork"];
-            if (artwork) {
-              NSString *coverDir = [albumDir stringByAppendingPathComponent:@".covers"];
-              if (![fm fileExistsAtPath:coverDir]) {
-                [fm createDirectoryAtPath:coverDir withIntermediateDirectories:YES attributes:nil error:nil];
-              }
-              coverPath = [coverDir stringByAppendingPathComponent:@"cover.jpg"];
-              if (![fm fileExistsAtPath:coverPath]) {
-                [artwork writeToFile:coverPath atomically:YES];
-              }
-            }
-
-            NSMutableDictionary *trackData = [meta mutableCopy];
-            trackData[@"file_path"] = targetPath;
-            trackData[@"cover_path"] = coverPath ?: NSNull.null;
-            trackData[@"replaygain_gain"] = @0;
-            trackData[@"replaygain_peak"] = @0;
-            [trackData removeObjectForKey:@"artwork"];
-
-            fpdb::insertTrack(trackData);
-            if (exists) skipped++; else imported++;
-          }
+            // Track the nested append inside the group: dispatch_group_async
+            // counts only this block's return, so the append must enter/leave
+            // the group itself or notify could race the last append.
+            dispatch_group_enter(group);
+            dispatch_async(collectQ, ^{
+              [prepared addObject:@[ filePath, meta ?: NSNull.null ]];
+              dispatch_group_leave(group);
+            });
+          });
         }
-        NSDictionary *result = @{
-          @"imported": @(imported),
-          @"skipped": @(skipped),
-          @"errors": errors,
-        };
-        dispatch_async(dispatch_get_main_queue(), ^{
-          reply(idNum, result);
+        dispatch_group_notify(group, dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+          NSFileManager *fm = NSFileManager.defaultManager;
+          // Phase 2: copy/symlink + build track rows WITHOUT holding the DB
+          // write lock (file IO is the slow part — see #3). No transaction
+          // here, so main-thread writes (playStart, settings, EQ) stay fast.
+          NSMutableArray *tracksToInsert = [NSMutableArray array];
+          for (NSArray *entry in prepared) {
+            @autoreleasepool {
+              NSString *filePath = entry[0];
+              NSDictionary *meta = entry[1];
+              if (![meta isKindOfClass:NSDictionary.class]) {
+                [errors addObject:@{ @"file": filePath, @"error": @"Unreadable audio file" }];
+                continue;
+              }
+              NSString *baseName = filePath.lastPathComponent;
+              // Replace path separators with underscores to match the electron app
+              auto safe = ^NSString *(NSString *s) {
+                return [s stringByReplacingOccurrencesOfString:@"/" withString:@"_"];
+              };
+              NSString *artist = safe(meta[@"artist"]);
+              NSString *album = safe(meta[@"album"]);
+              NSString *albumDir = [NSString pathWithComponents:@[ libraryDir, artist, album ]];
+              if (![fm fileExistsAtPath:albumDir]) {
+                [fm createDirectoryAtPath:albumDir withIntermediateDirectories:YES attributes:nil error:nil];
+              }
+              NSString *targetPath = [albumDir stringByAppendingPathComponent:baseName];
+              BOOL exists = [fm fileExistsAtPath:targetPath];
+              if (!exists) {
+                if ([importMode isEqualToString:@"symlink"]) {
+                  [fm createSymbolicLinkAtPath:targetPath withDestinationPath:filePath error:nil];
+                } else {
+                  [fm copyItemAtPath:filePath toPath:targetPath error:nil];
+                }
+              }
+
+              // Cover art -> <albumDir>/.covers/cover.ext
+              NSString *coverPath = nil;
+              NSData *artwork = meta[@"artwork"];
+              if (artwork) {
+                NSString *coverDir = [albumDir stringByAppendingPathComponent:@".covers"];
+                if (![fm fileExistsAtPath:coverDir]) {
+                  [fm createDirectoryAtPath:coverDir withIntermediateDirectories:YES attributes:nil error:nil];
+                }
+                coverPath = [coverDir stringByAppendingPathComponent:@"cover.jpg"];
+                if (![fm fileExistsAtPath:coverPath]) {
+                  [artwork writeToFile:coverPath atomically:YES];
+                }
+              }
+
+              NSMutableDictionary *trackData = [meta mutableCopy];
+              trackData[@"file_path"] = targetPath;
+              trackData[@"cover_path"] = coverPath ?: NSNull.null;
+              trackData[@"replaygain_gain"] = @0;
+              trackData[@"replaygain_peak"] = @0;
+              [trackData removeObjectForKey:@"artwork"];
+
+              [tracksToInsert addObject:trackData];
+              if (exists) skipped++; else imported++;
+            }
+          }
+          // Phase 3: batched inserts — short transactions so the write lock
+          // is never held for the whole import (main-thread writers stall
+          // on busy_timeout while it is).
+          const NSUInteger insertBatch = 50;
+          for (NSUInteger i = 0; i < tracksToInsert.count; i += insertBatch) {
+            BOOL tx = fpdb::beginTransaction();
+            NSUInteger end = MIN(i + insertBatch, tracksToInsert.count);
+            for (NSUInteger j = i; j < end; j++) {
+              fpdb::insertTrack(tracksToInsert[j]);
+            }
+            if (tx) fpdb::commitTransaction();
+          }
+          NSDictionary *result = @{
+            @"imported": @(imported),
+            @"skipped": @(skipped),
+            @"errors": errors,
+          };
+          gImportTasks.fetch_sub(1);
+          dispatch_async(dispatch_get_main_queue(), ^{
+            reply(mid, result);
+          });
         });
       });
     }

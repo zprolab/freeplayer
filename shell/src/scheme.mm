@@ -5,9 +5,21 @@
 #import <Foundation/Foundation.h>
 #import <WebKit/WebKit.h>
 #include <atomic>
+#include "db.h"
 
 static NSString *gWebRoot = nil;
 void fpSetWebRoot(NSString *root) { gWebRoot = [root copy]; }
+
+// L2: media:// must only stream files inside the library directory — an
+// unrestricted path here is an arbitrary local-file read primitive.
+static BOOL pathInsideLibrary(NSString *path) {
+  NSString *lib = fpdb::getSetting(@"library_dir", nil);
+  if (lib.length == 0) return NO;
+  NSString *libNorm = [lib stringByStandardizingPath];
+  NSString *pathNorm = [path stringByStandardizingPath];
+  return [pathNorm hasPrefix:[libNorm stringByAppendingString:@"/"]]
+      || [pathNorm isEqualToString:libNorm];
+}
 
 // Per-task cancellation flags (main-thread dictionary of atomics; the
 // streaming loop reads the atomic from a background queue).
@@ -70,7 +82,14 @@ static NSString *mimeForPath(NSString *path) {
   if ([url.scheme isEqualToString:@"app"]) {
     NSString *rel = url.path; // "/index.html", "/assets/x.js"
     if (rel.length == 0 || [rel isEqualToString:@"/"]) rel = @"/index.html";
-    NSString *file = [gWebRoot stringByAppendingPathComponent:[rel stringByTrimmingCharactersInSet:[NSCharacterSet characterSetWithCharactersInString:@"/"]]];
+    // H6: standardize the path and pin it inside gWebRoot — ".." components
+    // must never escape the bundled assets directory.
+    NSString *rootNorm = [gWebRoot stringByStandardizingPath];
+    NSString *file = [[rootNorm stringByAppendingPathComponent:[rel stringByTrimmingCharactersInSet:[NSCharacterSet characterSetWithCharactersInString:@"/"]]] stringByStandardizingPath];
+    if (![file hasPrefix:[rootNorm stringByAppendingString:@"/"]] && ![file isEqualToString:rootNorm]) {
+      [task didFailWithError:[NSError errorWithDomain:@"FreePlayerShell" code:400 userInfo:@{ NSLocalizedDescriptionKey : @"invalid app:// path" }]];
+      return;
+    }
     NSData *data = [NSData dataWithContentsOfFile:file];
     if (!data) {
       [task didFailWithError:[NSError errorWithDomain:NSPOSIXErrorDomain code:ENOENT userInfo:@{ NSLocalizedDescriptionKey : file }]];
@@ -101,6 +120,13 @@ static NSString *mimeForPath(NSString *path) {
     return;
   }
 
+  // L2: only library-owned files may stream
+  if (!pathInsideLibrary(path)) {
+    [task didFailWithError:[NSError errorWithDomain:@"FreePlayerShell" code:403
+                                           userInfo:@{ NSLocalizedDescriptionKey : @"outside library" }]];
+    return;
+  }
+
   NSFileHandle *fh = [NSFileHandle fileHandleForReadingAtPath:path];
   if (!fh) {
     [task didFailWithError:[NSError errorWithDomain:NSPOSIXErrorDomain code:ENOENT userInfo:@{ NSLocalizedDescriptionKey : path }]];
@@ -108,26 +134,79 @@ static NSString *mimeForPath(NSString *path) {
   }
   unsigned long long fileSize = [NSFileManager.defaultManager attributesOfItemAtPath:path error:nil].fileSize;
 
-  // Parse Range header
+  // Parse Range header — supports "bytes=start-end", "bytes=start-", "bytes=-suffix"
   unsigned long long start = 0, end = fileSize > 0 ? fileSize - 1 : 0;
   BOOL hasRange = NO;
+  BOOL rangeInvalid = NO;
   NSString *range = task.request.allHTTPHeaderFields[@"Range"];
   if (range.length > 0) {
-    // "bytes=start-end" or "bytes=start-"
-    NSScanner *sc = [NSScanner scannerWithString:range];
-    if ([sc scanString:@"bytes=" intoString:NULL]) {
-      long long s = -1;
-      if ([sc scanLongLong:&s] && s >= 0) {
-        start = (unsigned long long)s;
-        hasRange = YES;
-        long long e = -1;
-        if ([sc scanString:@"-" intoString:NULL] && [sc scanLongLong:&e] && e >= (long long)start) {
-          end = (unsigned long long)e;
+    // M13: reject multi-range requests ("bytes=0-1,4-5") explicitly.
+    // #7: range-unit is case-insensitive (RFC 7233); tolerate trailing space.
+    NSString *lower = [range lowercaseString];
+    if (![lower hasPrefix:@"bytes="]) {
+      rangeInvalid = YES;
+    } else {
+      NSScanner *sc = [NSScanner scannerWithString:[range substringFromIndex:@"bytes=".length]];
+      if ([sc scanString:@"-" intoString:NULL]) {
+        // Suffix range: last N bytes
+        long long suffix = -1;
+        if ([sc scanLongLong:&suffix] && suffix > 0 && fileSize > 0) {
+          hasRange = YES;
+          start = (unsigned long long)suffix >= fileSize ? 0 : fileSize - (unsigned long long)suffix;
+          end = fileSize - 1;
+        } else {
+          rangeInvalid = YES;
         }
-        if (end >= fileSize) end = fileSize > 0 ? fileSize - 1 : 0;
-        if (start > end) { start = 0; hasRange = NO; }
+      } else {
+        long long s = -1;
+        if ([sc scanLongLong:&s] && s >= 0) {
+          start = (unsigned long long)s;
+          hasRange = YES;
+          long long e = -1;
+          if ([sc scanString:@"-" intoString:NULL] && [sc scanLongLong:&e] && e >= 0) {
+            end = (unsigned long long)e;
+          }
+          // NEW-4: bytes=5-3 (end before start) is unsatisfiable → 416
+          if (end < start) {
+            rangeInvalid = YES;
+          } else if (end >= fileSize) {
+            end = fileSize > 0 ? fileSize - 1 : 0;
+          }
+        } else {
+          rangeInvalid = YES;
+        }
+      }
+      // Anything left after the range (e.g. multi-range "0-1,4-5") is unsupported
+      NSString *rest = [range substringFromIndex:@"bytes=".length + sc.scanLocation];
+      if ([[rest stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceCharacterSet] length] > 0) {
+        rangeInvalid = YES;
       }
     }
+    if (rangeInvalid) hasRange = NO;
+  }
+
+  // M13: unsatisfiable/invalid Range → 416 with Content-Range: bytes */size
+  if (rangeInvalid) {
+    NSDictionary *h416 = @{
+      @"Content-Range": [NSString stringWithFormat:@"bytes */%llu", fileSize],
+      @"Content-Length": @"0",
+      @"Accept-Ranges": @"bytes",
+    };
+    NSHTTPURLResponse *r416 = [[NSHTTPURLResponse alloc] initWithURL:url statusCode:416 HTTPVersion:@"HTTP/1.1" headerFields:h416];
+    dispatch_async(dispatch_get_main_queue(), ^{
+      // #5: always clear the flag — an early return here would leak it
+      std::atomic<bool> *flag = stoppedFlagForTask(task);
+      if (flag->load()) {
+        clearStoppedFlag(task);
+        return;
+      }
+      @try {
+        [task didReceiveResponse:r416];
+        [task didFinish];
+      } @catch (NSException *e) {}
+      clearStoppedFlag(task);
+    });
+    return;
   }
 
   unsigned long long length = (end >= start) ? end - start + 1 : 0;
@@ -152,21 +231,51 @@ static NSString *mimeForPath(NSString *path) {
   });
 
   [fh seekToFileOffset:start];
+  // H1: read in 64KB chunks but flush to the main queue in ~1MB batches with
+  // flow control (max ~8 batches in flight) so a large file can never queue
+  // unbounded NSData on the main thread. readDataOfLength: returns a fresh
+  // NSData — no extra copy per chunk; only the batch flush copies.
   const NSUInteger chunk = 64 * 1024;
+  const NSUInteger batchChunks = 16;      // 1MB per main-queue hop
+  const long maxInFlight = 8;             // ~8MB of queued data at most
   __block unsigned long long remaining = length;
   __block BOOL finished = NO;
+  __block std::atomic<long> *inFlight = new std::atomic<long>(0);
+  __block NSMutableData *buf = [NSMutableData dataWithCapacity:batchChunks * chunk];
   dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+    auto flushBatch = ^(NSData *out) {
+      inFlight->fetch_add(1);
+      dispatch_async(dispatch_get_main_queue(), ^{
+        if (!stopped->load() && !finished) {
+          @try { [task didReceiveData:out]; } @catch (NSException *e) {}
+        }
+        inFlight->fetch_sub(1);
+      });
+    };
     while (remaining > 0 && !stopped->load()) {
       NSUInteger n = (NSUInteger)MIN(remaining, chunk);
       NSData *data = [fh readDataOfLength:n];
       if (data.length == 0) break;
-      NSData *copy = [data copy];
-      dispatch_async(dispatch_get_main_queue(), ^{
-        if (!stopped->load() && !finished) {
-          @try { [task didReceiveData:copy]; } @catch (NSException *e) {}
-        }
-      });
+      [buf appendData:data];
       remaining -= data.length;
+      if (buf.length >= batchChunks * chunk) {
+        // Backpressure: wait until the main queue drains below the cap
+        while (inFlight->load() >= maxInFlight && !stopped->load()) {
+          usleep(2000);
+        }
+        if (stopped->load()) break;
+        flushBatch([buf copy]);
+        [buf setLength:0];
+      }
+    }
+    if (buf.length > 0 && !stopped->load()) {
+      while (inFlight->load() >= maxInFlight && !stopped->load()) {
+        usleep(2000);
+      }
+      if (!stopped->load()) {
+        flushBatch([buf copy]);
+        [buf setLength:0];
+      }
     }
     dispatch_async(dispatch_get_main_queue(), ^{
       [fh closeFile];
@@ -175,13 +284,18 @@ static NSString *mimeForPath(NSString *path) {
         @try { [task didFinish]; } @catch (NSException *e) {}
       }
       clearStoppedFlag(task);
+      delete inFlight;
     });
   });
 }
 
 - (void)webView:(WKWebView *)webView stopURLSchemeTask:(id<WKURLSchemeTask>)task {
-  std::atomic<bool> *stopped = stoppedFlagForTask(task);
-  stopped->store(true);
+  // NEW-5: only mark tasks we actually know — a post-completion stop must not
+  // create a stuck flag that a future request (reusing the task pointer)
+  // would inherit as an instant-cancel
+  NSNumber *key = @((uintptr_t)task);
+  std::atomic<bool> *flag = (std::atomic<bool> *)[gStoppedTasks[key] pointerValue];
+  if (flag) flag->store(true);
 }
 
 @end

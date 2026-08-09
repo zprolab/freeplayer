@@ -8,6 +8,8 @@
 #import <MediaPlayer/MediaPlayer.h>
 #import <ServiceManagement/ServiceManagement.h>
 #import <ServiceManagement/SMAppService.h>
+#import <UserNotifications/UserNotifications.h>
+#import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 #include "tray.h"
 #include "db.h"
 
@@ -18,6 +20,7 @@ static NSMenu *gMenu = nil; // NSStatusItem.menu is not reliably retained
 static NSString *gTrackTitle = @"";
 static NSString *gTrackArtist = @"";
 static BOOL gPlaying = NO;
+static int64_t gNowPlayingGen = 0; // #6: stale-cover guard (main thread only)
 static FpTray *gTray = nil; // instance target for menu actions
 
 static NSString *nowPlayingLabel(void) {
@@ -75,23 +78,33 @@ static void pushToWebview(NSString *fn, NSString *action) {
   gStatusItem.menu = menu;
   gMenu = menu; // keep the menu (and its items) alive for the app lifetime
 
+  // M14: request notification permission up front (UNUserNotificationCenter
+  // requires it; the tray-hide notification then just works). Dev binaries
+  // (no .app bundle) must skip this — the API throws
+  // "bundleProxyForCurrentProcess is nil" outside a proper bundle.
+  if ([NSBundle.mainBundle.bundlePath hasSuffix:@".app"]) {
+    [UNUserNotificationCenter.currentNotificationCenter
+        requestAuthorizationWithOptions:(UNAuthorizationOptionAlert | UNAuthorizationOptionSound)
+                      completionHandler:^(BOOL __unused granted, NSError *__unused err) {}];
+  }
+
   NSLog(@"[tray] created; login item enabled=%d", fptrayLoginItemEnabled());
 
   // Media keys (macOS Control Center / keyboard media keys)
   MPRemoteCommandCenter *cc = MPRemoteCommandCenter.sharedCommandCenter;
-  [cc.playCommand addTargetWithHandler:^MPRemoteCommandHandlerStatus(MPRemoteCommandEvent *e) {
+  [cc.playCommand addTargetWithHandler:^MPRemoteCommandHandlerStatus(MPRemoteCommandEvent *__unused e) {
     pushToWebview(@"_pushMediaKey", @"playpause"); return MPRemoteCommandHandlerStatusSuccess;
   }];
-  [cc.pauseCommand addTargetWithHandler:^MPRemoteCommandHandlerStatus(MPRemoteCommandEvent *e) {
+  [cc.pauseCommand addTargetWithHandler:^MPRemoteCommandHandlerStatus(MPRemoteCommandEvent *__unused e) {
     pushToWebview(@"_pushMediaKey", @"playpause"); return MPRemoteCommandHandlerStatusSuccess;
   }];
-  [cc.togglePlayPauseCommand addTargetWithHandler:^MPRemoteCommandHandlerStatus(MPRemoteCommandEvent *e) {
+  [cc.togglePlayPauseCommand addTargetWithHandler:^MPRemoteCommandHandlerStatus(MPRemoteCommandEvent *__unused e) {
     pushToWebview(@"_pushMediaKey", @"playpause"); return MPRemoteCommandHandlerStatusSuccess;
   }];
-  [cc.nextTrackCommand addTargetWithHandler:^MPRemoteCommandHandlerStatus(MPRemoteCommandEvent *e) {
+  [cc.nextTrackCommand addTargetWithHandler:^MPRemoteCommandHandlerStatus(MPRemoteCommandEvent *__unused e) {
     pushToWebview(@"_pushMediaKey", @"next"); return MPRemoteCommandHandlerStatusSuccess;
   }];
-  [cc.previousTrackCommand addTargetWithHandler:^MPRemoteCommandHandlerStatus(MPRemoteCommandEvent *e) {
+  [cc.previousTrackCommand addTargetWithHandler:^MPRemoteCommandHandlerStatus(MPRemoteCommandEvent *__unused e) {
     pushToWebview(@"_pushMediaKey", @"previous"); return MPRemoteCommandHandlerStatusSuccess;
   }];
 }
@@ -118,29 +131,34 @@ static void pushToWebview(NSString *fn, NSString *action) {
 + (void)setNowPlayingFromTrack:(NSDictionary *)track {
   gTrackTitle = [track[@"title"] isKindOfClass:NSString.class] ? track[@"title"] : @"";
   gTrackArtist = [track[@"artist"] isKindOfClass:NSString.class] ? track[@"artist"] : @"";
-  dispatch_async(dispatch_get_main_queue(), ^{
-    if (gNowPlayingItem) gNowPlayingItem.title = nowPlayingLabel();
-    if (gStatusItem) gStatusItem.button.toolTip = gTrackTitle.length ? gTrackTitle : @"FreePlayer";
+  NSString *album = [track[@"album"] isKindOfClass:NSString.class] ? track[@"album"] : nil;
+  double dur = [track[@"duration"] doubleValue];
+  NSString *cover = [track[@"cover_path"] isKindOfClass:NSString.class] ? track[@"cover_path"] : nil;
+  // #6: generation guard — two rapid track changes decode out of order; only
+  // the latest generation may publish to Control Center
+  int64_t gen = ++gNowPlayingGen;
+  // L4: decode the cover image off the main thread (fires on every track change)
+  dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+    NSImage *img = cover.length > 0 ? [[NSImage alloc] initWithContentsOfFile:cover] : nil;
+    dispatch_async(dispatch_get_main_queue(), ^{
+      if (gen != gNowPlayingGen) return; // a newer track won the race
+      if (gNowPlayingItem) gNowPlayingItem.title = nowPlayingLabel();
+      if (gStatusItem) gStatusItem.button.toolTip = gTrackTitle.length ? gTrackTitle : @"FreePlayer";
 
-    NSMutableDictionary *info = [NSMutableDictionary dictionary];
-    if (gTrackTitle.length) info[MPMediaItemPropertyTitle] = gTrackTitle;
-    if (gTrackArtist.length) info[MPMediaItemPropertyArtist] = gTrackArtist;
-    NSString *album = [track[@"album"] isKindOfClass:NSString.class] ? track[@"album"] : nil;
-    if (album.length) info[MPMediaItemPropertyAlbumTitle] = album;
-    double dur = [track[@"duration"] doubleValue];
-    if (dur > 0) info[MPMediaItemPropertyPlaybackDuration] = @(dur);
-    NSString *cover = [track[@"cover_path"] isKindOfClass:NSString.class] ? track[@"cover_path"] : nil;
-    if (cover.length > 0) {
-      NSImage *img = [[NSImage alloc] initWithContentsOfFile:cover];
+      NSMutableDictionary *info = [NSMutableDictionary dictionary];
+      if (gTrackTitle.length) info[MPMediaItemPropertyTitle] = gTrackTitle;
+      if (gTrackArtist.length) info[MPMediaItemPropertyArtist] = gTrackArtist;
+      if (album.length) info[MPMediaItemPropertyAlbumTitle] = album;
+      if (dur > 0) info[MPMediaItemPropertyPlaybackDuration] = @(dur);
       if (img) {
         info[MPMediaItemPropertyArtwork] = [[MPMediaItemArtwork alloc]
             initWithBoundsSize:NSMakeSize(600, 600)
-                 requestHandler:^NSImage *(CGSize size) { return img; }];
+                 requestHandler:^NSImage *(CGSize __unused size) { return img; }];
       }
-    }
-    info[MPNowPlayingInfoPropertyElapsedPlaybackTime] = @0;
-    info[MPNowPlayingInfoPropertyPlaybackRate] = gPlaying ? @1.0 : @0.0;
-    MPNowPlayingInfoCenter.defaultCenter.nowPlayingInfo = info;
+      info[MPNowPlayingInfoPropertyElapsedPlaybackTime] = @0;
+      info[MPNowPlayingInfoPropertyPlaybackRate] = gPlaying ? @1.0 : @0.0;
+      MPNowPlayingInfoCenter.defaultCenter.nowPlayingInfo = info;
+    });
   });
 }
 
@@ -209,8 +227,22 @@ BOOL fptraySettingBool(NSString *key, BOOL fallback) {
 // Notification when minimized to tray (tray_notify setting)
 void fptrayShowHiddenNotification(void) {
   if (!fptraySettingBool(@"tray_notify", YES)) return;
-  NSUserNotification *n = [[NSUserNotification alloc] init];
-  n.title = @"FreePlayer";
-  n.informativeText = @"App is still running in the system tray";
-  [[NSUserNotificationCenter defaultUserNotificationCenter] deliverNotification:n];
+  if (![NSBundle.mainBundle.bundlePath hasSuffix:@".app"]) return; // dev binary: no notifications
+  @try {
+    UNUserNotificationCenter *center = UNUserNotificationCenter.currentNotificationCenter;
+    [center getNotificationSettingsWithCompletionHandler:^(UNNotificationSettings *settings) {
+      if (settings.authorizationStatus != UNAuthorizationStatusAuthorized
+          && settings.authorizationStatus != UNAuthorizationStatusProvisional) {
+        return;
+      }
+      UNMutableNotificationContent *c = [UNMutableNotificationContent new];
+      c.title = @"FreePlayer";
+      c.body = @"App is still running in the system tray";
+      UNNotificationRequest *req = [UNNotificationRequest requestWithIdentifier:@"tray-hide-notify"
+                                                                        content:c trigger:nil];
+      [center addNotificationRequest:req withCompletionHandler:nil];
+    }];
+  } @catch (NSException *e) {
+    NSLog(@"[tray] notification unavailable: %@", e.reason ?: @"?");
+  }
 }

@@ -176,6 +176,11 @@ static NSURL *gMainLoadURL = nil;
 }
 
 - (void)applicationWillTerminate:(NSNotification *)notification {
+  // M12: let an in-flight import finish (or time out) before closing the DB —
+  // closing mid-insert corrupts the library
+  for (int i = 0; i < 100 && fpPendingImports(); i++) {
+    [NSThread sleepForTimeInterval:0.1];
+  }
   fpdb::close();
 }
 

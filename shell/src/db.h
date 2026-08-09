@@ -38,5 +38,10 @@ BOOL setTrackCover(int64_t trackId, NSString *coverPath);
 id getTrackLrc(int64_t trackId);
 BOOL clearTrackLrc(int64_t trackId);
 
+// ── transactions (batch writes: import, EQ save) ──
+bool beginTransaction();
+bool commitTransaction();
+bool rollbackTransaction();
+
 BOOL resetDatabase();
 } // namespace fpdb

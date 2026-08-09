@@ -5,4 +5,5 @@
 NSString *fpBridgeScript();
 void fpOpenEqWindow(void);
 void fpHideEqWindow(void);
+bool fpPendingImports(void);   // M12: in-flight import counter for termination
 extern WKWebView *gEqWebView;

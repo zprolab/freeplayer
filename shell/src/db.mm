@@ -36,6 +36,22 @@ static NSDictionary *rowToDict(sqlite3_stmt *stmt) {
   return d;
 }
 
+static void bindParam(sqlite3_stmt *stmt, int i, id p) {
+  if ([p isKindOfClass:NSNumber.class]) {
+    // M4: bind by type — binding everything as double truncates int64 > 2^53
+    if (strcmp([p objCType], @encode(double)) == 0 || strcmp([p objCType], @encode(float)) == 0) {
+      sqlite3_bind_double(stmt, i, [p doubleValue]);
+    } else {
+      sqlite3_bind_int64(stmt, i, [p longLongValue]);
+    }
+  } else if (p == NSNull.null || p == nil) {
+    sqlite3_bind_null(stmt, i);
+  } else {
+    NSString *s = [p description];
+    sqlite3_bind_text(stmt, i, s.UTF8String, -1, SQLITE_TRANSIENT);
+  }
+}
+
 static NSArray *runQuery(NSString *sql, NSArray *params) {
   sqlite3_stmt *stmt = nullptr;
   if (sqlite3_prepare_v2(gDb, sql.UTF8String, -1, &stmt, nullptr) != SQLITE_OK) {
@@ -43,15 +59,7 @@ static NSArray *runQuery(NSString *sql, NSArray *params) {
     return @[];
   }
   for (NSUInteger i = 0; i < params.count; i++) {
-    id p = params[i];
-    if ([p isKindOfClass:NSNumber.class]) {
-      sqlite3_bind_double(stmt, (int)i + 1, [p doubleValue]);
-    } else if (p == NSNull.null || p == nil) {
-      sqlite3_bind_null(stmt, (int)i + 1);
-    } else {
-      NSString *s = [p description];
-      sqlite3_bind_text(stmt, (int)i + 1, s.UTF8String, -1, SQLITE_TRANSIENT);
-    }
+    bindParam(stmt, (int)i + 1, params[i]);
   }
   NSMutableArray *rows = [NSMutableArray array];
   while (sqlite3_step(stmt) == SQLITE_ROW) {
@@ -68,15 +76,7 @@ static BOOL runExec(NSString *sql, NSArray *params) {
     return NO;
   }
   for (NSUInteger i = 0; i < params.count; i++) {
-    id p = params[i];
-    if ([p isKindOfClass:NSNumber.class]) {
-      sqlite3_bind_double(stmt, (int)i + 1, [p doubleValue]);
-    } else if (p == NSNull.null || p == nil) {
-      sqlite3_bind_null(stmt, (int)i + 1);
-    } else {
-      NSString *s = [p description];
-      sqlite3_bind_text(stmt, (int)i + 1, s.UTF8String, -1, SQLITE_TRANSIENT);
-    }
+    bindParam(stmt, (int)i + 1, params[i]);
   }
   BOOL ok = sqlite3_step(stmt) == SQLITE_DONE;
   sqlite3_finalize(stmt);
@@ -103,7 +103,16 @@ BOOL open(NSString *path) {
     NSLog(@"[db] open failed: %s", sqlite3_errmsg(gDb));
     return NO;
   }
-  sqlite3_exec(gDb, "PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;", nullptr, nullptr, nullptr);
+  // M11: check PRAGMA results; synchronous=NORMAL is safe under WAL and
+  // avoids one fsync per commit; busy_timeout keeps concurrent threads sane
+  char *err = nullptr;
+  if (sqlite3_exec(gDb, "PRAGMA journal_mode=WAL;", nullptr, nullptr, &err) != SQLITE_OK) {
+    NSLog(@"[db] WAL pragma failed: %s", err ?: "?");
+    if (err) sqlite3_free(err);
+  }
+  sqlite3_exec(gDb, "PRAGMA synchronous=NORMAL;", nullptr, nullptr, nullptr);
+  sqlite3_exec(gDb, "PRAGMA busy_timeout=5000;", nullptr, nullptr, nullptr);
+  sqlite3_exec(gDb, "PRAGMA foreign_keys=ON;", nullptr, nullptr, nullptr);
   const char *schema =
     "CREATE TABLE IF NOT EXISTS tracks ("
     " id INTEGER PRIMARY KEY AUTOINCREMENT,"
@@ -132,10 +141,15 @@ BOOL open(NSString *path) {
     "CREATE INDEX IF NOT EXISTS idx_tracks_title ON tracks(title);"
     "CREATE INDEX IF NOT EXISTS idx_tracks_artist ON tracks(artist);"
     "CREATE INDEX IF NOT EXISTS idx_tracks_album ON tracks(album);"
+    // M5: default sort is imported_at DESC — full-table sort without this
+    "CREATE INDEX IF NOT EXISTS idx_tracks_imported_at ON tracks(imported_at);"
     "CREATE INDEX IF NOT EXISTS idx_play_history_track ON play_history(track_id);"
     "CREATE INDEX IF NOT EXISTS idx_play_history_started ON play_history(started_at);"
     "CREATE INDEX IF NOT EXISTS idx_playlist_tracks_playlist ON playlist_tracks(playlist_id);";
-  sqlite3_exec(gDb, schema, nullptr, nullptr, nullptr);
+  if (sqlite3_exec(gDb, schema, nullptr, nullptr, &err) != SQLITE_OK) {
+    NSLog(@"[db] schema failed: %s", err ?: "?");
+    if (err) sqlite3_free(err);
+  }
   // Migrations (ignore failures — column already exists)
   sqlite3_exec(gDb, "ALTER TABLE tracks ADD COLUMN replaygain_gain REAL DEFAULT 0", nullptr, nullptr, nullptr);
   sqlite3_exec(gDb, "ALTER TABLE tracks ADD COLUMN replaygain_peak REAL DEFAULT 0", nullptr, nullptr, nullptr);
@@ -145,7 +159,14 @@ BOOL open(NSString *path) {
 }
 
 void close() {
-  if (gDb) { sqlite3_close(gDb); gDb = nullptr; }
+  if (!gDb) return;
+  // NEW-6: a still-running statement (import tail) makes sqlite3_close return
+  // BUSY — retry briefly instead of dropping the connection mid-insert
+  int tries = 0;
+  while (sqlite3_close(gDb) == SQLITE_BUSY && tries++ < 50) {
+    [NSThread sleepForTimeInterval:0.1];
+  }
+  gDb = nullptr;
 }
 
 // ── settings ──
@@ -246,13 +267,11 @@ double getTotalDuration() {
 int64_t startPlaySession(int64_t trackId) {
   NSArray *rows = runQuery(@"INSERT INTO play_history (track_id, started_at) VALUES (?, datetime('now')) RETURNING id", @[ @(trackId) ]);
   if (rows.count) return [rows[0][@"id"] longLongValue];
-  sqlite3_stmt *stmt = nullptr;
-  sqlite3_prepare_v2(gDb, "INSERT INTO play_history (track_id, started_at) VALUES (?, datetime('now'))", -1, &stmt, nullptr);
-  sqlite3_bind_int64(stmt, 1, trackId);
-  sqlite3_step(stmt);
-  int64_t rid = (int64_t)sqlite3_last_insert_rowid(gDb);
-  sqlite3_finalize(stmt);
-  return rid;
+  // L5: fallback for pre-3.35 SQLite — reuse the connection's last insert id
+  if (runExec(@"INSERT INTO play_history (track_id, started_at) VALUES (?, datetime('now'))", @[ @(trackId) ])) {
+    return (int64_t)sqlite3_last_insert_rowid(gDb);
+  }
+  return 0;
 }
 
 BOOL endPlaySession(int64_t sessionId, double durationSeconds, double playPercentage) {
@@ -297,7 +316,10 @@ NSDictionary *getListeningStats() {
 
 int64_t createPlaylist(NSString *name, NSString *description) {
   sqlite3_stmt *stmt = nullptr;
-  sqlite3_prepare_v2(gDb, "INSERT INTO playlists (name, description) VALUES (?, ?)", -1, &stmt, nullptr);
+  if (sqlite3_prepare_v2(gDb, "INSERT INTO playlists (name, description) VALUES (?, ?)", -1, &stmt, nullptr) != SQLITE_OK) {
+    NSLog(@"[db] createPlaylist prepare failed: %s", sqlite3_errmsg(gDb));
+    return 0;
+  }
   sqlite3_bind_text(stmt, 1, name.UTF8String, -1, SQLITE_TRANSIENT);
   sqlite3_bind_text(stmt, 2, (description ?: @"").UTF8String, -1, SQLITE_TRANSIENT);
   sqlite3_step(stmt);
@@ -322,7 +344,11 @@ BOOL addTracksToPlaylist(int64_t playlistId, NSArray *trackIds) {
   NSArray *rows = runQuery(@"SELECT COALESCE(MAX(position), -1) + 1 as next_pos FROM playlist_tracks WHERE playlist_id = ?", @[ @(playlistId) ]);
   int64_t pos = rows.count ? [rows[0][@"next_pos"] longLongValue] : 0;
   sqlite3_stmt *stmt = nullptr;
-  sqlite3_prepare_v2(gDb, "INSERT OR IGNORE INTO playlist_tracks (playlist_id, track_id, position) VALUES (?, ?, ?)", -1, &stmt, nullptr);
+  // M8: check prepare — stepping a null stmt would crash on DB failure
+  if (sqlite3_prepare_v2(gDb, "INSERT OR IGNORE INTO playlist_tracks (playlist_id, track_id, position) VALUES (?, ?, ?)", -1, &stmt, nullptr) != SQLITE_OK) {
+    NSLog(@"[db] addTracksToPlaylist prepare failed: %s", sqlite3_errmsg(gDb));
+    return NO;
+  }
   for (id tid in trackIds) {
     sqlite3_bind_int64(stmt, 1, playlistId);
     sqlite3_bind_int64(stmt, 2, [tid longLongValue]);
@@ -337,7 +363,11 @@ BOOL addTracksToPlaylist(int64_t playlistId, NSArray *trackIds) {
 BOOL setPlaylistTracks(int64_t playlistId, NSArray *trackIds) {
   if (!runExec(@"DELETE FROM playlist_tracks WHERE playlist_id = ?", @[ @(playlistId) ])) return NO;
   sqlite3_stmt *stmt = nullptr;
-  sqlite3_prepare_v2(gDb, "INSERT INTO playlist_tracks (playlist_id, track_id, position) VALUES (?, ?, ?)", -1, &stmt, nullptr);
+  // M8: check prepare — stepping a null stmt would crash on DB failure
+  if (sqlite3_prepare_v2(gDb, "INSERT INTO playlist_tracks (playlist_id, track_id, position) VALUES (?, ?, ?)", -1, &stmt, nullptr) != SQLITE_OK) {
+    NSLog(@"[db] setPlaylistTracks prepare failed: %s", sqlite3_errmsg(gDb));
+    return NO;
+  }
   int64_t pos = 0;
   for (id tid in trackIds) {
     sqlite3_bind_int64(stmt, 1, playlistId);
@@ -367,6 +397,12 @@ BOOL deletePlaylist(int64_t playlistId) {
 BOOL renamePlaylist(int64_t playlistId, NSString *name) {
   return runExec(@"UPDATE playlists SET name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", @[ name, @(playlistId) ]);
 }
+
+// ── transactions (batch writes: import, EQ save) ──
+
+bool beginTransaction() { return runExec(@"BEGIN IMMEDIATE", @[]); }
+bool commitTransaction() { return runExec(@"COMMIT", @[]); }
+bool rollbackTransaction() { return runExec(@"ROLLBACK", @[]); }
 
 // ── LRC ──
 
