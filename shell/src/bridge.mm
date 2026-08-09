@@ -86,6 +86,8 @@ static const char *kBridgeScript = R"JS(
     setLrc: (data) => api._invoke('setLrc', data),
     uploadLrc: (trackId) => api._invoke('uploadLrc', trackId),
     removeLrc: (trackId) => api._invoke('removeLrc', trackId),
+    saveLrcContent: (trackId, content) => api._invoke('saveLrcContent', trackId, content),
+    saveCover: (trackId, base64) => api._invoke('saveCover', trackId, base64),
     // Media keys / tray (M5)
     onMediaKey: (callback) => { window.__freeplayerMediaKeyHandler = callback; },
     sendPlaybackState: (isPlaying) => api._invoke('sendPlaybackState', { isPlaying }),
@@ -476,6 +478,50 @@ static NSWindow *shellWindow(void) {
     } else if ([method isEqualToString:@"setLrc"]) {
       NSDictionary *d = args.firstObject;
       reply(idNum, @(fpdb::setTrackLrc([d[@"trackId"] longLongValue], d[@"lrcPath"])));
+    } else if ([method isEqualToString:@"saveLrcContent"]) {
+      int64_t tid = [args.firstObject longLongValue];
+      NSString *content = args.count > 1 ? args[1] : nil;
+      NSDictionary *track = fpdb::getTrackById(tid);
+      if (![track isKindOfClass:NSDictionary.class] || content.length == 0) {
+        reply(idNum, @{ @"success": @NO });
+        return;
+      }
+      NSString *audioPath = track[@"file_path"];
+      NSString *audioStem = fpmeta::cleanAudioStem(audioPath.lastPathComponent.stringByDeletingPathExtension);
+      // Name the sidecar with the track id: two files in one dir can share a
+      // cleanStem (e.g. "Song.flac" + "Song_L.flac" both stem to "Song").
+      // "<stem>.<tid>.lrc" never exact-matches a sibling, and findSidecarLrc's
+      // prefix branch (fixed in Task 1 Step 1) skips ".<digits>" stems, so no
+      // sibling can pick this file up either. The DB lrc_path (set below) is
+      // what getLrc reads first anyway.
+      NSString *target = [[audioPath.stringByDeletingLastPathComponent
+                           stringByAppendingPathComponent:[NSString stringWithFormat:@"%@.%lld", audioStem, tid]]
+                          stringByAppendingPathExtension:@"lrc"];
+      NSError *err = nil;
+      BOOL ok = [content writeToFile:target atomically:YES encoding:NSUTF8StringEncoding error:&err];
+      if (ok) ok = fpdb::setTrackLrc(tid, target);
+      reply(idNum, ok ? @{ @"success": @YES, @"lrcPath": target } : @{ @"success": @NO });
+    } else if ([method isEqualToString:@"saveCover"]) {
+      int64_t tid = [args.firstObject longLongValue];
+      NSString *b64 = args.count > 1 ? args[1] : nil;
+      NSDictionary *track = fpdb::getTrackById(tid);
+      if (![track isKindOfClass:NSDictionary.class] || b64.length == 0) {
+        reply(idNum, @{ @"success": @NO });
+        return;
+      }
+      NSData *img = [[NSData alloc] initWithBase64EncodedString:b64 options:0];
+      if (!img) { reply(idNum, @{ @"success": @NO }); return; }
+      NSString *audioPath = track[@"file_path"];
+      NSString *coverDir = [audioPath.stringByDeletingLastPathComponent stringByAppendingPathComponent:@".covers"];
+      NSFileManager *fm = NSFileManager.defaultManager;
+      if (![fm fileExistsAtPath:coverDir]) {
+        [fm createDirectoryAtPath:coverDir withIntermediateDirectories:YES attributes:nil error:nil];
+      }
+      NSString *coverPath = [coverDir stringByAppendingPathComponent:
+                             [NSString stringWithFormat:@"cover-%lld.jpg", tid]];
+      BOOL ok = [img writeToFile:coverPath atomically:YES];
+      if (ok) ok = fpdb::setTrackCover(tid, coverPath);
+      reply(idNum, ok ? @{ @"success": @YES, @"coverPath": coverPath } : @{ @"success": @NO });
     } else if ([method isEqualToString:@"removeLrc"]) {
       reply(idNum, @(fpdb::clearTrackLrc([args.firstObject longLongValue])));
     } else if ([method isEqualToString:@"uploadLrc"]) {

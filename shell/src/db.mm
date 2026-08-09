@@ -374,6 +374,11 @@ BOOL setTrackLrc(int64_t trackId, NSString *lrcPath) {
   return runExec(@"UPDATE tracks SET lrc_path = ? WHERE id = ?", @[ lrcPath ?: NSNull.null, @(trackId) ]);
 }
 
+BOOL setTrackCover(int64_t trackId, NSString *coverPath) {
+  return runExec(@"UPDATE tracks SET cover_path = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                 @[ coverPath, @(trackId) ]);
+}
+
 id getTrackLrc(int64_t trackId) {
   NSArray *rows = runQuery(@"SELECT lrc_path FROM tracks WHERE id = ?", @[ @(trackId) ]);
   return (rows.count && rows[0][@"lrc_path"] != NSNull.null) ? rows[0][@"lrc_path"] : nil;

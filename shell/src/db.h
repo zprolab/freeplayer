@@ -34,6 +34,7 @@ BOOL deletePlaylist(int64_t playlistId);
 BOOL renamePlaylist(int64_t playlistId, NSString *name);
 
 BOOL setTrackLrc(int64_t trackId, NSString *lrcPath);
+BOOL setTrackCover(int64_t trackId, NSString *coverPath);
 id getTrackLrc(int64_t trackId);
 BOOL clearTrackLrc(int64_t trackId);
 

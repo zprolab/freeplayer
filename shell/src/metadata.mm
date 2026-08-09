@@ -21,7 +21,7 @@ static NSString *firstValue(NSArray<AVMetadataItem *> *items, NSString *key) {
 }
 
 // Strip downloader suffixes: "Artist - Title_EM.flac" -> "Artist - Title"
-static NSString *cleanStem(NSString *stem) {
+NSString *cleanAudioStem(NSString *stem) {
   NSRegularExpression *re = [NSRegularExpression regularExpressionWithPattern:@"_[A-Za-z]{1,4}$" options:0 error:nil];
   return [re stringByReplacingMatchesInString:stem options:0 range:NSMakeRange(0, stem.length) withTemplate:@""];
 }
@@ -30,21 +30,26 @@ static NSString *cleanStem(NSString *stem) {
 // tolerant of _EM/_L downloader suffixes and prefix-style names).
 NSString *findSidecarLrc(NSString *audioPath) {
   NSString *dir = audioPath.stringByDeletingLastPathComponent;
-  NSString *audioStem = cleanStem(audioPath.lastPathComponent.stringByDeletingPathExtension);
+  NSString *audioStem = cleanAudioStem(audioPath.lastPathComponent.stringByDeletingPathExtension);
   NSArray<NSString *> *lrcs = [NSFileManager.defaultManager contentsOfDirectoryAtPath:dir error:nil];
   NSMutableArray *candidates = [NSMutableArray array];
   for (NSString *name in lrcs) {
     if ([name.pathExtension.lowercaseString isEqualToString:@"lrc"]) {
-      NSString *stem = cleanStem(name.stringByDeletingPathExtension);
+      NSString *stem = cleanAudioStem(name.stringByDeletingPathExtension);
       if ([stem isEqualToString:audioStem]) {
         return [dir stringByAppendingPathComponent:name]; // exact match wins
       }
       [candidates addObject:@[ stem, name ]];
     }
   }
-  // Prefix match: "Welcome Home" is a prefix of "Welcome Home, Son (Remaster)"
+  // Prefix match: "Welcome Home" is a prefix of "Welcome Home, Son (Remaster)".
+  // Auto-fetched sidecars are "<stem>.<trackId>.lrc" — a numeric suffix must
+  // never prefix-match a sibling track, so skip ".<digits>" stems here.
   for (NSArray *pair in candidates) {
     NSString *stem = pair[0];
+    if ([stem rangeOfString:@"\\.[0-9]+$" options:NSRegularExpressionSearch].location != NSNotFound) {
+      continue;
+    }
     NSString *a = audioStem.lowercaseString;
     NSString *s = stem.lowercaseString;
     NSUInteger minLen = MIN(a.length, s.length);
@@ -238,7 +243,7 @@ NSDictionary *extractAtPath(NSString *path) {
   NSString *baseName = path.lastPathComponent;
   NSString *ext = path.pathExtension.lowercaseString;
   if (!title || title.length == 0) {
-    title = cleanStem(baseName.stringByDeletingPathExtension);
+    title = cleanAudioStem(baseName.stringByDeletingPathExtension);
   }
 
   if (yearStr.length >= 4) {
