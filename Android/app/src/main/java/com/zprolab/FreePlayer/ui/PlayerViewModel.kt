@@ -112,36 +112,6 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    /**
-     * Import audio files shared from other apps ("open with" FreePlayer).
-     * URIs come with a temporary read grant tied to this task; the copies
-     * happen immediately so the grant never expires mid-import.
-     */
-    fun importSharedUris(uris: List<android.net.Uri>, onDone: (imported: Int, failed: Int) -> Unit) {
-        if (uris.isEmpty()) return
-        viewModelScope.launch(Dispatchers.IO) {
-            val app = getApplication<Application>()
-            val resolver = app.contentResolver
-            val sources = uris.mapNotNull { uri ->
-                val name = runCatching {
-                    resolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)?.use {
-                        if (it.moveToFirst()) it.getString(0) else null
-                    }
-                }.getOrNull()
-                    ?: uri.lastPathSegment?.substringAfterLast('/')
-                    ?: return@mapNotNull null
-                com.zprolab.FreePlayer.import.ImportSource(uri, name, name, isDirectory = false)
-            }
-            if (sources.isEmpty()) {
-                onDone(0, uris.size)
-                return@launch
-            }
-            val result = ImportManager.importFiles(app, sources, state.value.importMode)
-            loadTracks()
-            onDone(result.imported, result.errors.size)
-        }
-    }
-
     fun onImportModeChange(mode: String) {
         PlayerController.updateState { it.copy(importMode = mode) }
         viewModelScope.launch(Dispatchers.IO) { db.setSetting("import_mode", mode) }

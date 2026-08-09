@@ -101,17 +101,13 @@ fun StatsScreen(
                     DataTable(
                         title = "Most Played Tracks",
                         header = listOf("#", "Title", "Artist", "Plays", "Time"),
-                        rows = s.topTracks.mapIndexed { index, it ->
-                            listOf((index + 1).toString(), it.title, it.artist, it.playCount.toString(), Formatting.formatDurationLong(it.totalListenTime))
-                        },
+                        rows = s.topTracks.map { listOf(it.title, it.artist, it.playCount.toString(), Formatting.formatDurationLong(it.totalListenTime)) },
                         modifier = Modifier.fillMaxWidth(),
                     )
                     DataTable(
                         title = "Top Artists",
                         header = listOf("#", "Artist", "Plays", "Time"),
-                        rows = s.topArtists.mapIndexed { index, it ->
-                            listOf((index + 1).toString(), it.artist, it.playCount.toString(), Formatting.formatDurationLong(it.totalListenTime))
-                        },
+                        rows = s.topArtists.map { listOf(it.artist, it.playCount.toString(), Formatting.formatDurationLong(it.totalListenTime)) },
                         modifier = Modifier.fillMaxWidth(),
                     )
                 }
@@ -120,17 +116,13 @@ fun StatsScreen(
                     DataTable(
                         title = "Most Played Tracks",
                         header = listOf("#", "Title", "Artist", "Plays", "Time"),
-                        rows = s.topTracks.mapIndexed { index, it ->
-                            listOf((index + 1).toString(), it.title, it.artist, it.playCount.toString(), Formatting.formatDurationLong(it.totalListenTime))
-                        },
+                        rows = s.topTracks.map { listOf(it.title, it.artist, it.playCount.toString(), Formatting.formatDurationLong(it.totalListenTime)) },
                         modifier = Modifier.weight(1f),
                     )
                     DataTable(
                         title = "Top Artists",
                         header = listOf("#", "Artist", "Plays", "Time"),
-                        rows = s.topArtists.mapIndexed { index, it ->
-                            listOf((index + 1).toString(), it.artist, it.playCount.toString(), Formatting.formatDurationLong(it.totalListenTime))
-                        },
+                        rows = s.topArtists.map { listOf(it.artist, it.playCount.toString(), Formatting.formatDurationLong(it.totalListenTime)) },
                         modifier = Modifier.weight(1f),
                     )
                 }

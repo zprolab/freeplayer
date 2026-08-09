@@ -96,42 +96,38 @@ fun LibraryScreen(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(Fp.ContentBg)
+                    .background(Color.White)
                     .padding(vertical = 8.dp),
             ) {
-                Box(Modifier.width(44.dp), contentAlignment = Alignment.Center) {
+                Box(Modifier.width(32.dp), contentAlignment = Alignment.Center) {
                     Text("#", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Fp.TextTertiary)
                 }
-                SortableHeader("title", "TITLE", sortBy, sortDir, onSort, Modifier.weight(3f).padding(end = 6.dp))
-                SortableHeader("artist", "ARTIST", sortBy, sortDir, onSort, Modifier.weight(2f).padding(end = 6.dp))
-                SortableHeader("album", "ALBUM", sortBy, sortDir, onSort, Modifier.weight(2f).padding(end = 6.dp))
-                SortableHeader("duration", "DURATION", sortBy, sortDir, onSort, Modifier.weight(0.8f).padding(end = 6.dp))
-                SortableHeader("imported_at", "ADDED", sortBy, sortDir, onSort, Modifier.weight(1.2f).padding(end = 4.dp))
+                SortableHeader("title", "Title", sortBy, sortDir, onSort, Modifier.weight(3f).padding(end = 6.dp))
+                SortableHeader("artist", "Artist", sortBy, sortDir, onSort, Modifier.weight(2f).padding(end = 6.dp))
+                SortableHeader("album", "Album", sortBy, sortDir, onSort, Modifier.weight(2f).padding(end = 6.dp))
+                SortableHeader("duration", "Dur.", sortBy, sortDir, onSort, Modifier.weight(0.8f).padding(end = 6.dp))
+                SortableHeader("imported_at", "Added", sortBy, sortDir, onSort, Modifier.weight(1.2f).padding(end = 4.dp))
             }
-            Box(Modifier.fillMaxWidth().height(1.dp).background(Fp.BorderLight))
         }
 
         LazyColumn(Modifier.weight(1f)) {
             itemsIndexed(tracks, key = { _, t -> t.id }) { index, track ->
-                Column {
-                    TrackRow(
-                        index = index,
-                        track = track,
-                        isCurrent = currentTrack?.id == track.id,
-                        isPlaying = isPlaying,
-                        compact = compact,
-                        playlists = playlists,
-                        onPlay = { onPlay(track, tracks) },
-                        onEdit = { onEditTrack(track) },
-                        onAddToPlaylist = { onAddToPlaylist(it, track.id) },
-                        onCreatePlaylist = { onCreatePlaylistForTrack(track) },
-                        onUploadLrc = { onUploadLrc(track) },
-                        onRemoveLrc = { onRemoveLrc(track) },
-                        onDelete = { onDeleteTrack(track.id) },
-                        onRemoveFromPlaylist = if (activePlaylistId != null) { { onRemoveFromPlaylist(track.id) } } else null,
-                    )
-                    Box(Modifier.fillMaxWidth().padding(start = if (compact) 0.dp else 44.dp).height(1.dp).background(Fp.BorderLight))
-                }
+                TrackRow(
+                    index = index,
+                    track = track,
+                    isCurrent = currentTrack?.id == track.id,
+                    isPlaying = isPlaying,
+                    compact = compact,
+                    playlists = playlists,
+                    onPlay = { onPlay(track, tracks) },
+                    onEdit = { onEditTrack(track) },
+                    onAddToPlaylist = { onAddToPlaylist(it, track.id) },
+                    onCreatePlaylist = { onCreatePlaylistForTrack(track) },
+                    onUploadLrc = { onUploadLrc(track) },
+                    onRemoveLrc = { onRemoveLrc(track) },
+                    onDelete = { onDeleteTrack(track.id) },
+                    onRemoveFromPlaylist = if (activePlaylistId != null) { { onRemoveFromPlaylist(track.id) } } else null,
+                )
             }
         }
     }
@@ -197,10 +193,10 @@ private fun TrackRow(
                 onClick = onPlay,
                 onLongClick = { menuOpen = true },
             )
-            .padding(vertical = if (compact) 10.dp else 9.dp),
+            .padding(vertical = 10.dp),
     ) {
         // # column: eq bars when current+playing
-        Box(Modifier.width(if (compact) 32.dp else 44.dp), contentAlignment = Alignment.Center) {
+        Box(Modifier.width(32.dp), contentAlignment = Alignment.Center) {
             if (isCurrent && isPlaying) {
                 EqualizerBars(active = true)
             } else {
@@ -257,7 +253,7 @@ private fun TrackRow(
             ) {
                 Text(
                     track.title,
-                    fontSize = 13.sp,
+                    fontSize = 12.sp,
                     fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Normal,
                     color = if (isCurrent) Fp.Blue else Fp.TextPrimary,
                     maxLines = 1,
@@ -278,8 +274,8 @@ private fun TrackRow(
                     )
                 }
             }
-            Text(track.artist, fontSize = 13.sp, color = Fp.TextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(2f).padding(end = 6.dp))
-            Text(track.album, fontSize = 13.sp, color = Fp.TextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(2f).padding(end = 6.dp))
+            Text(track.artist, fontSize = 12.sp, color = Fp.TextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(2f).padding(end = 6.dp))
+            Text(track.album, fontSize = 12.sp, color = Fp.TextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(2f).padding(end = 6.dp))
             Text(Formatting.formatTrackDuration(track.duration), fontSize = 11.sp, color = Fp.TextSecondary, fontFamily = FontFamily.Monospace, modifier = Modifier.weight(0.8f).padding(end = 6.dp))
             Text(Formatting.formatImportedAt(track.importedAt), fontSize = 11.sp, color = Fp.TextSecondary, fontFamily = FontFamily.Monospace, modifier = Modifier.weight(1.2f).padding(end = 4.dp))
             Spacer(Modifier.width(16.dp))

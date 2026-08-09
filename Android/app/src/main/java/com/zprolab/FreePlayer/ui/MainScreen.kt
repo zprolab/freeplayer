@@ -3,7 +3,6 @@ package com.zprolab.FreePlayer.ui
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Box
@@ -215,8 +214,8 @@ fun MainScreen(
                             state.view == View.STATS -> "Statistics"
                             else -> "Settings"
                         },
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Bold,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.SemiBold,
                         color = Fp.TextPrimary,
                     )
                     if (state.view == View.LIBRARY && screenWidthDp >= 480) {
@@ -224,7 +223,6 @@ fun MainScreen(
                         Text(
                             "${state.displayedTracks.size} tracks",
                             fontSize = 11.sp,
-                            fontWeight = FontWeight.Medium,
                             color = Fp.Blue,
                             fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
                             modifier = Modifier
@@ -237,10 +235,10 @@ fun MainScreen(
                     if (state.view == View.LIBRARY) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            modifier = (if (screenWidthDp >= 720) Modifier.width(240.dp) else Modifier.weight(1f))
+                            modifier = Modifier
+                                .weight(1f)
                                 .clip(RoundedCornerShape(4.dp))
-                                .background(Color.White)
-                                .border(1.dp, Fp.Border, RoundedCornerShape(4.dp))
+                                .background(Fp.ContentBg)
                                 .padding(horizontal = 10.dp, vertical = 7.dp),
                         ) {
                             Icon(Icons.Filled.Search, contentDescription = null, tint = Fp.TextTertiary, modifier = Modifier.size(15.dp))

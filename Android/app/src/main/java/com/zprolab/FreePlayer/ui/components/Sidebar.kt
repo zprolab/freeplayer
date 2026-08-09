@@ -171,10 +171,6 @@ fun Sidebar(
                 }
             }
 
-            if (collapsed) {
-                Spacer(Modifier.weight(1f))
-            }
-
             // Footer: Import Music
             Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -211,16 +207,16 @@ fun Sidebar(
                         modifier = Modifier.size(18.dp),
                     )
                 }
-            }
-            if (!collapsed) {
-                // Preserve the Android adaptation without adding a text-heavy footer.
-                Box(
-                    Modifier
-                        .align(Alignment.CenterHorizontally)
+            } else {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 10.dp, vertical = 6.dp)
                         .clip(RoundedCornerShape(4.dp))
                         .clickable { onToggleCollapsed() }
-                        .padding(vertical = 5.dp, horizontal = 16.dp),
-                    contentAlignment = Alignment.Center,
+                        .padding(vertical = 6.dp),
                 ) {
                     Icon(
                         Icons.Filled.KeyboardArrowLeft,
@@ -228,6 +224,8 @@ fun Sidebar(
                         tint = Color(0xFF8c8c93),
                         modifier = Modifier.size(16.dp),
                     )
+                    Spacer(Modifier.width(6.dp))
+                    Text("Collapse", color = Color(0xFF8c8c93), fontSize = 11.sp)
                 }
             }
         }

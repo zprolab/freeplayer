@@ -1,7 +1,6 @@
 package com.zprolab.FreePlayer.ui.components
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -85,10 +84,10 @@ fun NowPlayingScreen(
                 Modifier
                     .size(72.dp)
                     .clip(CircleShape)
-                    .border(2.dp, Fp.Border, CircleShape),
+                    .background(Fp.BorderLight),
                 contentAlignment = Alignment.Center,
             ) {
-                Icon(Icons.Filled.PlayArrow, contentDescription = null, tint = Fp.TextTertiary, modifier = Modifier.size(32.dp))
+                Icon(Icons.Filled.PlayArrow, contentDescription = null, tint = Fp.TextTertiary, modifier = Modifier.size(36.dp))
             }
             Spacer(Modifier.height(12.dp))
             Text("Nothing playing", color = Fp.TextSecondary, fontSize = 14.sp)

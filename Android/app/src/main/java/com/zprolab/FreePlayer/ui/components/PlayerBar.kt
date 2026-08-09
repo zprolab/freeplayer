@@ -79,7 +79,7 @@ fun PlayerBar(
             Column(
             Modifier
                 .fillMaxWidth()
-                .height(92.dp)
+                .height(78.dp)
                 .background(Color.White)
                 .padding(top = 6.dp),
         ) {
@@ -109,14 +109,12 @@ fun PlayerBar(
                 horizontalArrangement = Arrangement.spacedBy(16.dp),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(80.dp)
+                    .height(66.dp)
                     .padding(horizontal = 20.dp),
             ) {                // Left: cover + title/artist
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1.4f)) {
-                    if (currentTrack != null) {
-                        CoverArt(currentTrack.coverPath, size = 40.dp, cornerRadius = 4.dp)
-                        Spacer(Modifier.width(12.dp))
-                    }
+                    CoverArt(currentTrack?.coverPath, size = 40.dp, cornerRadius = 4.dp)
+                    Spacer(Modifier.width(12.dp))
                     Column(Modifier.weight(1f)) {
                         Text(
                             currentTrack?.title ?: "No track selected",
@@ -197,24 +195,14 @@ private fun CompactPlayerBar(
             .padding(horizontal = 12.dp, vertical = 4.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-            Column(Modifier.weight(1f)) {
-                Text(
-                    currentTrack?.title ?: "No track selected",
-                    color = if (currentTrack == null) Fp.TextSecondary else Fp.TextPrimary,
-                    fontSize = 12.sp,
-                    maxLines = 1,
-                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                )
-                if (currentTrack == null) {
-                    Text(
-                        "Select a track from your library",
-                        color = Fp.TextTertiary,
-                        fontSize = 10.sp,
-                        maxLines = 1,
-                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                    )
-                }
-            }
+            Text(
+                currentTrack?.title ?: "No track selected",
+                color = if (currentTrack == null) Fp.TextSecondary else Fp.TextPrimary,
+                fontSize = 12.sp,
+                maxLines = 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
             Text(
                 "${Formatting.formatTime(currentTime)} / ${Formatting.formatTime(duration)}",
                 color = Fp.TextSecondary,
