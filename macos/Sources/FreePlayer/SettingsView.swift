@@ -6,10 +6,12 @@ struct SettingsView: View {
     @State private var trayNotify = true
     @State private var startOnBoot = false
     @State private var showResetConfirm = false
+    @AppStorage("liquid_glass_enabled") private var liquidGlassEnabled = false
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
+                appearanceSection
                 importModeSection
                 libraryDirSection
                 playbackSection
@@ -47,12 +49,34 @@ struct SettingsView: View {
     ) -> some View {
         content()
             .padding(20)
-            .background(Theme.panel)
-            .clipShape(RoundedRectangle(cornerRadius: 6))
+            .systemGlassSurface(
+                cornerRadius: 6,
+                tint: danger ? Theme.danger.opacity(0.06) : nil,
+                fallbackFill: Theme.panel
+            )
             .overlay(
                 RoundedRectangle(cornerRadius: 6)
                     .stroke(danger ? Theme.danger.opacity(0.5) : Theme.border, lineWidth: 1)
             )
+    }
+
+    private var appearanceSection: some View {
+        cardSection {
+            HStack(spacing: 16) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Appearance")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(Theme.textPrimary)
+                    Text("Use system Liquid Glass across FreePlayer. The equalizer always keeps its glass controls.")
+                        .font(.system(size: 12))
+                        .foregroundStyle(Theme.textSecondary)
+                }
+                Spacer()
+                Toggle("Liquid Glass", isOn: $liquidGlassEnabled)
+                    .toggleStyle(.switch)
+                    .tint(.accentColor)
+            }
+        }
     }
 
     // ── Single row with divider ──
@@ -118,8 +142,12 @@ struct SettingsView: View {
                 Spacer()
             }
             .padding(14)
-            .background(selected ? Theme.accent.opacity(0.08) : Theme.panel)
-            .clipShape(RoundedRectangle(cornerRadius: 6))
+            .systemGlassSurface(
+                cornerRadius: 6,
+                interactive: true,
+                tint: selected ? Theme.accent.opacity(0.14) : nil,
+                fallbackFill: selected ? Theme.accent.opacity(0.08) : Theme.panel
+            )
             .overlay(
                 RoundedRectangle(cornerRadius: 6)
                     .stroke(selected ? Theme.accent : Theme.border, lineWidth: selected ? 2 : 1)
@@ -162,8 +190,7 @@ struct SettingsView: View {
                     .buttonStyle(.bordered)
                 }
                 .padding(12)
-                .background(Theme.panelRaised)
-                .clipShape(RoundedRectangle(cornerRadius: 8))
+                .systemGlassSurface(cornerRadius: 8, fallbackFill: Theme.panelRaised)
             }
         }
     }

@@ -26,9 +26,11 @@ struct NowPlayingView: View {
                                        onImmersive: { model.immersivePresented = true })
                                 .frame(minHeight: 400)
                                 .frame(maxWidth: 820)
-                                .background(Theme.panel)
-                                .clipShape(RoundedRectangle(cornerRadius: 8))
-                                .overlay(RoundedRectangle(cornerRadius: 8).stroke(Theme.border.opacity(0.5)))
+                                .systemGlassSurface(
+                                    cornerRadius: 8,
+                                    fallbackFill: Theme.panel,
+                                    fallbackBorder: Theme.border.opacity(0.5)
+                                )
                                 .frame(maxWidth: .infinity)
                                 .padding(.horizontal, 40)
                         case "scope":
@@ -78,10 +80,10 @@ struct NowPlayingView: View {
                 tabButton("scope", "Scope")
             }
             .padding(4)
-            .background(
-                RoundedRectangle(cornerRadius: 6)
-                    .fill(Theme.panel)
-                    .overlay(RoundedRectangle(cornerRadius: 6).stroke(Theme.border.opacity(0.7)))
+            .systemGlassSurface(
+                cornerRadius: 6,
+                fallbackFill: Theme.panel,
+                fallbackBorder: Theme.border.opacity(0.7)
             )
             Spacer()
         }
@@ -145,9 +147,11 @@ struct NowPlayingView: View {
                                onRemove: { model.removeLrc(for: track) },
                                onImmersive: { model.immersivePresented = true })
                         .frame(height: 420)
-                        .background(Theme.panel)
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
-                        .overlay(RoundedRectangle(cornerRadius: 8).stroke(Theme.border.opacity(0.5)))
+                        .systemGlassSurface(
+                            cornerRadius: 8,
+                            fallbackFill: Theme.panel,
+                            fallbackBorder: Theme.border.opacity(0.5)
+                        )
                 }
             }
             .frame(maxWidth: 1000)
@@ -270,8 +274,7 @@ struct NowPlayingView: View {
                     }
                 }
                 .padding(.horizontal, 8)
-                .background(Theme.panel)
-                .clipShape(RoundedRectangle(cornerRadius: 8))
+                .systemGlassSurface(cornerRadius: 8, fallbackFill: Theme.panel)
                 .frame(height: min(CGFloat(model.queue.count) * 35, 300))
             }
         }
@@ -351,8 +354,11 @@ struct CoverArtLarge: View {
                         .foregroundStyle(Theme.accent)
                         .padding(.horizontal, 10)
                         .padding(.vertical, 5)
-                        .background(.white.opacity(0.9))
-                        .clipShape(RoundedRectangle(cornerRadius: 4))
+                        .systemGlassSurface(
+                            cornerRadius: 4,
+                            interactive: true,
+                            fallbackFill: .white.opacity(0.9)
+                        )
                         .offset(y: 62)
                 }
             }

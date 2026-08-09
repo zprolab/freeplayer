@@ -84,6 +84,9 @@ final class AppModel: ObservableObject {
     @Published var defaultVisualizer: VisualizerMode = .waveform
     @Published var visualizerMode: VisualizerMode = .waveform
     @Published var autoFetchMeta = false
+    @Published var equalizerEnabled = false
+    @Published var equalizerPreset = "Flat"
+    @Published var equalizerGains: [Double] = Array(repeating: 0, count: 10)
     @Published var lyricsFetchState: MetadataFetchState = .idle
     @Published var coverFetchState: MetadataFetchState = .idle
     @Published var metadataBackfillProgress: MetadataBackfillProgress?
@@ -175,6 +178,13 @@ final class AppModel: ObservableObject {
             visualizerMode = mode
         }
         autoFetchMeta = Database.shared.getBoolSetting("auto_fetch_meta", fallback: false)
+        equalizerEnabled = Database.shared.getBoolSetting("eq_enabled", fallback: false)
+        equalizerPreset = Database.shared.getSetting("eq_preset", "Flat") ?? "Flat"
+        if let saved = Database.shared.getSetting("eq_gains"),
+           saved.split(separator: ",").count == 10 {
+            equalizerGains = saved.split(separator: ",").compactMap { Double($0) }
+        }
+        engine.setEqualizer(enabled: equalizerEnabled, gains: equalizerGains)
 
         if isSetup {
             loadTracks()
@@ -322,6 +332,16 @@ final class AppModel: ObservableObject {
         Database.shared.setSetting("volume", String(vol))
     }
 
+    func setEqualizer(enabled: Bool? = nil, preset: String? = nil, gains: [Double]? = nil) {
+        if let enabled { equalizerEnabled = enabled }
+        if let preset { equalizerPreset = preset }
+        if let gains { equalizerGains = Array(gains.prefix(10)) + Array(repeating: 0, count: max(0, 10 - gains.count)) }
+        engine.setEqualizer(enabled: equalizerEnabled, gains: equalizerGains)
+        Database.shared.setSetting("eq_enabled", equalizerEnabled ? "true" : "false")
+        Database.shared.setSetting("eq_preset", equalizerPreset)
+        Database.shared.setSetting("eq_gains", equalizerGains.map { String(format: "%.1f", $0) }.joined(separator: ","))
+    }
+
     func setPlayMode(_ mode: PlayMode) {
         playMode = mode
         if mode == .shuffle && !shuffledQueue.isEmpty {
@@ -417,6 +437,9 @@ final class AppModel: ObservableObject {
         defaultVisualizer = .waveform
         visualizerMode = .waveform
         autoFetchMeta = false
+        equalizerEnabled = false
+        equalizerPreset = "Flat"
+        equalizerGains = Array(repeating: 0, count: 10)
         autoMetadataAttempts = []
         metadataBackfillProgress = nil
         metadataBackfillRunning = false
