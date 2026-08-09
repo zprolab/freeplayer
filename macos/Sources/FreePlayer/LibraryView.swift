@@ -30,7 +30,7 @@ struct LibraryView: View {
                             ForEach(Array(model.displayedTracks.enumerated()), id: \.element.id) { index, track in
                                 TrackRow(track: track, index: index)
                                 if track.id != model.displayedTracks.last?.id {
-                                    Divider().opacity(0.3).padding(.leading, 54)
+                                    Rectangle().fill(Theme.borderLight).frame(height: 1)
                                 }
                             }
                         }
@@ -52,15 +52,18 @@ struct LibraryView: View {
             }
             Spacer(minLength: 8)
         }
-        .font(.system(size: 12, weight: .semibold))
+        .font(.system(size: 11, weight: .semibold))
+        .textCase(.uppercase)
+        .tracking(0.4)
         .foregroundStyle(Theme.textSecondary)
         .padding(.vertical, 8)
         .background(Theme.panel)
-        .overlay(alignment: .bottom) { Rectangle().fill(Theme.border).frame(height: 1) }
+        .overlay(alignment: .bottom) { Rectangle().fill(Theme.border).frame(height: 2) }
     }
 
+    @ViewBuilder
     private func sortHeaderButton(_ col: SortCol) -> some View {
-        Button {
+        let button = Button {
             if model.sortBy == col.key {
                 model.sortDir = model.sortDir == "ASC" ? "DESC" : "ASC"
             } else {
@@ -69,7 +72,7 @@ struct LibraryView: View {
             }
             model.loadTracks()
         } label: {
-            HStack(spacing: 4) {
+            let label = HStack(spacing: 4) {
                 Text(col.label)
                 if model.sortBy == col.key {
                     Image(systemName: model.sortDir == "ASC" ? "arrow.up" : "arrow.down")
@@ -81,10 +84,16 @@ struct LibraryView: View {
                         .foregroundStyle(Theme.textTertiary.opacity(0.5))
                 }
             }
-            .frame(width: col.width, alignment: .leading)
+            label
         }
         .buttonStyle(.plain)
         .contentShape(Rectangle())
+
+        if let width = col.width {
+            button.frame(width: width, alignment: .leading)
+        } else {
+            button.frame(maxWidth: .infinity, alignment: .leading)
+        }
     }
 
     private var emptyState: some View {
@@ -118,15 +127,10 @@ private struct TrackRow: View {
                 if isActive && model.isPlaying {
                     EQIndicator()
                         .frame(width: 24)
-                } else if isActive {
-                    Text("▶")
-                        .font(.system(size: 9))
-                        .foregroundStyle(Theme.accent)
-                        .frame(width: 24)
                 } else {
                     Text("\(index + 1)")
                         .font(Theme.mono)
-                        .foregroundStyle(Theme.textTertiary)
+                        .foregroundStyle(isActive ? Theme.accent : Theme.textTertiary)
                         .frame(width: 24)
                 }
             }
@@ -161,7 +165,7 @@ private struct TrackRow: View {
 
             Text(Formatting.tableDuration(track.duration))
                 .font(Theme.mono)
-                .foregroundStyle(Theme.textSecondary)
+                .foregroundStyle(Theme.textTertiary)
                 .frame(width: 90, alignment: .leading)
 
             Text(Formatting.compactDate(track.importedAt))
@@ -172,17 +176,19 @@ private struct TrackRow: View {
             Button {
                 model.play(track: track, from: model.displayedTracks)
             } label: {
-                Image(systemName: "play.fill")
-                    .font(.system(size: 11))
-                    .foregroundStyle(Theme.textPrimary)
+                // Ghost icon button (matches web .btn-icon): transparent, gray on hover.
+                Image(systemName: "play")
+                    .font(.system(size: 12))
+                    .foregroundStyle(Theme.textTertiary)
                     .frame(width: 26, height: 22)
-                    .background(Circle().fill(Theme.accent))
+                    .background(RoundedRectangle(cornerRadius: 4).fill(hovering ? Theme.borderLight : .clear))
+                    .help(isActive ? "Currently playing" : "Play")
             }
             .buttonStyle(.plain)
             .padding(.trailing, 12)
         }
         .font(.system(size: 13))
-        .padding(.vertical, 6)
+        .padding(.vertical, 12)
         .background(rowBackground)
         .contentShape(Rectangle())
         .onHover { hovering = $0 }
@@ -232,7 +238,6 @@ private struct TrackRow: View {
         } label: {
             Label("Upload Lyrics...", systemImage: "text.quote")
         }
-        .disabled(track.lrcPath != nil)
 
         if track.lrcPath != nil {
             Button {

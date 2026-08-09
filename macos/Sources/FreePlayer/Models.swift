@@ -18,6 +18,18 @@ enum PlayMode: String, CaseIterable {
     case sequential, repeatOne, shuffle
 }
 
+enum MetadataFetchState: Equatable {
+    case idle, fetching, notFound
+}
+
+struct MetadataBackfillProgress: Equatable {
+    var done: Int
+    var total: Int
+    var saved: Int
+    var failed: Int
+    var noMatch: Int
+}
+
 // ── Core entities ──
 
 struct Track: Identifiable, Equatable, Hashable {
@@ -126,6 +138,15 @@ enum Formatting {
         let m = Int(seconds) % 3600 / 60
         if h > 0 { return "\(h)h \(m)m" }
         return "\(m)m"
+    }
+
+    /// "Aug 8, 3:45 PM" — matches the web version's Recent Plays Started
+    /// column (toLocaleString with month short, day numeric, hour/minute).
+    static func statsStarted(_ date: Date) -> String {
+        let out = DateFormatter()
+        out.dateFormat = "MMM d, h:mm a"
+        out.locale = Locale(identifier: "en_US_POSIX")
+        return out.string(from: date)
     }
 
     static func fileSize(_ bytes: Int64) -> String {

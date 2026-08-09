@@ -6,7 +6,11 @@ struct LyricsView: View {
     let lrcContent: String?
     let currentTime: Double
     var showMetaHeader: Bool = true
+    var emphasizeUpload: Bool = false
     var onUpload: (() -> Void)?
+    var onFetchLyrics: (() -> Void)?
+    var fetchingLyrics = false
+    var lyricsFetchFailed = false
     var onRemove: (() -> Void)?
     var onImmersive: (() -> Void)?
     var fontScale: CGFloat = 1.0
@@ -31,10 +35,10 @@ struct LyricsView: View {
                     HStack(spacing: 8) {
                         Text("LRC")
                             .font(.system(size: 9, weight: .bold))
-                            .foregroundStyle(Theme.green)
+                            .foregroundStyle(Theme.accent)
                             .padding(.horizontal, 6)
                             .padding(.vertical, 2)
-                            .background(Capsule().fill(Theme.green.opacity(0.15)))
+                            .background(Capsule().fill(Theme.accent.opacity(0.15)))
                         Text("\(lyrics.count) lines")
                             .font(.system(size: 11))
                             .foregroundStyle(Theme.textSecondary)
@@ -145,17 +149,43 @@ struct LyricsView: View {
             Text("Upload an .lrc file to see time-synced lyrics")
                 .font(.system(size: 12))
                 .foregroundStyle(Theme.textSecondary)
+            if let onFetchLyrics {
+                Button(action: onFetchLyrics) {
+                    Label(fetchingLyrics ? "Fetching..." : lyricsFetchFailed ? "No lyrics found" : "Fetch Lyrics",
+                          systemImage: fetchingLyrics ? "arrow.triangle.2.circlepath" : "arrow.down.doc")
+                        .font(.system(size: 12))
+                }
+                .buttonStyle(.plain)
+                .disabled(fetchingLyrics)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 5)
+                .background(RoundedRectangle(cornerRadius: 4).stroke(Theme.accent.opacity(0.6), lineWidth: 1))
+                .foregroundStyle(Theme.accent)
+            }
             if let onUpload {
                 Button(action: onUpload) {
                     Label("Upload .lrc File", systemImage: "arrow.up.doc")
+                        .font(.system(size: 12))
                 }
-                .buttonStyle(.bordered)
+                .buttonStyle(.plain)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 5)
+                .background(
+                    RoundedRectangle(cornerRadius: 4)
+                        .stroke(emphasizeUpload ? Theme.accent.opacity(0.6) : Theme.border, lineWidth: 1)
+                )
+                .foregroundStyle(emphasizeUpload ? Theme.accent : Theme.textSecondary)
             }
             if let onImmersive {
                 Button(action: onImmersive) {
                     Label("Fullscreen View", systemImage: "arrow.up.left.and.arrow.down.right")
+                        .font(.system(size: 12))
                 }
-                .buttonStyle(.bordered)
+                .buttonStyle(.plain)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 5)
+                .background(RoundedRectangle(cornerRadius: 4).stroke(Theme.border, lineWidth: 1))
+                .foregroundStyle(Theme.textSecondary)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)

@@ -13,7 +13,7 @@ struct FreePlayerApp: App {
                 .preferredColorScheme(.light)
         }
         .windowStyle(.hiddenTitleBar)
-        .defaultSize(width: 1280, height: 820)
+        .defaultSize(width: 1200, height: 768)
         .commands {
             CommandGroup(replacing: .newItem) {}
         }
@@ -89,37 +89,44 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     // ── Global keyboard shortcuts (Space / V / Esc) ──
     private func installShortcutMonitor() {
         eventMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
-            guard self != nil else { return event }
-            let model = AppModel.shared
-            // Don't hijack keys while editing text or activating a focused button
-            if let responder = NSApp.keyWindow?.firstResponder,
-               responder is NSTextView || responder is NSButton {
-                return event
+            let consumed = MainActor.assumeIsolated {
+                self?.handleShortcut(event) ?? false
             }
-            guard let chars = event.charactersIgnoringModifiers else { return event }
-            switch chars {
-            case " ":
-                model.togglePlayPause()
-                return nil
-            case "v", "V":
-                let modes: [VisualizerMode] = [.waveform, .spectrogram, .off]
-                if event.modifierFlags.contains(.shift) {
-                    if let idx = modes.firstIndex(of: model.visualizerMode) {
-                        model.visualizerMode = modes[(idx + 1) % modes.count]
-                    }
-                } else {
-                    model.visualizerMode = model.visualizerMode == .off ? .waveform : .off
+            return consumed ? nil : event
+        }
+    }
+
+    @MainActor
+    private func handleShortcut(_ event: NSEvent) -> Bool {
+        let model = AppModel.shared
+        // Don't hijack keys while editing text or activating a focused button
+        if let responder = NSApp.keyWindow?.firstResponder,
+           responder is NSTextView || responder is NSButton {
+            return false
+        }
+        guard let chars = event.charactersIgnoringModifiers else { return false }
+        switch chars {
+        case " ":
+            model.togglePlayPause()
+            return true
+        case "v", "V":
+            let modes: [VisualizerMode] = [.waveform, .spectrogram, .off]
+            if event.modifierFlags.contains(.shift) {
+                if let idx = modes.firstIndex(of: model.visualizerMode) {
+                    model.visualizerMode = modes[(idx + 1) % modes.count]
                 }
-                return nil
-            case "\u{1b}": // Esc
-                if model.immersivePresented {
-                    model.immersivePresented = false
-                    return nil
-                }
-                return event
-            default:
-                return event
+            } else {
+                model.visualizerMode = model.visualizerMode == .off ? .waveform : .off
             }
+            return true
+        case "\u{1b}": // Esc
+            if model.immersivePresented {
+                model.immersivePresented = false
+                return true
+            }
+            return false
+        default:
+            return false
         }
     }
 }

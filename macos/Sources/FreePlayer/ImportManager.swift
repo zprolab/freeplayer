@@ -69,25 +69,45 @@ final class ImportManager {
                     let baseName = (filePath as NSString).lastPathComponent
                     let ext = (filePath as NSString).pathExtension.lowercased()
                     let albumDir = libraryDir + "/" + safe(meta.artist) + "/" + safe(meta.album)
-                    try? fm.createDirectory(atPath: albumDir, withIntermediateDirectories: true)
+                    do {
+                        try fm.createDirectory(atPath: albumDir, withIntermediateDirectories: true)
+                    } catch {
+                        result.errors.append((filePath, "Could not create library folder: \(error.localizedDescription)"))
+                        return
+                    }
 
                     let targetPath = albumDir + "/" + baseName
                     let exists = fm.fileExists(atPath: targetPath)
+                    let alreadyIndexed = Database.shared.getTrack(filePath: targetPath) != nil
+
+                    if exists && alreadyIndexed {
+                        result.skipped += 1
+                        return
+                    }
+
+                    var createdTarget = false
                     if !exists {
-                        if importMode == .symlink {
-                            try? fm.createSymbolicLink(at: URL(fileURLWithPath: targetPath),
-                                                       withDestinationURL: URL(fileURLWithPath: filePath))
-                        } else {
-                            try? fm.copyItem(atPath: filePath, toPath: targetPath)
+                        do {
+                            if importMode == .symlink {
+                                try fm.createSymbolicLink(at: URL(fileURLWithPath: targetPath),
+                                                          withDestinationURL: URL(fileURLWithPath: filePath))
+                            } else {
+                                try fm.copyItem(atPath: filePath, toPath: targetPath)
+                            }
+                            createdTarget = true
+                        } catch {
+                            result.errors.append((filePath, "Could not import file: \(error.localizedDescription)"))
+                            return
                         }
                     }
 
-                    // Cover art -> <albumDir>/.covers/cover.<ext>
+                    // Cover art -> <albumDir>/.covers/cover.jpg
+                    // (matches web bridge.mm: always writes cover.jpg).
                     var coverPath: String? = nil
                     if let artwork = meta.artwork, !artwork.isEmpty {
                         let coverDir = albumDir + "/.covers"
                         try? fm.createDirectory(atPath: coverDir, withIntermediateDirectories: true)
-                        let cover = coverDir + "/cover." + ImportManager.coverExtension(for: artwork)
+                        let cover = coverDir + "/cover.jpg"
                         if !fm.fileExists(atPath: cover) {
                             try? artwork.write(to: URL(fileURLWithPath: cover), options: .atomic)
                         }
@@ -120,8 +140,16 @@ final class ImportManager {
                         importedAt: nil,
                         updatedAt: nil
                     )
-                    _ = Database.shared.insertTrack(track)
-                    if exists { result.skipped += 1 } else { result.imported += 1 }
+                    guard Database.shared.insertTrack(track) else {
+                        if createdTarget {
+                            try? fm.removeItem(atPath: targetPath)
+                        }
+                        result.errors.append((filePath, "Could not add track to the library database"))
+                        return
+                    }
+                    // An existing file without a database row is a recovered
+                    // import, not a skipped duplicate.
+                    result.imported += 1
                 }
                 DispatchQueue.main.async { progress?(index + 1, files.count) }
             }

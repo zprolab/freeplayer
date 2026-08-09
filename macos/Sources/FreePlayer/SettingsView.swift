@@ -15,8 +15,9 @@ struct SettingsView: View {
                 playbackSection
                 dangerZoneSection
             }
-            .padding(20)
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(maxWidth: 620)
+            .padding(24)
+            .frame(maxWidth: .infinity, alignment: .center)
         }
         .background(Theme.background)
         .onAppear {
@@ -34,7 +35,7 @@ struct SettingsView: View {
             }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("This will permanently delete all tracks, play history, playlists, and settings. Your music files on disk will not be touched.")
+            Text("This will permanently delete all tracks, play history, playlists, and settings. Your music files on disk will not be touched. This action cannot be undone.")
         }
     }
 
@@ -47,12 +48,11 @@ struct SettingsView: View {
         content()
             .padding(20)
             .background(Theme.panel)
-            .clipShape(RoundedRectangle(cornerRadius: 10))
+            .clipShape(RoundedRectangle(cornerRadius: 6))
             .overlay(
-                RoundedRectangle(cornerRadius: 10)
+                RoundedRectangle(cornerRadius: 6)
                     .stroke(danger ? Theme.danger.opacity(0.5) : Theme.border, lineWidth: 1)
             )
-            .shadow(color: .black.opacity(0.04), radius: 2, x: 0, y: 1)
     }
 
     // ── Single row with divider ──
@@ -101,10 +101,10 @@ struct SettingsView: View {
                 ZStack {
                     Circle()
                         .stroke(selected ? Theme.accent : Theme.border, lineWidth: 2)
-                        .frame(width: 18, height: 18)
+                        .frame(width: 20, height: 20)
                     Circle()
                         .fill(Theme.accent)
-                        .frame(width: 8, height: 8)
+                        .frame(width: 10, height: 10)
                         .opacity(selected ? 1 : 0)
                 }
                 VStack(alignment: .leading, spacing: 1) {
@@ -118,11 +118,11 @@ struct SettingsView: View {
                 Spacer()
             }
             .padding(14)
-            .background(selected ? Theme.accent.opacity(0.06) : Theme.panel)
-            .clipShape(RoundedRectangle(cornerRadius: 8))
+            .background(selected ? Theme.accent.opacity(0.08) : Theme.panel)
+            .clipShape(RoundedRectangle(cornerRadius: 6))
             .overlay(
-                RoundedRectangle(cornerRadius: 8)
-                    .stroke(selected ? Theme.accent : Theme.border, lineWidth: 1)
+                RoundedRectangle(cornerRadius: 6)
+                    .stroke(selected ? Theme.accent : Theme.border, lineWidth: selected ? 2 : 1)
             )
         }
         .buttonStyle(.plain)
@@ -229,13 +229,49 @@ struct SettingsView: View {
                                     .foregroundStyle(model.defaultVisualizer == mode ? .white : Theme.textSecondary)
                                     .padding(.horizontal, 14)
                                     .padding(.vertical, 6)
-                                    .background(model.defaultVisualizer == mode ? Theme.accent : Theme.panelRaised)
+                                    .background(model.defaultVisualizer == mode ? Theme.accent : .clear)
                             }
                             .buttonStyle(.plain)
                         }
                     }
                     .clipShape(RoundedRectangle(cornerRadius: 6))
                     .overlay(RoundedRectangle(cornerRadius: 6).stroke(Theme.border, lineWidth: 1))
+                }
+
+                row {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Auto-Fetch Lyrics & Covers")
+                            .font(.system(size: 13))
+                            .foregroundStyle(Theme.textPrimary)
+                        Text("Automatically download missing lyrics (LRCLIB) and album art (iTunes) when playing a track")
+                            .font(.system(size: 11))
+                            .foregroundStyle(Theme.textSecondary)
+                    }
+                    Spacer()
+                    Toggle("", isOn: Binding(
+                        get: { model.autoFetchMeta },
+                        set: { model.setAutoFetchMeta($0) }
+                    ))
+                    .toggleStyle(.switch)
+                    .tint(Theme.toggleChecked)
+                    .labelsHidden()
+                }
+
+                row {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Backfill Missing Metadata")
+                            .font(.system(size: 13))
+                            .foregroundStyle(Theme.textPrimary)
+                        Text(backfillDescription)
+                            .font(.system(size: 11))
+                            .foregroundStyle(Theme.textSecondary)
+                    }
+                    Spacer()
+                    Button(model.metadataBackfillProgress == nil ? "Fetch Missing" : "Fetching...") {
+                        model.startMetadataBackfill()
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(model.metadataBackfillProgress != nil || model.tracks.isEmpty)
                 }
 
                 // Close to Tray
@@ -251,6 +287,7 @@ struct SettingsView: View {
                     Spacer()
                     Toggle("", isOn: $trayEnabled)
                         .toggleStyle(.switch)
+                        .tint(Theme.toggleChecked)
                         .labelsHidden()
                         .onChange(of: trayEnabled) { value in
                             model.setTrayEnabled(value)
@@ -271,6 +308,7 @@ struct SettingsView: View {
                         Spacer()
                         Toggle("", isOn: $trayNotify)
                             .toggleStyle(.switch)
+                            .tint(Theme.toggleChecked)
                             .labelsHidden()
                             .onChange(of: trayNotify) { value in
                                 model.setTrayNotify(value)
@@ -300,6 +338,16 @@ struct SettingsView: View {
         }
     }
 
+    private var backfillDescription: String {
+        guard let progress = model.metadataBackfillProgress else {
+            return "Fetch lyrics and covers for \(model.tracks.count) tracks that are missing them"
+        }
+        var parts = ["Fetching \(progress.done)/\(progress.total)", "\(progress.saved) saved"]
+        if progress.failed > 0 { parts.append("\(progress.failed) failed") }
+        if progress.noMatch > 0 { parts.append("\(progress.noMatch) no match") }
+        return parts.joined(separator: " · ")
+    }
+
     // ── Danger Zone ──
 
     private var dangerZoneSection: some View {
@@ -327,8 +375,11 @@ struct SettingsView: View {
                     Button("Reset...") {
                         showResetConfirm = true
                     }
-                    .buttonStyle(.borderedProminent)
-                    .tint(Theme.danger)
+                    .buttonStyle(.plain)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 5)
+                    .background(RoundedRectangle(cornerRadius: 4).stroke(Theme.danger, lineWidth: 1))
+                    .foregroundStyle(Theme.danger)
                 }
             }
         }

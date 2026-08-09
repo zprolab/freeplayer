@@ -3,6 +3,7 @@ import AppKit
 
 struct PlayerBarView: View {
     @EnvironmentObject private var model: AppModel
+    @State private var progressHover = false
 
     private var progress: Double {
         model.duration > 0 ? model.currentTime / model.duration : 0
@@ -10,15 +11,32 @@ struct PlayerBarView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Thin progress line
+            // Thin progress line — grows to 5pt with an orange thumb on hover
+            // (matches web App.css .player-progress hover behavior).
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
                     Rectangle().fill(Theme.border.opacity(0.4))
                     Rectangle()
-                        .fill(Theme.accent)
-                        .frame(width: max(geo.size.width * progress, 2))
+                        .fill(progressHover ? Theme.accentHover : Theme.accent)
+                        .frame(width: max(geo.size.width * progress, 0))
+                        .clipShape(
+                            UnevenRoundedRectangle(
+                                topLeadingRadius: 2, bottomLeadingRadius: 2,
+                                bottomTrailingRadius: progressHover ? 2 : 0,
+                                topTrailingRadius: progressHover ? 2 : 0
+                            )
+                        )
+                    if progressHover {
+                        Circle()
+                            .fill(Theme.accent)
+                            .frame(width: 10, height: 10)
+                            .offset(x: max(0, geo.size.width * progress - 5))
+                    }
                 }
                 .contentShape(Rectangle())
+                .onHover { hovering in
+                    withAnimation(.easeOut(duration: 0.12)) { progressHover = hovering }
+                }
                 .gesture(
                     DragGesture(minimumDistance: 0)
                         .onChanged { value in
@@ -26,7 +44,7 @@ struct PlayerBarView: View {
                         }
                 )
             }
-            .frame(height: 3)
+            .frame(height: progressHover ? 5 : 1)
 
             HStack(spacing: 12) {
                 // Track info
@@ -96,6 +114,8 @@ struct PlayerBarView: View {
             .background(Theme.playerBg)
             .overlay(alignment: .top) { Rectangle().fill(Theme.playerBorder).frame(height: 1) }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Theme.playerBg)
     }
 
     private func button(action: @escaping () -> Void, icon: String, size: CGFloat, title: String) -> some View {
@@ -158,10 +178,10 @@ struct CoverThumb: View {
                 .resizable()
                 .aspectRatio(contentMode: .fill)
                 .frame(width: size, height: size)
-                .clipShape(RoundedRectangle(cornerRadius: 6))
+                .clipShape(RoundedRectangle(cornerRadius: 4))
         } else {
             ZStack {
-                RoundedRectangle(cornerRadius: 6)
+                RoundedRectangle(cornerRadius: 4)
                     .fill(Theme.panelRaised)
                 Image(systemName: "music.note")
                     .font(.system(size: size * 0.4))

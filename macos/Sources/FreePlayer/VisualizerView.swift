@@ -7,14 +7,45 @@ struct VisualizerView: View {
 
     var body: some View {
         ZStack(alignment: .topTrailing) {
-            VisualizerCanvas(model: model)
-                .clipShape(RoundedRectangle(cornerRadius: 8))
-            if model.visualizerMode != .off {
+            if model.visualizerMode == .off {
+                // Web .visualizer--off: 52px dashed strip with label + Enable.
+                HStack(spacing: 10) {
+                    Text("VISUALIZER OFF")
+                        .font(.system(size: 10, weight: .medium, design: .monospaced))
+                        .foregroundStyle(Theme.textTertiary)
+                    Button {
+                        model.visualizerMode = .waveform
+                    } label: {
+                        HStack(spacing: 5) {
+                            Image(systemName: "checkmark")
+                                .font(.system(size: 9, weight: .bold))
+                            Text("Enable")
+                                .font(.system(size: 11))
+                        }
+                        .foregroundStyle(Theme.textSecondary)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 4)
+                        .background(RoundedRectangle(cornerRadius: 4).stroke(Theme.border, lineWidth: 1))
+                    }
+                    .buttonStyle(.plain)
+                    .onHover { hovering in
+                        if hovering { NSCursor.pointingHand.push() } else { NSCursor.pop() }
+                    }
+                }
+                .frame(maxWidth: .infinity, minHeight: 52, maxHeight: 52)
+                .background(Theme.background)
+                .overlay(RoundedRectangle(cornerRadius: 6).stroke(Theme.border.opacity(0.8), style: StrokeStyle(lineWidth: 1, dash: [5])))
+            } else {
+                VisualizerCanvas(model: model)
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
                 HStack(spacing: 4) {
                     modeButton(.waveform, icon: "waveform.path", title: "Waveform")
                     modeButton(.spectrogram, icon: "chart.bar.doc.horizontal", title: "Spectrogram")
                     modeButton(.off, icon: "xmark", title: "Turn Off")
                 }
+                .padding(6)
+                .background(RoundedRectangle(cornerRadius: 4).fill(Color.black.opacity(0.55)))
+                .overlay(RoundedRectangle(cornerRadius: 4).stroke(Color.white.opacity(0.15), lineWidth: 1))
                 .padding(8)
             }
         }
@@ -26,9 +57,9 @@ struct VisualizerView: View {
         } label: {
             Image(systemName: icon)
                 .font(.system(size: 11))
-                .foregroundStyle(model.visualizerMode == mode ? Theme.textPrimary : Theme.textSecondary)
+                .foregroundStyle(model.visualizerMode == mode ? Theme.accent : .white.opacity(0.75))
                 .padding(5)
-                .background(model.visualizerMode == mode ? Theme.panelRaised : .clear)
+                .background(model.visualizerMode == mode ? Theme.accent.opacity(0.2) : .clear)
                 .clipShape(RoundedRectangle(cornerRadius: 4))
         }
         .buttonStyle(.plain)
@@ -132,6 +163,13 @@ final class VisualizerNSView: NSView {
         let samples = model.engine.latestMonoSamples()
         analyzer.update(samples: samples)
         let freq = analyzer.getFrequencyData()
+        // Playing but no audio data yet (or analyser not attached): NO SIGNAL
+        // (web WaveformVisualizer draws "NO SIGNAL" instead of blank).
+        let hasSignal = samples.contains { abs($0) > 0.0001 }
+        if !hasSignal {
+            drawNoSignal()
+            return
+        }
         let time = analyzer.getTimeData()
 
         if model.visualizerMode == .spectrogram {

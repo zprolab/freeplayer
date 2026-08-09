@@ -76,18 +76,37 @@ enum LRC {
         return result
     }
 
-    // Read an .lrc file, auto-detecting CJK encodings (UTF-8 → GB18030 → others).
+    // Read an .lrc file, auto-detecting CJK encodings.
+    // Chain mirrors the Kotlin port: UTF-8 → GB18030/GBK → Shift_JIS → Big5 → EUC-KR.
+    // Like the web/Kotlin versions, GB18030 can "successfully" decode Shift_JIS
+    // bytes into garbage, so when both decode cleanly we prefer Shift_JIS unless
+    // its output is full of half-width katakana (a misdecoded GBK/GB18030 file).
     static func read(path: String) -> String? {
         guard let data = FileManager.default.contents(atPath: path) else { return nil }
         if let s = String(data: data, encoding: .utf8) { return s }
-        let fallbacks: [String.Encoding] = [
-            String.Encoding(rawValue: CFStringConvertEncodingToNSStringEncoding(CFStringEncoding(CFStringEncodings.GB_18030_2000.rawValue))),
-            .shiftJIS,
-            String.Encoding(rawValue: CFStringConvertEncodingToNSStringEncoding(CFStringEncoding(CFStringEncodings.shiftJIS_X0213.rawValue))),
-        ]
-        for enc in fallbacks {
-            if let s = String(data: data, encoding: enc) { return s }
+
+        let gb18030 = String.Encoding(rawValue: CFStringConvertEncodingToNSStringEncoding(
+            CFStringEncoding(CFStringEncodings.GB_18030_2000.rawValue)))
+        let gbk = String.Encoding(rawValue: CFStringConvertEncodingToNSStringEncoding(
+            CFStringEncoding(CFStringEncodings.GBK_95.rawValue)))
+        let big5 = String.Encoding(rawValue: CFStringConvertEncodingToNSStringEncoding(
+            CFStringEncoding(CFStringEncodings.big5.rawValue)))
+        let eucKR = String.Encoding(rawValue: CFStringConvertEncodingToNSStringEncoding(
+            CFStringEncoding(CFStringEncodings.EUC_KR.rawValue)))
+
+        let gb = String(data: data, encoding: gb18030) ?? String(data: data, encoding: gbk)
+        let sjis = String(data: data, encoding: .shiftJIS)
+
+        if let sjis {
+            let halfWidthKana = sjis.unicodeScalars.contains { $0.value >= 0xFF61 && $0.value <= 0xFF9F }
+            if gb == nil || !halfWidthKana {
+                return sjis
+            }
         }
+        if let gb { return gb }
+
+        if let s = String(data: data, encoding: big5) { return s }
+        if let s = String(data: data, encoding: eucKR) { return s }
         return nil
     }
 }

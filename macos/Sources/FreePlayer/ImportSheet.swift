@@ -37,7 +37,7 @@ struct ImportSheet: View {
             Divider()
             footer
         }
-        .frame(width: 560, height: 520)
+        .frame(width: 600, height: sheetHeight)
         .background(Theme.background)
         .onAppear(perform: beginFlow)
         .onDisappear { releaseAccess() }
@@ -48,12 +48,12 @@ struct ImportSheet: View {
             Text("Import Music")
                 .font(.system(size: 16, weight: .semibold))
                 .foregroundStyle(Theme.textPrimary)
-            Text(model.importMode == .symlink ? "Symlink Mode" : "Copy Mode")
+            Label(model.importMode == .symlink ? "Symlink Mode" : "Copy Mode", systemImage: "doc.on.doc")
                 .font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(Theme.textSecondary)
+                .foregroundStyle(Theme.blue)
                 .padding(.horizontal, 8)
                 .padding(.vertical, 2)
-                .background(Capsule().fill(Theme.panelRaised))
+                .background(Capsule().fill(Theme.blue.opacity(0.08)))
             Spacer()
             if step != .importing {
                 Button {
@@ -75,7 +75,6 @@ struct ImportSheet: View {
             switch step {
             case .selecting:
                 VStack(spacing: 12) {
-                    ProgressView().controlSize(.small)
                     Text("Select a folder containing your music files...")
                         .foregroundStyle(Theme.textSecondary)
                     Button("Choose Folder...") {
@@ -125,6 +124,14 @@ struct ImportSheet: View {
                                     .font(.system(size: 24, weight: .bold, design: .monospaced))
                                     .foregroundStyle(Theme.green)
                                 Text("imported").font(.system(size: 12)).foregroundStyle(Theme.textSecondary)
+                            }
+                            if result.skipped > 0 {
+                                VStack(spacing: 2) {
+                                    Text("\(result.skipped)")
+                                        .font(.system(size: 24, weight: .bold, design: .monospaced))
+                                        .foregroundStyle(Theme.textTertiary)
+                                    Text("skipped").font(.system(size: 12)).foregroundStyle(Theme.textSecondary)
+                                }
                             }
                             if !result.errors.isEmpty {
                                 VStack(spacing: 2) {
@@ -186,21 +193,30 @@ struct ImportSheet: View {
     }
 
     private var stepIndicator: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 6) {
             ForEach(["Select Source", "Scan", "Review", "Import"], id: \.self) { label in
-                HStack(spacing: 6) {
+                HStack(spacing: 7) {
                     Circle()
-                        .fill(stepActive(label) ? Theme.accent : Theme.border)
-                        .frame(width: 8, height: 8)
+                        .fill(stepActive(label) ? Theme.blue : Theme.textTertiary)
+                        .frame(width: 7, height: 7)
                     Text(label)
-                        .font(.system(size: 11))
-                        .foregroundStyle(stepActive(label) ? Theme.textPrimary : Theme.textTertiary)
+                        .font(.system(size: 11, weight: .medium))
+                        .lineLimit(1)
                 }
-                if label != "Import" {
-                    Rectangle().fill(Theme.border.opacity(0.5)).frame(width: 20, height: 1)
-                }
+                    .foregroundStyle(stepActive(label) ? Theme.blue : Theme.textTertiary)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(RoundedRectangle(cornerRadius: 4).fill(stepActive(label) ? Theme.blue.opacity(0.08) : Theme.panelRaised))
             }
-            Spacer()
+        }
+    }
+
+    private var sheetHeight: CGFloat {
+        switch step {
+        case .confirm: return 520
+        case .done, .error: return 420
+        default: return 300
         }
     }
 

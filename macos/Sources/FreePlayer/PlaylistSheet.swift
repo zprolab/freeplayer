@@ -46,7 +46,7 @@ struct PlaylistSheet: View {
                         TextField("My Playlist", text: $name)
                             .textFieldStyle(.roundedBorder)
                     }
-                    field("Description") {
+                    field("Description (optional)") {
                         TextField("A few words about this playlist...", text: $description)
                             .textFieldStyle(.roundedBorder)
                     }
@@ -155,8 +155,11 @@ struct PlaylistSheet: View {
                 .controlSize(.small)
 
                 Text("\(selectedIds.count) selected")
-                    .font(.system(size: 11))
-                    .foregroundStyle(Theme.textSecondary)
+                    .font(.system(size: 11, design: .monospaced))
+                    .foregroundStyle(Theme.blue)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 2)
+                    .background(Capsule().fill(Theme.blue.opacity(0.08)))
             }
 
             ScrollView {
@@ -199,7 +202,7 @@ struct PlaylistSheet: View {
                             }
                             .padding(.horizontal, 8)
                             .padding(.vertical, 4)
-                            .background(selectedIds.contains(track.id) ? Theme.accent.opacity(0.08) : .clear)
+                            .background(selectedIds.contains(track.id) ? Theme.blue.opacity(0.08) : .clear)
                         }
                     }
                 }

@@ -112,6 +112,23 @@ final class TrayController: NSObject {
         }
     }
 
+    func clearNowPlaying() {
+        trackTitle = ""
+        trackArtist = ""
+        trackAlbum = nil
+        trackDuration = 0
+        coverPath = nil
+        isPlaying = false
+
+        DispatchQueue.main.async {
+            self.nowPlayingItem?.title = self.nowPlayingLabel()
+            self.statusItem?.button?.title = "▶"
+            self.statusItem?.button?.toolTip = "FreePlayer"
+            self.playPauseItem?.title = "Play"
+            MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
+        }
+    }
+
     // ── Media keys (Control Center / keyboard) ──
 
     private func registerMediaCommands() {

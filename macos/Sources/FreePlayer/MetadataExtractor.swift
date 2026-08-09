@@ -21,8 +21,9 @@ struct ExtractedMetadata {
     var channels: Int?
     var artwork: Data?
 
+    // Matches the web version's scan whitelist (bridge.mm kAudioExtensions).
     static let supportedExtensions: Set<String> = [
-        "mp3", "flac", "wav", "ogg", "m4a", "aac", "wma", "opus", "aiff", "aif", "ape"
+        "mp3", "flac", "wav", "ogg", "m4a", "aac", "opus", "mp4"
     ]
 
     static func isAudioFile(_ path: String) -> Bool {
@@ -35,7 +36,7 @@ enum MetadataExtractor {
     // ── Sidecar .lrc detection ──
 
     /// Strip downloader suffixes: "Artist - Title_EM.flac" -> "Artist - Title"
-    private static func cleanStem(_ stem: String) -> String {
+    static func cleanStem(_ stem: String) -> String {
         var out = stem
         if let r = out.range(of: "_[A-Za-z]{1,4}$", options: .regularExpression) {
             out.removeSubrange(r)
