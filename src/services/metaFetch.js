@@ -166,8 +166,8 @@ export async function fetchCoverForTrack(track) {
   }));
   const best = pickBestMatch(results, track);
   if (!best) return null;
-  const img = await fetch(itunesArtworkLarge(best.artworkUrl));
-  if (!img.ok) return null;
+  const img = await fetch(itunesArtworkLarge(best.artworkUrl)).catch(() => null);
+  if (!img || !img.ok) return null;
   const buf = new Uint8Array(await img.arrayBuffer());
   let bin = '';
   for (let i = 0; i < buf.length; i++) bin += String.fromCharCode(buf[i]);

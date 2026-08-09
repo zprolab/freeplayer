@@ -10,10 +10,10 @@ import {
 afterEach(() => {
   vi.unstubAllGlobals();
   resetRateLimitState();
+  rateConfig.lrclibMinInterval = 0;
+  rateConfig.itunesMinInterval = 0;
+  rateConfig.retryDelayMs = 0;
 });
-rateConfig.lrclibMinInterval = 0;
-rateConfig.itunesMinInterval = 0;
-rateConfig.retryDelayMs = 0;
 
 function mockFetch(routes) {
   const fn = vi.fn(async (url) => {
@@ -101,6 +101,20 @@ describe('LRCLIB', () => {
     expect(await fetchLyricsForTrack({ title: 'Sun', artist: 'A' })).toBeNull();
     expect(global.fetch.mock.calls.length).toBe(calls);
   });
+  it('fetchLyricsForTrack: search path 429 sets cooldown', async () => {
+    global.fetch = vi.fn(async (url) => {
+      if (String(url).includes('/api/get')) {
+        return { ok: false, status: 404, json: async () => null }; // get miss -> fall through to search
+      }
+      return { ok: false, status: 429, headers: { get: () => null }, json: async () => null };
+    });
+    expect(await fetchLyricsForTrack({ title: 'Sun', artist: 'A' })).toBeNull();
+    expect(String(global.fetch.mock.calls[1][0])).toContain('api/search');
+    // second call within cooldown must not hit the network at all
+    const calls = global.fetch.mock.calls.length;
+    expect(await fetchLyricsForTrack({ title: 'Sun', artist: 'A' })).toBeNull();
+    expect(global.fetch.mock.calls.length).toBe(calls);
+  });
 });
 
 describe('pickBestMatch', () => {
@@ -165,6 +179,17 @@ describe('iTunes cover', () => {
     const b64 = await fetchCoverForTrack({ title: 'Sun', artist: 'A' });
     expect(b64).toBe(Buffer.from('jpeg-bytes').toString('base64'));
     expect(calls).toBeGreaterThanOrEqual(2);
+  });
+  it('fetchCoverForTrack: artwork fetch failure returns null', async () => {
+    global.fetch = vi.fn(async (url) => {
+      if (String(url).includes('itunes.apple.com')) {
+        return { ok: true, json: async () => ({
+          results: [{ trackName: 'Sun', artistName: 'A', artworkUrl100: 'https://img/s100x100bb.jpg' }],
+        }) };
+      }
+      throw new TypeError('Failed to fetch'); // mzstatic edge node without CORS
+    });
+    expect(await fetchCoverForTrack({ title: 'Sun', artist: 'A' })).toBeNull();
   });
   it('fetchCoverForTrack: 403 throttling sets a cooldown and returns null', async () => {
     global.fetch = vi.fn(async () => ({ ok: false, status: 403, json: async () => null }));

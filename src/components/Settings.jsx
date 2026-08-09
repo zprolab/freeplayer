@@ -93,9 +93,8 @@ export default function Settings({
           hadMissing = true;
           const lyrics = await fetchLyricsForTrack(t);
           if (lyrics) {
-            await window.freeplayer.saveLrcContent(t.id, lyrics);
-            ok++;
-            saved = true;
+            const res = await window.freeplayer.saveLrcContent(t.id, lyrics);
+            if (res && res.success) { ok++; saved = true; }
           }
         }
       } catch {

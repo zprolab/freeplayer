@@ -41,8 +41,8 @@ export function useAutoMeta(currentTrack, enabled, dispatch) {
         if (!lrc || !lrc.content) {
           const lyrics = await fetchLyricsForTrack(track);
           if (lyrics) {
-            await window.freeplayer.saveLrcContent(track.id, lyrics);
-            lyricsSaved = true;
+            const res = await window.freeplayer.saveLrcContent(track.id, lyrics);
+            if (res && res.success) lyricsSaved = true;
           }
         }
         const changed = coverPath !== track.cover_path || lyricsSaved;

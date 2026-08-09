@@ -511,11 +511,19 @@ static NSWindow *shellWindow(void) {
       }
       NSData *img = [[NSData alloc] initWithBase64EncodedString:b64 options:0];
       if (!img) { reply(idNum, @{ @"success": @NO }); return; }
+      CGImageSourceRef src = CGImageSourceCreateWithData((__bridge CFDataRef)img, NULL);
+      if (!src) { reply(idNum, @{ @"success": @NO }); return; }
+      CFRelease(src);
       NSString *audioPath = track[@"file_path"];
       NSString *coverDir = [audioPath.stringByDeletingLastPathComponent stringByAppendingPathComponent:@".covers"];
       NSFileManager *fm = NSFileManager.defaultManager;
       if (![fm fileExistsAtPath:coverDir]) {
-        [fm createDirectoryAtPath:coverDir withIntermediateDirectories:YES attributes:nil error:nil];
+        NSError *dirErr = nil;
+        if (![fm createDirectoryAtPath:coverDir withIntermediateDirectories:YES attributes:nil error:&dirErr]) {
+          NSLog(@"[bridge] failed to create cover dir: %@", dirErr);
+          reply(idNum, @{ @"success": @NO });
+          return;
+        }
       }
       NSString *coverPath = [coverDir stringByAppendingPathComponent:
                              [NSString stringWithFormat:@"cover-%lld.jpg", tid]];
