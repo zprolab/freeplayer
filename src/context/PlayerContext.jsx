@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useReducer, useRef } from 'react';
+import { createContext, useContext, useReducer, useRef } from 'react';
 
 const PlayerContext = createContext(null);
 
@@ -40,6 +40,7 @@ const initialState = {
   dragOver: false,
   initialPaths: null,
   eqEnabled: false,
+  autoFetchMeta: true,
 };
 
 function reducer(state, action) {
