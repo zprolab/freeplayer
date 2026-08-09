@@ -13,6 +13,6 @@ shell/release/
 macos/.build/
 macos/build/
 
-# Local IDE/tooling config
-/.claude/settings.local.json
-/.idea/
+# Dev bundle / signing secrets
+/Android/FreePlayer-Developer-1.1/
+/README-SIGNING.md
