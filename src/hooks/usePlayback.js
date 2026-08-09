@@ -119,6 +119,10 @@ export function usePlayback() {
 
   const handleVolumeChange = useCallback((vol) => {
     audioRef.current.volume = vol;
+    // Element volume is the fallback; once the Web Audio graph is connected
+    // (Now Playing visualizer) WebKit ignores it, so the engine's gain node
+    // carries the user volume from then on.
+    audioEngine.setVolume(vol);
     dispatch({ type: 'SET_VOLUME', payload: vol });
     // Persist globally so volume survives restarts (shared by all views)
     window.freeplayer.setSetting({ key: 'volume', value: String(vol) })
@@ -177,6 +181,7 @@ export function usePlayback() {
   // Separate volume effect — no longer tears down event listeners
   useEffect(() => {
     audioRef.current.volume = state.volume;
+    audioEngine.setVolume(state.volume);
   }, [state.volume, audioRef]);
 
   // End play session on unmount

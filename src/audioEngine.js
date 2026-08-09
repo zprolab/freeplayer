@@ -12,6 +12,7 @@ export class AudioEngine {
     this.eqFilters = null;
     this.connectedElement = null;
     this._pendingGainDb = 0;
+    this._pendingVolume = 1;
     // WKWebView/Safari freeze the AudioContext without a user gesture;
     // any interaction unlocks it so late-mounted visualizers get data.
     this._unlock = () => this.resume();
@@ -44,7 +45,12 @@ export class AudioEngine {
       }
       if (!this.gainNode) {
         this.gainNode = this.ctx.createGain();
-        this.gainNode.gain.value = Math.pow(10, this._pendingGainDb / 20);
+        // User volume AND replaygain are both applied here: once the
+        // element is routed through the graph (WebKit ignores the
+        // element's own volume/mute in that case), this node is the
+        // single volume authority, so it must start at exactly the
+        // effective volume the user had before the graph connected.
+        this.gainNode.gain.value = this._pendingVolume * Math.pow(10, this._pendingGainDb / 20);
       }
       if (!this.eqFilters) {
         this.eqFilters = EQ_BANDS.map((freq) => {
@@ -60,6 +66,11 @@ export class AudioEngine {
       }
       if (this.connectedElement !== audioElement) {
         this.sourceNode = this.ctx.createMediaElementSource(audioElement);
+        // From here on the element output flows through this graph, where
+        // its own volume/mute attributes no longer apply (WKWebView).
+        // Normalize it so the graph gain node is the only volume control
+        // and volume can never be double-applied.
+        audioElement.volume = 1;
         this.sourceNode.connect(this.analyser);
         this.analyser.connect(this.eqFilters[0]);
         for (let i = 1; i < this.eqFilters.length; i++) {
@@ -104,10 +115,23 @@ export class AudioEngine {
   setGain(gainDb) {
     this._pendingGainDb = gainDb;
     if (!this.gainNode || !this.ctx) return;
-    const targetGain = Math.pow(10, gainDb / 20);
+    const targetGain = this._pendingVolume * Math.pow(10, gainDb / 20);
     const now = this.ctx.currentTime;
     this.gainNode.gain.cancelScheduledValues(now);
     this.gainNode.gain.setTargetAtTime(targetGain, now, 0.05);
+  }
+
+  // User volume. While the element is routed through the graph this is the
+  // only effective volume control (the element's own volume is ignored by
+  // WebKit once a MediaElementSource exists), so it is applied here in
+  // addition to the element fallback used before the graph connects.
+  setVolume(volume) {
+    this._pendingVolume = Math.min(Math.max(volume, 0), 1);
+    if (!this.gainNode || !this.ctx) return;
+    const targetGain = this._pendingVolume * Math.pow(10, this._pendingGainDb / 20);
+    const now = this.ctx.currentTime;
+    this.gainNode.gain.cancelScheduledValues(now);
+    this.gainNode.gain.setTargetAtTime(targetGain, now, 0.02);
   }
 
   applyEq(gains, enabled = true) {
