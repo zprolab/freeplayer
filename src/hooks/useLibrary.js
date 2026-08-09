@@ -104,7 +104,7 @@ export function useLibrary() {
     dispatch({ type: 'SET', payload: {
       tracks: [], currentTrack: null, isPlaying: false, queue: [], queueIndex: -1,
       libraryDir: '', isSetup: false, importMode: 'copy', defaultVolume: 0.8,
-      defaultVisualizer: 'waveform', visualizerMode: 'waveform', autoFetchMeta: true,
+      defaultVisualizer: 'waveform', visualizerMode: 'waveform', autoFetchMeta: false,
       playlists: [], activePlaylistId: null, playlistTracks: [],
     }});
   }, [dispatch]);

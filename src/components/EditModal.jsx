@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect } from 'react';
 
 export default function EditModal({ track, onClose, onSaved }) {
   const [title, setTitle] = useState(track.title || '');

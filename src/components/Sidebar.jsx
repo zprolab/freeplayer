@@ -1,11 +1,11 @@
-import React from 'react';
+import { useState } from 'react';
 
 export default function Sidebar({
   currentView, onNavigate, trackCount, onImport,
   playlists, activePlaylistId, onSelectPlaylist,
   onCreatePlaylist, onRenamePlaylist, onEditPlaylist, onDeletePlaylist,
 }) {
-  const [playlistContextMenu, setPlaylistContextMenu] = React.useState(null);
+  const [playlistContextMenu, setPlaylistContextMenu] = useState(null);
 
   const navItems = [
     {

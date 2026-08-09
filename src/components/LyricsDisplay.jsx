@@ -1,100 +1,14 @@
-import React, { useMemo, useRef, useEffect } from 'react';
+import { useMemo, useRef } from 'react';
+import { parseLRC } from '../utils/lrc';
+import { formatTime } from '../utils/format';
+import { useActiveLineScroll } from '../hooks/useActiveLineScroll';
 
-/**
- * Parse raw LRC text into an array of { time, text } entries.
- * Handles: [mm:ss.xx]text, [mm:ss]text, multi-timestamp lines,
- * and metadata tags like [ti:], [ar:], [al:], [length:].
- */
-function parseLRC(raw) {
-  if (!raw) return [];
-
-  const lines = raw.split(/\r?\n/);
-  const entries = [];
-
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (!trimmed) continue;
-
-    // Collect all time tags on this line
-    const timeRegex = /\[(\d{1,3}):(\d{2})(?:[.:](\d{1,3}))?\]/g;
-    const times = [];
-    let match;
-    while ((match = timeRegex.exec(trimmed)) !== null) {
-      const minutes = parseInt(match[1], 10);
-      const seconds = parseInt(match[2], 10);
-      const centiseconds = match[3]
-        ? parseInt(match[3].padEnd(2, '0').slice(0, 2), 10)
-        : 0;
-      times.push(minutes * 60 + seconds + centiseconds / 100);
-    }
-
-    if (times.length === 0) continue; // metadata line, skip
-
-    // Get the text after the last time tag
-    const textStart = trimmed.lastIndexOf(']') + 1;
-    const text = sanitizeText(trimmed.slice(textStart).trim());
-    if (!text) continue; // skip empty lyric lines
-
-    for (const time of times) {
-      entries.push({ time, text });
-    }
-  }
-
-  // Sort by time
-  entries.sort((a, b) => a.time - b.time);
-
-  // Deduplicate adjacent entries with same text
-  const deduped = [];
-  for (let i = 0; i < entries.length; i++) {
-    if (i === 0 || entries[i].text !== entries[i - 1].text) {
-      deduped.push(entries[i]);
-    }
-  }
-
-  return deduped;
-}
-
-/**
- * Sanitize lyric text: replace control chars and non-renderable glyphs
- * with spaces so we never show tofu (□) or ? as placeholders.
- */
-function sanitizeText(text) {
-  if (!text) return text;
-  let result = '';
-  for (let i = 0; i < text.length; i++) {
-    const cp = text.codePointAt(i);
-    // Skip surrogate pair trailing half so we don't double-process
-    if (cp > 0xFFFF) i++;
-    if (
-      cp <= 0x08 ||                           // C0 controls (except \t=0x09, \n=0x0A, \r=0x0D)
-      cp === 0x0B || cp === 0x0C ||           // VT, FF
-      (cp >= 0x0E && cp <= 0x1F) ||           // rest of C0
-      (cp >= 0x7F && cp <= 0x9F) ||           // DEL + C1 controls
-      (cp >= 0x200B && cp <= 0x200F) ||       // zero-width space & joiners
-      (cp >= 0x2028 && cp <= 0x202E) ||       // line/paragraph sep, bidi controls
-      (cp >= 0x2060 && cp <= 0x206F) ||       // word joiner, invisible operators
-      cp === 0xFEFF ||                        // BOM / zero-width no-break space
-      cp === 0xFFFD                           // replacement character
-    ) {
-      result += ' ';
-    } else {
-      result += text[i];
-    }
-  }
-  return result;
-}
-
-function formatTime(seconds) {
-  if (!seconds || !isFinite(seconds)) return '0:00';
-  const m = Math.floor(seconds / 60);
-  const s = Math.floor(seconds % 60);
-  return `${m}:${s.toString().padStart(2, '0')}`;
-}
-
-export default function LyricsDisplay({ lrcContent, currentTime = 0, isPlaying, onUpload, onRemove, onImmersive, autoScroll = false }) {
+export default function LyricsDisplay({
+  lrcContent, currentTime = 0, onUpload, onRemove, onImmersive, autoScroll = false,
+  onFetchLyrics, fetchingLyrics, lyricsFetchFailed,
+}) {
   const lyrics = useMemo(() => parseLRC(lrcContent), [lrcContent]);
   const listRef = useRef(null);
-  const prevActiveRef = useRef(-1);
 
   // Find active line index
   const activeIndex = useMemo(() => {
@@ -108,16 +22,7 @@ export default function LyricsDisplay({ lrcContent, currentTime = 0, isPlaying, 
   }, [lyrics, currentTime]);
 
   // Auto-scroll only when enabled (immersive mode handles its own)
-  useEffect(() => {
-    if (!autoScroll) return;
-    if (activeIndex !== prevActiveRef.current && listRef.current) {
-      const activeEl = listRef.current.querySelector('.lyrics-line--active');
-      if (activeEl) {
-        activeEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }
-      prevActiveRef.current = activeIndex;
-    }
-  }, [activeIndex, autoScroll]);
+  useActiveLineScroll(listRef, activeIndex, '.lyrics-line--active', autoScroll);
 
   // Empty state — no LRC file uploaded
   if (!lyrics.length) {
@@ -134,8 +39,22 @@ export default function LyricsDisplay({ lrcContent, currentTime = 0, isPlaying, 
           </div>
           <p className="lyrics-empty-text">No synced lyrics</p>
           <p className="lyrics-empty-hint">
-            Upload an <code>.lrc</code> file to see time-synced lyrics
+            Upload an <code>.lrc</code> file or fetch from LRCLIB
           </p>
+          {onFetchLyrics && (
+            <button
+              className="lyrics-upload-btn"
+              onClick={onFetchLyrics}
+              disabled={fetchingLyrics}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="7 10 12 15 17 10"/>
+                <line x1="12" y1="15" x2="12" y2="3"/>
+              </svg>
+              {fetchingLyrics ? 'Fetching…' : lyricsFetchFailed ? 'No lyrics found' : 'Fetch Lyrics'}
+            </button>
+          )}
           {onUpload && (
             <button className="lyrics-upload-btn" onClick={onUpload}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
@@ -147,7 +66,7 @@ export default function LyricsDisplay({ lrcContent, currentTime = 0, isPlaying, 
             </button>
           )}
           {onImmersive && (
-            <button className="lyrics-upload-btn" onClick={onImmersive} style={{ marginTop: onUpload ? 8 : 12 }}>
+            <button className="lyrics-upload-btn" onClick={onImmersive}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <polyline points="15 3 21 3 21 9"/>
                 <polyline points="9 21 3 21 3 15"/>
@@ -204,7 +123,7 @@ export default function LyricsDisplay({ lrcContent, currentTime = 0, isPlaying, 
               }
             >
               <span className="lyrics-time mono">{formatTime(entry.time)}</span>
-              <span className="lyrics-text">{sanitizeText(entry.text)}</span>
+              <span className="lyrics-text">{entry.text}</span>
             </div>
           );
         })}

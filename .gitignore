@@ -6,6 +6,7 @@ release/
 *.log
 .cache/
 Thumbs.db
+.claude/
 .superpowers/
 docs/
 shell/build/

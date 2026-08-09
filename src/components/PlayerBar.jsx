@@ -1,12 +1,5 @@
-import React from 'react';
-import { getCachedCover, setCachedCover } from '../coverCache';
-
-function formatTime(seconds) {
-  if (!seconds || !isFinite(seconds)) return '0:00';
-  const m = Math.floor(seconds / 60);
-  const s = Math.floor(seconds % 60);
-  return `${m}:${s.toString().padStart(2, '0')}`;
-}
+import { formatTime } from '../utils/format';
+import CoverArt from './CoverArt';
 
 export default function PlayerBar({
   currentTrack, isPlaying, currentTime, duration,
@@ -35,7 +28,7 @@ export default function PlayerBar({
           {currentTrack ? (
             <>
               <div className="player-cover">
-                <CoverArt track={currentTrack} />
+                <CoverArt track={currentTrack} variant="bar" />
               </div>
               <div className="player-meta">
                 <span className="player-title">{currentTrack.title}</span>
@@ -150,43 +143,5 @@ export default function PlayerBar({
         </div>
       </div>
     </footer>
-  );
-}
-
-function CoverArt({ track }) {
-  const [coverUrl, setCoverUrl] = React.useState(null);
-
-  React.useEffect(() => {
-    let stale = false;
-    if (track && track.cover_path) {
-      const cached = getCachedCover(track.cover_path);
-      if (cached) {
-        setCoverUrl(cached);
-        return;
-      }
-      window.freeplayer.getCover(track.cover_path).then((url) => {
-        if (!stale && url) {
-          setCachedCover(track.cover_path, url);
-          setCoverUrl(url);
-        }
-      });
-    } else {
-      setCoverUrl(null);
-    }
-    return () => { stale = true; };
-  }, [track]);
-
-  if (coverUrl) {
-    return <img src={coverUrl} alt="" className="cover-img" />;
-  }
-
-  return (
-    <div className="cover-placeholder">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-        <path d="M9 18V5l12-2v13"/>
-        <circle cx="6" cy="18" r="3"/>
-        <circle cx="18" cy="16" r="3"/>
-      </svg>
-    </div>
   );
 }

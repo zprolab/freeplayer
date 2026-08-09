@@ -25,7 +25,3 @@ export function setCachedCover(coverPath, dataUrl) {
   }
   cache.set(coverPath, dataUrl);
 }
-
-export function clearCoverCache() {
-  cache.clear();
-}

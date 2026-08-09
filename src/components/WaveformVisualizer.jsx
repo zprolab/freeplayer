@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useCallback } from 'react';
+import { useRef, useEffect, useCallback } from 'react';
 import { audioEngine } from '../audioEngine';
 
 // ── Constants ──
@@ -58,7 +58,7 @@ let specImageData = null;
 //  Component
 // ═══════════════════════════════════════════════════════════════
 
-export default function WaveformVisualizer({ audioElement, isPlaying, trackId, mode, onModeChange }) {
+export default function WaveformVisualizer({ audioElement, trackId, mode, onModeChange }) {
   const canvasRef = useRef(null);
   const ctxRef = useRef(null);
   const animFrameRef = useRef(null);
@@ -152,7 +152,7 @@ export default function WaveformVisualizer({ audioElement, isPlaying, trackId, m
         animFrameRef.current = null;
       }
     };
-  }, [audioElement, isPlaying, trackId, mode, sizeCanvas]);
+  }, [audioElement, trackId, mode, sizeCanvas]);
 
   if (mode === 'off') {
     return (

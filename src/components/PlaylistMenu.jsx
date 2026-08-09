@@ -1,5 +1,3 @@
-import React from 'react';
-
 export default function PlaylistMenu({ track, playlists, onAdd, onCreateNew, onClose, position }) {
   const userPlaylists = playlists || [];
 

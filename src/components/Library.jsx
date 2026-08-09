@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import EditModal from './EditModal';
 import PlaylistMenu from './PlaylistMenu';
 

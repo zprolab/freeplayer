@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 
 function formatDuration(seconds) {
   if (!seconds || seconds <= 0) return '0:00';
