@@ -8,6 +8,7 @@ final class AudioEngine {
 
     private let engine = AVAudioEngine()
     private let player = AVAudioPlayerNode()
+    private let equalizer = AVAudioUnitEQ(numberOfBands: 10)
 
     private var currentFile: AVAudioFile?
     private var framePosition: AVAudioFramePosition = 0
@@ -28,7 +29,17 @@ final class AudioEngine {
     init() {
         let format = AVAudioFormat(standardFormatWithSampleRate: 44100, channels: 2)!
         engine.attach(player)
-        engine.connect(player, to: engine.mainMixerNode, format: format)
+        engine.attach(equalizer)
+        let frequencies: [Float] = [31, 62, 125, 250, 500, 1000, 2000, 4000, 8000, 16000]
+        for (band, frequency) in zip(equalizer.bands, frequencies) {
+            band.filterType = .parametric
+            band.frequency = frequency
+            band.bandwidth = 1.0
+            band.gain = 0
+            band.bypass = false
+        }
+        engine.connect(player, to: equalizer, format: format)
+        engine.connect(equalizer, to: engine.mainMixerNode, format: format)
         installTap()
     }
 
@@ -167,6 +178,13 @@ final class AudioEngine {
         applyVolume()
     }
 
+    func setEqualizer(enabled: Bool, gains: [Double]) {
+        for (index, band) in equalizer.bands.enumerated() {
+            band.gain = Float(max(-12, min(12, gains[safe: index] ?? 0)))
+            band.bypass = !enabled
+        }
+    }
+
     /// Combined output volume currently applied to the player node
     /// (gain × volume). Exposed for tests.
     var outputVolume: Float { player.volume }
@@ -180,5 +198,11 @@ final class AudioEngine {
         sampleLock.lock()
         hasSignal = false
         sampleLock.unlock()
+    }
+}
+
+private extension Array {
+    subscript(safe index: Index) -> Element? {
+        indices.contains(index) ? self[index] : nil
     }
 }

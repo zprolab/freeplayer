@@ -101,7 +101,7 @@ struct EditTrackSheet: View {
             .padding(14)
         }
         .frame(width: 480)
-        .background(Theme.background)
+        .systemChromeBackground(fallback: Theme.background)
         .onSubmit(of: .text) {
             if NSApp.currentEvent?.modifierFlags.contains(.command) == true {
                 save()

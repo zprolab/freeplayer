@@ -29,7 +29,6 @@ struct SidebarView: View {
                 navButton(.library, label: "Library", systemImage: "music.note.list", badge: model.tracks.isEmpty ? nil : "\(model.tracks.count)")
                 navButton(.nowPlaying, label: "Now Playing", systemImage: "play.circle")
                 navButton(.stats, label: "Statistics", systemImage: "chart.bar")
-                navButton(.settings, label: "Settings", systemImage: "gearshape")
             }
             .padding(.horizontal, 8)
 
@@ -121,6 +120,20 @@ struct SidebarView: View {
 
             // Footer: import
             Divider().opacity(0.5)
+            Button {
+                EqualizerWindowController.shared.show(model: model)
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "slider.horizontal.3").frame(width: 16)
+                    Text("Equalizer")
+                    Spacer()
+                }
+                .foregroundStyle(Theme.sidebarText)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 9)
+            }
+            .buttonStyle(.plain)
+            .help("Open Equalizer")
             Button {
                 model.importSheetPresented = true
             } label: {

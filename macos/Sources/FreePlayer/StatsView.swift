@@ -80,9 +80,11 @@ struct StatsView: View {
         }
         .padding(20)
         .frame(maxWidth: .infinity)
-        .background(Theme.panel)
-        .clipShape(RoundedRectangle(cornerRadius: 6))
-        .overlay(RoundedRectangle(cornerRadius: 6).stroke(Theme.border.opacity(0.5)))
+        .systemGlassSurface(
+            cornerRadius: 6,
+            fallbackFill: Theme.panel,
+            fallbackBorder: Theme.border.opacity(0.5)
+        )
     }
 
     // ── Panels ──

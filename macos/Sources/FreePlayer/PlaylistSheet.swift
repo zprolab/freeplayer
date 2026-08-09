@@ -79,7 +79,7 @@ struct PlaylistSheet: View {
             .padding(14)
         }
         .frame(width: showPicker ? 680 : 420, height: showPicker ? 560 : 200)
-        .background(Theme.background)
+        .systemChromeBackground(fallback: Theme.background)
         .onAppear(perform: setup)
     }
 
@@ -139,9 +139,12 @@ struct PlaylistSheet: View {
                 }
                 .padding(.horizontal, 8)
                 .padding(.vertical, 5)
-                .background(Theme.panelRaised)
-                .clipShape(RoundedRectangle(cornerRadius: 6))
-                .overlay(RoundedRectangle(cornerRadius: 6).stroke(Theme.border))
+                .systemGlassSurface(
+                    cornerRadius: 6,
+                    interactive: true,
+                    fallbackFill: Theme.panelRaised,
+                    fallbackBorder: Theme.border
+                )
 
                 let allFilteredSelected = !filteredTracks.isEmpty && filteredTracks.allSatisfy { selectedIds.contains($0.id) }
                 Button(allFilteredSelected ? "Clear" : "Select All") {
@@ -209,8 +212,7 @@ struct PlaylistSheet: View {
                 .padding(4)
             }
             .frame(maxHeight: 320)
-            .background(Theme.panel)
-            .clipShape(RoundedRectangle(cornerRadius: 8))
+            .systemGlassSurface(cornerRadius: 8, fallbackFill: Theme.panel)
         }
     }
 

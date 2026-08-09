@@ -78,8 +78,111 @@ struct PanelBox<Content: View>: View {
     var body: some View {
         content
             .padding(16)
-            .background(Theme.panel)
-            .clipShape(RoundedRectangle(cornerRadius: 8))
-            .overlay(RoundedRectangle(cornerRadius: 8).stroke(Theme.border.opacity(0.5)))
+            .systemGlassSurface(
+                cornerRadius: 8,
+                fallbackFill: Theme.panel,
+                fallbackBorder: Theme.border.opacity(0.5)
+            )
+    }
+}
+
+struct SystemGlassContainer<Content: View>: View {
+    let spacing: CGFloat
+    let alwaysOn: Bool
+    @ViewBuilder let content: Content
+    @AppStorage("liquid_glass_enabled") private var liquidGlassEnabled = false
+
+    init(spacing: CGFloat = 8, alwaysOn: Bool = false, @ViewBuilder content: () -> Content) {
+        self.spacing = spacing
+        self.alwaysOn = alwaysOn
+        self.content = content()
+    }
+
+    @ViewBuilder
+    var body: some View {
+        if #available(macOS 26.0, *), liquidGlassEnabled || alwaysOn {
+            GlassEffectContainer(spacing: spacing) {
+                content
+            }
+        } else {
+            content
+        }
+    }
+}
+
+private struct SystemGlassSurfaceModifier: ViewModifier {
+    let cornerRadius: CGFloat
+    let interactive: Bool
+    let tint: Color?
+    let fallbackFill: Color
+    let fallbackBorder: Color?
+    let fallbackBorderWidth: CGFloat
+    let alwaysOn: Bool
+    @AppStorage("liquid_glass_enabled") private var liquidGlassEnabled = false
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if #available(macOS 26.0, *), liquidGlassEnabled || alwaysOn {
+            if interactive {
+                content.glassEffect(
+                    .regular.tint(tint).interactive(),
+                    in: .rect(cornerRadius: cornerRadius)
+                )
+            } else {
+                content.glassEffect(
+                    .regular.tint(tint),
+                    in: .rect(cornerRadius: cornerRadius)
+                )
+            }
+        } else {
+            content
+                .background(fallbackFill)
+                .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
+                .overlay(
+                    RoundedRectangle(cornerRadius: cornerRadius)
+                        .stroke(fallbackBorder ?? .clear, lineWidth: fallbackBorderWidth)
+                )
+        }
+    }
+}
+
+private struct SystemChromeBackgroundModifier: ViewModifier {
+    let fallback: Color
+    @AppStorage("liquid_glass_enabled") private var liquidGlassEnabled = false
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if liquidGlassEnabled {
+            content.background(.regularMaterial)
+        } else {
+            content.background(fallback)
+        }
+    }
+}
+
+extension View {
+    /// Uses the system glass renderer on macOS 26 and native Material on older systems.
+    func systemGlassSurface(
+        cornerRadius: CGFloat,
+        interactive: Bool = false,
+        tint: Color? = nil,
+        fallbackFill: Color = .clear,
+        fallbackBorder: Color? = nil,
+        fallbackBorderWidth: CGFloat = 1,
+        alwaysOn: Bool = false
+    ) -> some View {
+        modifier(SystemGlassSurfaceModifier(
+            cornerRadius: cornerRadius,
+            interactive: interactive,
+            tint: tint,
+            fallbackFill: fallbackFill,
+            fallbackBorder: fallbackBorder,
+            fallbackBorderWidth: fallbackBorderWidth,
+            alwaysOn: alwaysOn
+        ))
+    }
+
+    func systemChromeBackground(fallback: Color) -> some View {
+        modifier(SystemChromeBackgroundModifier(fallback: fallback))
     }
 }

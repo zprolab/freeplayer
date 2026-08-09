@@ -38,7 +38,7 @@ struct ImportSheet: View {
             footer
         }
         .frame(width: 600, height: sheetHeight)
-        .background(Theme.background)
+        .systemChromeBackground(fallback: Theme.background)
         .onAppear(perform: beginFlow)
         .onDisappear { releaseAccess() }
     }
@@ -182,8 +182,7 @@ struct ImportSheet: View {
                             .padding(8)
                         }
                         .frame(maxHeight: 140)
-                        .background(Theme.panel)
-                        .clipShape(RoundedRectangle(cornerRadius: 6))
+                        .systemGlassSurface(cornerRadius: 6, fallbackFill: Theme.panel)
                     }
                 }
                 .frame(maxHeight: .infinity)
@@ -249,8 +248,7 @@ struct ImportSheet: View {
                 }
             }
             .padding(12)
-            .background(Theme.panel)
-            .clipShape(RoundedRectangle(cornerRadius: 8))
+            .systemGlassSurface(cornerRadius: 8, fallbackFill: Theme.panel)
 
             VStack(alignment: .leading, spacing: 6) {
                 Text("Files to import")
@@ -280,8 +278,7 @@ struct ImportSheet: View {
                     .padding(6)
                 }
                 .frame(maxHeight: 220)
-                .background(Theme.panel)
-                .clipShape(RoundedRectangle(cornerRadius: 8))
+                .systemGlassSurface(cornerRadius: 8, fallbackFill: Theme.panel)
             }
         }
     }

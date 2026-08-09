@@ -17,6 +17,13 @@ struct FreePlayerApp: App {
         .commands {
             CommandGroup(replacing: .newItem) {}
         }
+
+        Settings {
+            SettingsView()
+                .environmentObject(model)
+                .preferredColorScheme(.light)
+                .frame(minWidth: 720, minHeight: 640)
+        }
     }
 }
 

@@ -144,6 +144,7 @@ struct MainContent: View {
 
 struct TopBar: View {
     @EnvironmentObject private var model: AppModel
+    @AppStorage("liquid_glass_enabled") private var liquidGlassEnabled = false
 
     private var title: String {
         switch model.view {
@@ -178,36 +179,53 @@ struct TopBar: View {
                     .onChange(of: model.searchQuery) { newValue in
                         model.applySearch(query: newValue)
                     }
-                Button {
-                    model.importSheetPresented = true
-                } label: {
-                    HStack(spacing: 4) {
-                        Image(systemName: "plus")
-                            .font(.system(size: 12, weight: .bold))
-                        Text("Import")
+                importButton
+                    .onHover { hovering in
+                        if hovering {
+                            NSCursor.pointingHand.push()
+                        } else {
+                            NSCursor.pop()
+                        }
                     }
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 6)
-                    .background(Theme.accent)
-                    .clipShape(RoundedRectangle(cornerRadius: 4))
-                }
-                .buttonStyle(.plain)
-                .onHover { hovering in
-                    if hovering {
-                        NSCursor.pointingHand.push()
-                    } else {
-                        NSCursor.pop()
-                    }
-                }
             }
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
         .frame(height: 60)
-        .background(Theme.panel)
+        .systemChromeBackground(fallback: Theme.panel)
         .overlay(alignment: .bottom) { Rectangle().fill(Theme.border.opacity(0.8)).frame(height: 1) }
+    }
+
+    @ViewBuilder
+    private var importButton: some View {
+        if liquidGlassEnabled {
+            Button {
+                model.importSheetPresented = true
+            } label: {
+                Label("Import", systemImage: "plus")
+                    .font(.system(size: 13, weight: .medium))
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(Theme.accent)
+            .controlSize(.regular)
+        } else {
+            Button {
+                model.importSheetPresented = true
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: "plus")
+                        .font(.system(size: 12, weight: .bold))
+                    Text("Import")
+                }
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(.white)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 6)
+                .background(Theme.accent)
+                .clipShape(RoundedRectangle(cornerRadius: 4))
+            }
+            .buttonStyle(.plain)
+        }
     }
 }
 
@@ -237,9 +255,12 @@ private struct SearchField: View {
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
         .frame(width: 240, height: 32)
-        .background(Theme.panel)
-        .clipShape(RoundedRectangle(cornerRadius: 4))
-        .overlay(RoundedRectangle(cornerRadius: 4).stroke(Theme.border))
+        .systemGlassSurface(
+            cornerRadius: 4,
+            interactive: true,
+            fallbackFill: Theme.panel,
+            fallbackBorder: Theme.border
+        )
     }
 
     /// Renders the original SVG magnifying glass icon into an NSImage.
