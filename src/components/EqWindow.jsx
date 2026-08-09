@@ -1,32 +1,28 @@
-import React from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { EQ_BANDS, EQ_MIN, EQ_MAX, EQ_STEP, EQ_PRESETS, sliderFrac } from '../eqPresets';
 
-const THUMB = 15;
+const THUMB = 12;
 const SLIDER_H = 118;
-const VB_W = 580;
-const VB_H = 168;
 
 const api = () => window.freeplayer || null;
 
 export default function EqWindow() {
-  const [enabled, setEnabled] = React.useState(false);
-  const [preset, setPreset] = React.useState('平坦');
-  const [gains, setGains] = React.useState(() => EQ_PRESETS[0].values.slice());
-  const areaRef = React.useRef(null);
-  const curveRef = React.useRef(null);
-  const wrapRefs = React.useRef([]);
-  const thumbRefs = React.useRef([]);
-  const stateRef = React.useRef({ enabled: false, preset: '平坦', gains: EQ_PRESETS[0].values.slice() });
-  const commitTimer = React.useRef(null);
+  const [enabled, setEnabled] = useState(false);
+  const [preset, setPreset] = useState('平坦');
+  const [gains, setGains] = useState(() => EQ_PRESETS[0].values.slice());
+  const wrapRefs = useRef([]);
+  const thumbRefs = useRef([]);
+  const stateRef = useRef({ enabled: false, preset: '平坦', gains: EQ_PRESETS[0].values.slice() });
+  const commitTimer = useRef(null);
   stateRef.current = { enabled, preset, gains };
 
-  const push = React.useCallback((next) => {
+  const push = useCallback((next) => {
     setEnabled(next.enabled);
     setPreset(next.preset);
     setGains(next.gains.slice());
   }, []);
 
-  React.useEffect(() => {
+  useEffect(() => {
     const a = api();
     if (a?.getEqState) {
       a.getEqState().then((s) => { if (s) push(s); });
@@ -41,7 +37,7 @@ export default function EqWindow() {
     }
   }, [push]);
 
-  const commit = React.useCallback((next) => {
+  const commit = useCallback((next) => {
     push(next);
     clearTimeout(commitTimer.current);
     commitTimer.current = setTimeout(() => {
@@ -64,44 +60,13 @@ export default function EqWindow() {
     commit({ enabled: e.target.checked, preset, gains });
   };
 
-  const draw = React.useCallback(() => {
-    const area = areaRef.current;
-    const curve = curveRef.current;
-    if (!area || !curve) return;
-    const svgRect = curve.getBoundingClientRect();
-    const xscale = VB_W / svgRect.width;
-    const yscale = VB_H / svgRect.height;
-    const mid = VB_H / 2;
-    const range = EQ_MAX - EQ_MIN;
-    const pts = gains.map((v, i) => {
-      const wrapRect = wrapRefs.current[i].getBoundingClientRect();
-      const frac = sliderFrac(v);
-      const x = (wrapRect.left + wrapRect.width / 2 - svgRect.left) * xscale;
-      const y = (wrapRect.top - svgRect.top + THUMB / 2 + (1 - frac) * (SLIDER_H - THUMB)) * yscale;
-      return `${x.toFixed(1)},${y.toFixed(1)}`;
-    });
-    const active = enabled;
-    const baseL = 12 * xscale;
-    const baseR = (svgRect.width - 12) * xscale;
-    curve.innerHTML =
-      `<polyline points="${pts.join(' ')}" fill="none" stroke="${active ? '#e24329' : '#55575d'}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" opacity="${active ? 0.95 : 0.35}"></polyline>` +
-      `<polygon points="${pts.join(' ')} ${baseR.toFixed(1)},${mid} ${baseL.toFixed(1)},${mid}" fill="${active ? '#e24329' : '#55575d'}" opacity="${active ? 0.12 : 0.05}"></polygon>`;
-  }, [enabled, gains]);
-
-  React.useEffect(() => {
+  // Hardware-rack style: faders only (no curve overlay)
+  useEffect(() => {
     gains.forEach((v, i) => {
       const t = thumbRefs.current[i];
       if (t) t.style.bottom = `${sliderFrac(v) * (SLIDER_H - THUMB)}px`;
     });
-    draw();
-  }, [gains, enabled, draw]);
-
-  React.useEffect(() => {
-    draw();
-    window.addEventListener('resize', draw);
-    if (document.fonts?.ready) document.fonts.ready.then(draw);
-    return () => window.removeEventListener('resize', draw);
-  }, [draw]);
+  }, [gains]);
 
   const sum = gains.reduce((a, v) => a + Math.abs(v), 0);
   const effectLabel = enabled
@@ -112,6 +77,7 @@ export default function EqWindow() {
     <div className="eq-root">
       <div className="eq-titlebar">
         <span className="eq-title">均衡器</span>
+        <span className={`eq-led ${enabled ? 'eq-led--on' : ''}`} />
       </div>
       <div className="eq-toprow">
         <span className={`eq-state ${enabled && sum >= 0.5 ? 'eq-state--on' : ''}`}>{effectLabel}</span>
@@ -121,9 +87,7 @@ export default function EqWindow() {
           <span className="eq-switch" />
         </label>
       </div>
-      <div className="eq-slider-area" ref={areaRef}>
-        <div className="eq-zero-line" />
-        <svg className="eq-curve" ref={curveRef} viewBox={`0 0 ${VB_W} ${VB_H}`} preserveAspectRatio="none" />
+      <div className="eq-slider-area">
         <div className="eq-cols">
           {EQ_BANDS.map((freq, i) => (
             <div className="eq-col" key={freq}>
@@ -132,7 +96,7 @@ export default function EqWindow() {
               </span>
               <div className="eq-slider-wrap" ref={(el) => { wrapRefs.current[i] = el; }}>
                 <div className="eq-slider-track" />
-                <div className="eq-slider-thumb" ref={(el) => { thumbRefs.current[i] = el; }} />
+                <div className={`eq-slider-thumb ${enabled ? 'eq-slider-thumb--on' : ''}`} ref={(el) => { thumbRefs.current[i] = el; }} />
                 <input
                   type="range"
                   className="eq-slider-input"

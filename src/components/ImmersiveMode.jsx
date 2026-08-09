@@ -1,43 +1,7 @@
-import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react';
-
-/* ── LRC Parser (shared — mirror of LyricsDisplay) ── */
-
-function parseLRC(raw) {
-  if (!raw) return [];
-  const lines = raw.split(/\r?\n/);
-  const entries = [];
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (!trimmed) continue;
-    const timeRegex = /\[(\d{1,3}):(\d{2})(?:[.:](\d{1,3}))?\]/g;
-    const times = [];
-    let match;
-    while ((match = timeRegex.exec(trimmed)) !== null) {
-      const minutes = parseInt(match[1], 10);
-      const seconds = parseInt(match[2], 10);
-      const centiseconds = match[3] ? parseInt(match[3].padEnd(2, '0').slice(0, 2), 10) : 0;
-      times.push(minutes * 60 + seconds + centiseconds / 100);
-    }
-    if (times.length === 0) continue;
-    const textStart = trimmed.lastIndexOf(']') + 1;
-    const text = trimmed.slice(textStart).trim();
-    if (!text) continue;
-    for (const time of times) entries.push({ time, text });
-  }
-  entries.sort((a, b) => a.time - b.time);
-  const deduped = [];
-  for (let i = 0; i < entries.length; i++) {
-    if (i === 0 || entries[i].text !== entries[i - 1].text) deduped.push(entries[i]);
-  }
-  return deduped;
-}
-
-function formatTime(seconds) {
-  if (!seconds || !isFinite(seconds)) return '0:00';
-  const m = Math.floor(seconds / 60);
-  const s = Math.floor(seconds % 60);
-  return `${m}:${s.toString().padStart(2, '0')}`;
-}
+import { useEffect, useRef, useState, useMemo, useCallback } from 'react';
+import { parseLRC } from '../utils/lrc';
+import { formatTime } from '../utils/format';
+import { useActiveLineScroll } from '../hooks/useActiveLineScroll';
 
 export default function ImmersiveMode({
   track, lrcContent, currentTime, duration, coverUrl,
@@ -45,7 +9,6 @@ export default function ImmersiveMode({
 }) {
   const lyrics = useMemo(() => parseLRC(lrcContent), [lrcContent]);
   const listRef = useRef(null);
-  const prevActiveRef = useRef(-1);
   const [zoom, setZoom] = useState(0); // 0=normal, each ±1 = step
   const ZOOM_STEPS = [-2, -1, 0, 1, 2, 3, 4];
   const baseSize = 22;
@@ -63,13 +26,7 @@ export default function ImmersiveMode({
   }, [lyrics, currentTime]);
 
   // Auto-scroll
-  useEffect(() => {
-    if (activeIndex !== prevActiveRef.current && listRef.current) {
-      const el = listRef.current.querySelector('.immersive-line--active');
-      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      prevActiveRef.current = activeIndex;
-    }
-  }, [activeIndex]);
+  useActiveLineScroll(listRef, activeIndex, '.immersive-line--active');
 
   // Esc to close
   useEffect(() => {
@@ -93,20 +50,59 @@ export default function ImmersiveMode({
     });
   }, []);
 
+  // Extract the dominant color from the cover art for the ambient glow
+  const [bgColor, setBgColor] = useState(null);
+  useEffect(() => {
+    if (!coverUrl) {
+      setBgColor(null);
+      return;
+    }
+    const img = new Image();
+    img.onload = () => {
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = 8;
+        canvas.height = 8;
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+        ctx.drawImage(img, 0, 0, 8, 8);
+        const d = ctx.getImageData(0, 0, 8, 8).data;
+        let r = 0, g = 0, b = 0;
+        for (let i = 0; i < d.length; i += 4) {
+          r += d[i];
+          g += d[i + 1];
+          b += d[i + 2];
+        }
+        const n = d.length / 4;
+        setBgColor({ r: Math.round(r / n), g: Math.round(g / n), b: Math.round(b / n) });
+      } catch {
+        setBgColor(null);
+      }
+    };
+    img.onerror = () => setBgColor(null);
+    img.src = coverUrl;
+  }, [coverUrl]);
+
   return (
     <div className="immersive-overlay">
-      {/* Animated background gradient — brand orange on dark */}
-      <div
-        className="immersive-bg"
-        style={{
-          background: `
-            radial-gradient(ellipse 80% 60% at 50% 40%, rgba(226, 67, 41, 0.28) 0%, transparent 70%),
-            radial-gradient(ellipse 50% 80% at 20% 20%, rgba(226, 67, 41, 0.16) 0%, transparent 60%),
-            radial-gradient(ellipse 40% 60% at 80% 80%, rgba(226, 67, 41, 0.10) 0%, transparent 50%),
-            #0d0d10
-          `,
-        }}
-      />
+      {/* Ambient background: blurred cover + dark tint + dominant-color glow */}
+      <div className="immersive-bg">
+        {coverUrl && <img src={coverUrl} alt="" className="immersive-bg-img" />}
+        <div className="immersive-bg-tint" />
+        {bgColor ? (
+          <div
+            className="immersive-bg-glow"
+            style={{
+              background: `
+                radial-gradient(ellipse 85% 65% at 50% 35%, rgba(${bgColor.r}, ${bgColor.g}, ${bgColor.b}, 0.5) 0%, transparent 70%),
+                radial-gradient(ellipse 55% 80% at 18% 80%, rgba(${bgColor.r}, ${bgColor.g}, ${bgColor.b}, 0.28) 0%, transparent 65%),
+                radial-gradient(ellipse 45% 70% at 82% 75%, rgba(${bgColor.r}, ${bgColor.g}, ${bgColor.b}, 0.2) 0%, transparent 60%)
+              `,
+            }}
+          />
+        ) : (
+          <div className="immersive-bg-glow immersive-bg-glow--fallback" />
+        )}
+      </div>
 
       {/* ── Top bar: cover + track info + zoom + close ── */}
       <div className="immersive-top">
