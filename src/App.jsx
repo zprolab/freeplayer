@@ -242,6 +242,13 @@ export default function App() {
               onDefaultVolumeChange={handleDefaultVolumeChange}
               defaultVisualizer={state.defaultVisualizer}
               onDefaultVisualizerChange={handleDefaultVisualizerChange}
+              autoFetchMeta={state.autoFetchMeta}
+              onAutoFetchMetaChange={(val) => {
+                dispatch({ type: 'SET', payload: { autoFetchMeta: val } });
+                // Store as '1'/'0' strings (EQ convention) — booleans round-trip as "1.0"
+                window.freeplayer.setSetting({ key: 'auto_fetch_meta', value: val ? '1' : '0' }).catch(() => {});
+              }}
+              tracks={state.tracks}
               onResetDatabase={handleResetDatabase}
             />
           ) : !state.isSetup ? (

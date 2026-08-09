@@ -1,4 +1,7 @@
-import React, { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { fetchLyricsForTrack, fetchCoverForTrack } from '../services/metaFetch';
+
+let batchRunning = false;
 
 export default function Settings({
   importMode,
@@ -9,9 +12,12 @@ export default function Settings({
   onDefaultVolumeChange,
   defaultVisualizer,
   onDefaultVisualizerChange,
+  autoFetchMeta, onAutoFetchMetaChange, tracks,
   onResetDatabase,
 }) {
   const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [batchProgress, setBatchProgress] = useState(null); // { done, total, ok, fail, noMatch }
+  const [batchActive, setBatchActive] = useState(batchRunning);
   const [trayEnabled, setTrayEnabled] = useState(true); // default true
   const [trayNotify, setTrayNotify] = useState(true);
   const [startOnBoot, setStartOnBoot] = useState(false);
@@ -26,7 +32,7 @@ export default function Settings({
     return false;
   };
 
-  React.useEffect(() => {
+  useEffect(() => {
     window.freeplayer.getSetting('tray_enabled').then(val => {
       setTrayEnabled(coerceBool(val));
     }).catch(() => {});
@@ -50,6 +56,62 @@ export default function Settings({
     await window.freeplayer.resetDatabase();
     setShowResetConfirm(false);
     onResetDatabase();
+  };
+
+  const handleFetchMissing = async () => {
+    if (batchRunning) return;
+    const total = tracks?.length || 0;
+    if (!total) return;
+    batchRunning = true;
+    setBatchActive(true);
+    let ok = 0;
+    let fail = 0;
+    let noMatch = 0;
+    let done = 0;
+    setBatchProgress({ done: 0, total, ok: 0, fail: 0, noMatch: 0 });
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    // ~1.5s/track keeps both APIs (LRCLIB ~50/min, iTunes ~20/min) under
+    // their rate limits; the services' own pacing + 429/403 cooldowns also
+    // apply on top of this.
+    for (const t of tracks) {
+      let saved = false;
+      let threw = false;
+      let hadMissing = false;
+      try {
+        const coverMissing = !t.cover_path
+          || !(await window.freeplayer.getCover(t.cover_path).catch(() => null));
+        if (coverMissing) {
+          hadMissing = true;
+          const cover = await fetchCoverForTrack(t);
+          if (cover) {
+            const res = await window.freeplayer.saveCover(t.id, cover);
+            if (res && res.success) { ok++; saved = true; }
+          }
+        }
+        const lrc = await window.freeplayer.getLrc(t.id);
+        if (!lrc || !lrc.content) {
+          hadMissing = true;
+          const lyrics = await fetchLyricsForTrack(t);
+          if (lyrics) {
+            await window.freeplayer.saveLrcContent(t.id, lyrics);
+            ok++;
+            saved = true;
+          }
+        }
+      } catch {
+        threw = true;
+      }
+      // noMatch only counts when something WAS missing but nothing got saved
+      // (complete tracks must not inflate the bucket)
+      if (threw) fail++;
+      else if (hadMissing && !saved) noMatch++;
+      done++;
+      setBatchProgress({ done, total, ok, fail, noMatch });
+      await sleep(1500);
+    }
+    batchRunning = false;
+    setBatchActive(false);
+    setBatchProgress(null);
   };
 
   return (
@@ -156,6 +218,41 @@ export default function Settings({
               </button>
             ))}
           </div>
+        </div>
+
+        <div className="playback-row">
+          <div className="playback-label-group">
+            <span className="playback-label">Auto-Fetch Lyrics & Covers</span>
+            <span className="playback-hint">Automatically download missing lyrics (LRCLIB) and album art (iTunes) when playing a track</span>
+          </div>
+          <label className="toggle-switch">
+            <input
+              type="checkbox"
+              checked={autoFetchMeta}
+              onChange={(e) => onAutoFetchMetaChange(e.target.checked)}
+            />
+            <span className="toggle-slider" />
+          </label>
+        </div>
+
+        <div className="playback-row">
+          <div className="playback-label-group">
+            <span className="playback-label">Backfill Missing Metadata</span>
+            <span className="playback-hint">
+              {batchProgress
+                ? `Fetching ${batchProgress.done}/${batchProgress.total} · ${batchProgress.ok} saved${batchProgress.fail ? ` · ${batchProgress.fail} failed` : ''}${batchProgress.noMatch ? ` · ${batchProgress.noMatch} no match` : ''}`
+                : batchActive
+                  ? 'A metadata fetch is already running…'
+                  : `Fetch lyrics and covers for ${tracks?.length || 0} tracks that are missing them`}
+            </span>
+          </div>
+          <button
+            className="btn"
+            disabled={!!batchProgress || batchActive}
+            onClick={handleFetchMissing}
+          >
+            {batchProgress || batchActive ? 'Fetching…' : 'Fetch Missing'}
+          </button>
         </div>
 
         <div className="playback-row">
