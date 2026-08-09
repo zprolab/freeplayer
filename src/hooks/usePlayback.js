@@ -149,8 +149,19 @@ export function usePlayback() {
   // Audio element event listeners (no longer tied to volume changes)
   useEffect(() => {
     const audio = audioRef.current;
+    // P1: throttle time updates to whole seconds — timeupdate fires ~4Hz and
+    // each dispatch re-renders the whole tree; second-granularity is plenty
+    // for the progress bar
+    let lastSecond = -1;
 
-    const onTimeUpdate = () => dispatch({ type: 'SET', payload: { currentTime: audio.currentTime } });
+    const onTimeUpdate = () => {
+      const t = audio.currentTime;
+      const s = Math.floor(t);
+      if (s !== lastSecond) {
+        lastSecond = s;
+        dispatch({ type: 'SET', payload: { currentTime: t } });
+      }
+    };
     const onDurationChange = () => dispatch({ type: 'SET', payload: { duration: audio.duration || 0 } });
     const onEnded = () => handleNext();
     const onPlay = () => dispatch({ type: 'SET_IS_PLAYING', payload: true });

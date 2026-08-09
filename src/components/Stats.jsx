@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, memo } from 'react';
 
 function formatDuration(seconds) {
   if (!seconds || seconds === 0) return '0m';
@@ -13,7 +13,7 @@ function formatNumber(num) {
   return num.toLocaleString();
 }
 
-export default function Stats() {
+const Stats = memo(function Stats() {
   const [stats, setStats] = useState(null);
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -210,4 +210,6 @@ export default function Stats() {
       </div>
     </div>
   );
-}
+});
+
+export default Stats;

@@ -1,9 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, memo } from 'react';
 import { fetchAndSaveLyrics, fetchAndSaveCover } from '../services/metaPersistence';
 
 let batchRunning = false;
 
-export default function Settings({
+const Settings = memo(function Settings({
   importMode,
   onImportModeChange,
   libraryDir,
@@ -355,4 +355,6 @@ export default function Settings({
       )}
     </div>
   );
-}
+});
+
+export default Settings;

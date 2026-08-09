@@ -80,7 +80,9 @@ export default function WaveformVisualizer({ audioElement, trackId, mode, onMode
   }, [audioElement]);
 
   // Canvas sizing — cap the backing scale: the visualizer is a live display,
-  // 1.5x keeps it sharp while halving canvas + ImageData memory vs 2x Retina
+  // 1.5x keeps it sharp while halving canvas + ImageData memory vs 2x Retina.
+  // P2: cached CSS size so the draw loop never forces a layout read per frame.
+  const sizeRef = useRef({ w: 0, h: 0 });
   const sizeCanvas = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -93,6 +95,7 @@ export default function WaveformVisualizer({ audioElement, trackId, mode, onMode
       ctx.scale(dpr, dpr);
       ctxRef.current = ctx;
     }
+    sizeRef.current = { w: rect.width, h: rect.height };
   }, []);
 
   useEffect(() => {
@@ -110,19 +113,29 @@ export default function WaveformVisualizer({ audioElement, trackId, mode, onMode
 
     let running = true;
 
+    const schedule = () => {
+      if (!running) return;
+      // P2: when paused, drop to ~4fps — 60fps no-signal painting is wasted work
+      if (audioElement && audioElement.paused) {
+        animFrameRef.current = setTimeout(draw, 250);
+      } else {
+        animFrameRef.current = requestAnimationFrame(draw);
+      }
+    };
+
     const draw = () => {
       if (!running || mode === 'off') return;
-      sizeCanvas();
+      // Layout reads only when the size is unknown (resize listener keeps it fresh)
+      if (sizeRef.current.w === 0) sizeCanvas();
       const ctx = ctxRef.current;
-      const rect = canvas.getBoundingClientRect();
-      const W = rect.width;
-      const H = rect.height;
+      const W = sizeRef.current.w;
+      const H = sizeRef.current.h;
 
       const an = audioElement ? audioEngine.connect(audioElement) : null;
 
-      if (!ctx || !an) {
-        if (ctx) drawNoSignal(ctx, W, H);
-        animFrameRef.current = requestAnimationFrame(draw);
+      if (!ctx || !an || !W || !H) {
+        if (ctx && W && H) drawNoSignal(ctx, W, H);
+        schedule();
         return;
       }
 
@@ -140,7 +153,7 @@ export default function WaveformVisualizer({ audioElement, trackId, mode, onMode
         drawWaveformMode(ctx, sharedFreqData, sharedTimeData, bufferLen, W, H);
       }
 
-      animFrameRef.current = requestAnimationFrame(draw);
+      schedule();
     };
 
     draw();
@@ -149,6 +162,7 @@ export default function WaveformVisualizer({ audioElement, trackId, mode, onMode
       running = false;
       if (animFrameRef.current) {
         cancelAnimationFrame(animFrameRef.current);
+        clearTimeout(animFrameRef.current);
         animFrameRef.current = null;
       }
     };
@@ -234,8 +248,12 @@ function drawWaveformMode(ctx, freqData, timeData, bufferLen, W, H) {
   drawGrid(ctx, W, H, wfTop, wfH, spTop, spH, spBaseline);
   drawWaveform(ctx, timeData, W, wfTop, wfH);
 
-  // Check if any frequency data is above noise floor
-  const maxFreq = Math.max(...freqData);
+  // Check if any frequency data is above noise floor (P2: no spread — the
+  // 1024-element spread allocates an argument array every frame)
+  let maxFreq = 0;
+  for (let i = 0; i < freqData.length; i++) {
+    if (freqData[i] > maxFreq) maxFreq = freqData[i];
+  }
   if (maxFreq > 5) {
     drawSpectrum(ctx, freqData, W, spTop, spH);
   }
@@ -292,9 +310,10 @@ function drawSpectrogramMode(ctx, freqData, bufferLen, W, H) {
     spectrogramBuffer = newBuffer;
   }
 
-  // Shift history up, append new frequency data at the end
+  // Shift history up, append new frequency data at the end (P2: reuse the
+  // row buffer instead of allocating a fresh Uint8Array every frame)
   spectrogramBuffer.copyWithin(0, 1);
-  spectrogramBuffer[numRows - 1] = new Uint8Array(freqData);
+  spectrogramBuffer[numRows - 1].set(freqData);
 
   // DIAGNOSTIC (FP_SPECTRO_TEST=1): overwrite the newest row with a known
   // 4-quadrant brightness pattern to verify frequency mapping:
@@ -388,8 +407,11 @@ function drawSpectrogramMode(ctx, freqData, bufferLen, W, H) {
   ctx.fillText('now', W - marginRight + 4, marginTop + 8);
   ctx.fillText('←', W - marginRight + 4, marginTop + plotH);
 
-  // Peak indicator
-  const maxFreq = Math.max(...freqData);
+  // Peak indicator (P2: loop instead of Math.max(...) spread per frame)
+  let maxFreq = 0;
+  for (let i = 0; i < freqData.length; i++) {
+    if (freqData[i] > maxFreq) maxFreq = freqData[i];
+  }
   const peakW = Math.min((maxFreq / 255) * plotW, plotW);
   ctx.fillStyle = `rgba(226, 67, 41, ${0.15 + (maxFreq / 255) * 0.5})`;
   ctx.fillRect(marginLeft, H - 3, peakW, 1.5);

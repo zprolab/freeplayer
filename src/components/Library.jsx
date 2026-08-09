@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect, memo } from 'react';
 import EditModal from './EditModal';
 import PlaylistMenu from './PlaylistMenu';
 
@@ -17,13 +17,37 @@ const SORT_COLUMNS = [
   { key: 'imported_at', label: 'Added', width: '130px' },
 ];
 
-export default function Library({
+const Library = memo(function Library({
   tracks, onPlay, currentTrack, isPlaying, sortBy, sortDir, onSort, onTracksChanged,
   activePlaylistId, playlists, onAddToPlaylist, onRemoveFromPlaylist, onCreatePlaylistForTrack,
 }) {
   const [contextMenu, setContextMenu] = useState(null);
   const [editTrack, setEditTrack] = useState(null);
   const [playlistSubmenu, setPlaylistSubmenu] = useState(null);
+
+  // M1: incremental rendering — large libraries mount in 200-row pages via a
+  // scroll sentinel instead of building the whole tbody at once
+  const PAGE = 200;
+  const [visibleCount, setVisibleCount] = useState(PAGE);
+  const sentinelRef = useRef(null);
+
+  useEffect(() => {
+    setVisibleCount(PAGE);
+  }, [tracks]);
+
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
+    const obs = new IntersectionObserver((entries) => {
+      if (entries[0].isIntersecting) {
+        setVisibleCount((n) => Math.min(n + PAGE, tracks.length));
+      }
+    }, { rootMargin: '400px' });
+    obs.observe(sentinel);
+    return () => obs.disconnect();
+  }, [tracks.length]);
+
+  const visibleTracks = tracks.slice(0, visibleCount);
 
   const handleRowClick = (track) => {
     onPlay(track, tracks);
@@ -117,7 +141,7 @@ export default function Library({
             </tr>
           </thead>
           <tbody>
-            {tracks.map((track, idx) => {
+            {visibleTracks.map((track, idx) => {
               const isActive = currentTrack && currentTrack.id === track.id;
               return (
                 <tr
@@ -168,6 +192,13 @@ export default function Library({
                 </tr>
               );
             })}
+            {visibleCount < tracks.length && (
+              <tr ref={sentinelRef} className="track-load-more">
+                <td colSpan={7} style={{ textAlign: 'center', padding: '8px 0', color: 'var(--np-text-3)', fontSize: 12 }}>
+                  Loading more…
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>
@@ -270,4 +301,6 @@ export default function Library({
       )}
     </div>
   );
-}
+});
+
+export default Library;
