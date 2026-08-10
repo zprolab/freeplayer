@@ -118,6 +118,8 @@ static const char *kBridgeScript = R"JS(
     onEqChange: (callback) => { window.__freeplayerEqHandler = callback; },
     // Native file drop -> renderer import flow
     onDropFiles: (callback) => { window.__freeplayerDropHandler = callback; },
+    // First-run onboarding
+    finishOnboarding: () => api._invoke('finishOnboarding'),
     // Plugins
     listPlugins: () => api._invoke('listPlugins'),
     readPluginFile: (id, rel) => api._invoke('readPluginFile', id, rel),
@@ -774,20 +776,7 @@ static NSWindow *shellWindow(void) {
       }
       NSString *sourceDir = panel.URL.path;
       NSString *libraryDir = fpdb::getSetting(@"library_dir", nil);
-      if (!libraryDir) {
-        NSOpenPanel *libPanel = [NSOpenPanel openPanel];
-        libPanel.title = @"Select destination library directory";
-        libPanel.canChooseFiles = NO;
-        libPanel.canChooseDirectories = YES;
-        libPanel.canCreateDirectories = YES;
-        if ([libPanel runModal] != NSModalResponseOK) {
-          reply(idNum, @{ @"canceled": @YES });
-          return;
-        }
-        libraryDir = libPanel.URL.path;
-        fpdb::setSetting(@"library_dir", libraryDir);
-      }
-      reply(idNum, @{ @"canceled": @NO, @"sourceDir": sourceDir, @"libraryDir": libraryDir });
+      reply(idNum, @{ @"canceled": @NO, @"sourceDir": sourceDir, @"libraryDir": libraryDir ?: NSNull.null });
     } else if ([method isEqualToString:@"scanDirectory"]) {
       // M3: directory walk off the main thread
       NSString *dir = args.firstObject;
@@ -799,12 +788,11 @@ static NSWindow *shellWindow(void) {
     } else if ([method isEqualToString:@"importFiles"]) {
       NSDictionary *data = args.firstObject;
       NSArray *files = data[@"files"];
-      NSString *libraryDir = data[@"libraryDir"];
-      // Minor-3: the renderer-supplied target must match the stored library —
-      // otherwise crafted metadata (../ in tags) could write outside it
+      // Library dir is native-set only (onboarding / Settings); the renderer
+      // never supplies it — crafted metadata can no longer redirect writes.
       NSString *storedLib = fpdb::getSetting(@"library_dir", nil);
-      if (![libraryDir isEqualToString:storedLib]) {
-        reply(idNum, @{ @"imported": @0, @"skipped": @0, @"errors": @[ @{ @"error": @"library_dir mismatch" } ] });
+      if (storedLib.length == 0) {
+        reply(idNum, @{ @"imported": @0, @"errors": @[], @"error": @"library not set" });
         return;
       }
       NSString *importMode = fpdb::getSetting(@"import_mode", @"copy"); // copy | symlink
@@ -855,7 +843,7 @@ static NSWindow *shellWindow(void) {
               };
               NSString *artist = safe(meta[@"artist"]);
               NSString *album = safe(meta[@"album"]);
-              NSString *albumDir = [NSString pathWithComponents:@[ libraryDir, artist, album ]];
+              NSString *albumDir = [NSString pathWithComponents:@[ storedLib, artist, album ]];
               if (![fm fileExistsAtPath:albumDir]) {
                 [fm createDirectoryAtPath:albumDir withIntermediateDirectories:YES attributes:nil error:nil];
               }
@@ -961,6 +949,10 @@ static NSWindow *shellWindow(void) {
     }
     else if ([method isEqualToString:@"uninstallPlugin"]) {
       reply(idNum, @(fpplugin::removePlugin(args.firstObject)));
+    }
+    else if ([method isEqualToString:@"finishOnboarding"]) {
+      fpFinishOnboarding();
+      reply(idNum, @YES);
     }
     else {
       reject(idNum, [NSString stringWithFormat:@"not implemented: %@", method]);

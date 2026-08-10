@@ -129,6 +129,13 @@ static NSURL *gMainLoadURL = nil;
   }
   [webView loadRequest:[NSURLRequest requestWithURL:loadURL]];
   gMainLoadURL = loadURL;
+
+  // First-run: hide the main window and show the onboarding wizard until a
+  // library directory is set (library_dir is native-set only).
+  if (!fpdb::getSetting(@"library_dir", nil)) {
+    [window orderOut:nil];
+    fpOpenOnboardingWindow();
+  }
 }
 
 // ── Close-to-tray: a music player must survive window close ──
@@ -242,6 +249,80 @@ void fpOpenEqWindow(void) {
 void fpHideEqWindow(void) {
   dispatch_async(dispatch_get_main_queue(), ^{
     [gEqWindow orderOut:nil];
+  });
+}
+
+// ── Onboarding window: first-run wizard (640x480) ──
+
+static WKWebView *gObWebView = nil;
+static NSWindow *gObWindow = nil;
+
+void fpOpenOnboardingWindow(void) {
+  dispatch_async(dispatch_get_main_queue(), ^{
+    if (gObWindow) {
+      [gObWindow makeKeyAndOrderFront:nil];
+      [NSApp activateIgnoringOtherApps:YES];
+      return;
+    }
+    NSRect frame = NSMakeRect(0, 0, 640, 480);
+    NSWindow *win = [[NSWindow alloc] initWithContentRect:frame
+        styleMask:(NSWindowStyleMaskTitled |
+                   NSWindowStyleMaskClosable |
+                   NSWindowStyleMaskMiniaturizable |
+                   NSWindowStyleMaskResizable |
+                   NSWindowStyleMaskFullSizeContentView)
+          backing:NSBackingStoreBuffered
+            defer:NO];
+    win.title = @"Welcome to FreePlayer";
+    win.titlebarAppearsTransparent = YES;
+    win.titleVisibility = NSWindowTitleHidden;
+    win.releasedWhenClosed = NO;
+    win.backgroundColor = [NSColor colorWithSRGBRed:0.98 green:0.98 blue:0.98 alpha:1.0];
+    [win center];
+
+    WKWebViewConfiguration *config = [[WKWebViewConfiguration alloc] init];
+    config.mediaTypesRequiringUserActionForPlayback = WKAudiovisualMediaTypeNone;
+    config.preferences.javaScriptCanOpenWindowsAutomatically = NO;
+    if (gScheme && gBridge) {
+      [config setURLSchemeHandler:gScheme forURLScheme:@"media"];
+      [config setURLSchemeHandler:gScheme forURLScheme:@"app"];
+      [config.userContentController addScriptMessageHandler:gBridge name:@"freeplayer"];
+    }
+    WKUserScript *bridgeScript = [[WKUserScript alloc]
+        initWithSource:fpBridgeScript()
+         injectionTime:WKUserScriptInjectionTimeAtDocumentStart
+      forMainFrameOnly:YES];
+    [config.userContentController addUserScript:bridgeScript];
+
+    ShellWebView *webView = [[ShellWebView alloc] initWithFrame:frame configuration:config];
+    webView.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
+    win.contentView = webView;
+    gObWebView = webView;
+    gObWindow = win;
+
+    NSURL *obURL = nil;
+    if ([gMainLoadURL.scheme isEqualToString:@"app"]) {
+      obURL = [NSURL URLWithString:@"app://index.html?view=onboarding"];
+    } else {
+      obURL = [NSURL URLWithString:[gMainLoadURL.absoluteString stringByAppendingString:@"?view=onboarding"]];
+    }
+    [webView loadRequest:[NSURLRequest requestWithURL:obURL]];
+    [win makeKeyAndOrderFront:nil];
+  });
+}
+
+void fpCloseOnboardingWindow(void) {
+  dispatch_async(dispatch_get_main_queue(), ^{
+    [gObWindow orderOut:nil];
+  });
+}
+
+void fpFinishOnboarding(void) {
+  dispatch_async(dispatch_get_main_queue(), ^{
+    [gObWindow orderOut:nil];
+    [gWebView reload];
+    [gWindow makeKeyAndOrderFront:nil];
+    [NSApp activateIgnoringOtherApps:YES];
   });
 }
 
