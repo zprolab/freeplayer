@@ -24,3 +24,5 @@ dependencyResolutionManagement {
 
 rootProject.name = "FreePlayer"
 include(":app")
+include(":fpcalc-android")
+project(":fpcalc-android").projectDir = file("vendor/fpcalc-android/fpcalc-android")

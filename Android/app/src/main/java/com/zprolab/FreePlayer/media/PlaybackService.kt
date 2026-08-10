@@ -1,6 +1,7 @@
 package com.zprolab.FreePlayer.media
 
 import android.content.Intent
+import androidx.core.app.NotificationCompat
 import androidx.media3.common.Player
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
@@ -27,6 +28,31 @@ class PlaybackService : MediaSessionService() {
         mediaSession = MediaSession.Builder(this, player)
             .setCallback(PlaybackSessionCallback())
             .build()
+        createNotificationChannel()
+    }
+
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        // startForegroundService requires startForeground within 5s; media3
+        // promotes the notification only once playback actually starts, so on
+        // cold start there is a window where we'd crash. Promote early with a
+        // placeholder; media3 replaces it with the media notification.
+        val notification = NotificationCompat.Builder(this, CHANNEL_ID)
+            .setSmallIcon(android.R.drawable.ic_media_play)
+            .setContentTitle("FreePlayer")
+            .setContentText("Playback")
+            .setOngoing(true)
+            .build()
+        startForeground(NOTIFICATION_ID, notification)
+        return super.onStartCommand(intent, flags, startId)
+    }
+
+    private fun createNotificationChannel() {
+        val channel = android.app.NotificationChannel(
+            CHANNEL_ID,
+            "Playback",
+            android.app.NotificationManager.IMPORTANCE_LOW,
+        )
+        getSystemService(android.app.NotificationManager::class.java).createNotificationChannel(channel)
     }
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? = mediaSession
@@ -36,6 +62,11 @@ class PlaybackService : MediaSessionService() {
         if (player == null || !player.playWhenReady || player.mediaItemCount == 0) {
             stopSelf()
         }
+    }
+
+    companion object {
+        private const val CHANNEL_ID = "playback"
+        private const val NOTIFICATION_ID = 1
     }
 
     override fun onDestroy() {

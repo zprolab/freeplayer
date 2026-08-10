@@ -54,7 +54,14 @@ fun SettingsScreen(
     onDefaultVolumeChange: (Float) -> Unit,
     defaultVisualizer: String,
     onDefaultVisualizerChange: (String) -> Unit,
+    onOpenEqualizer: () -> Unit,
     onResetDatabase: () -> Unit,
+    acoustidKey: String,
+    onAcoustidKeyChange: (String) -> Unit,
+    autoFetchMeta: Boolean,
+    onAutoFetchMetaChange: (Boolean) -> Unit,
+    onStartBackfill: () -> Unit,
+    backfillProgress: Pair<Int, Int>?,
 ) {
     Column(
         Modifier
@@ -81,6 +88,24 @@ fun SettingsScreen(
                             ModeCard("Copy Files", "Duplicate files into library directory", importMode == "copy", Modifier.weight(1f)) { onImportModeChange("copy") }
                             ModeCard("Symlink", "Create symbolic links (saves disk space)", importMode == "symlink", Modifier.weight(1f)) { onImportModeChange("symlink") }
                         }
+                    }
+                }
+                Spacer(Modifier.height(12.dp))
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(Fp.ContentBg)
+                        .border(1.dp, Fp.BorderLight, RoundedCornerShape(6.dp))
+                        .clickable(onClick = onOpenEqualizer)
+                        .padding(horizontal = 14.dp, vertical = 11.dp),
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text("Equalizer", fontSize = 13.sp, color = Fp.TextPrimary, fontWeight = FontWeight.Medium)
+                            Text("Adjust 10 playback frequency bands", fontSize = 11.sp, color = Fp.TextSecondary)
+                        }
+                        Text("Open", fontSize = 12.sp, color = Fp.Orange, fontWeight = FontWeight.Medium)
                     }
                 }
             }
@@ -183,6 +208,72 @@ fun SettingsScreen(
                                 Text("Visualizer mode on first run", fontSize = 11.sp, color = Fp.TextSecondary)
                             }
                             VisualizerSegments(defaultVisualizer, onDefaultVisualizerChange)
+                        }
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(16.dp))
+
+
+            // Online Recognition
+            SettingsSection("Online Recognition") {
+                var key by remember { mutableStateOf(acoustidKey) }
+                var autoFetch by remember { mutableStateOf(autoFetchMeta) }
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                        Column(Modifier.weight(1f)) {
+                            Text("AcoustID API Key", fontSize = 13.sp, color = Fp.TextPrimary)
+                            Text("Register an app at acoustid.org (free)", fontSize = 11.sp, color = Fp.TextSecondary)
+                        }
+                        androidx.compose.foundation.text.BasicTextField(
+                            value = key,
+                            onValueChange = {
+                                key = it
+                                onAcoustidKeyChange(it)
+                            },
+                            singleLine = true,
+                            textStyle = androidx.compose.ui.text.TextStyle(fontSize = 12.sp, color = Fp.TextPrimary),
+                            cursorBrush = androidx.compose.ui.graphics.SolidColor(Fp.Blue),
+                            modifier = Modifier
+                                .width(140.dp)
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(Fp.ContentBg)
+                                .border(1.dp, Fp.BorderLight, RoundedCornerShape(4.dp))
+                                .padding(horizontal = 8.dp, vertical = 6.dp),
+                        )
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                        Column(Modifier.weight(1f)) {
+                            Text("Auto-fetch missing lyrics & covers", fontSize = 13.sp, color = Fp.TextPrimary)
+                            Text("Recognize songs by content while playing", fontSize = 11.sp, color = Fp.TextSecondary)
+                        }
+                        androidx.compose.material3.Switch(
+                            checked = autoFetch,
+                            onCheckedChange = {
+                                autoFetch = it
+                                onAutoFetchMetaChange(it)
+                            },
+                        )
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                        Column(Modifier.weight(1f)) {
+                            Text("Backfill Missing Metadata", fontSize = 13.sp, color = Fp.TextPrimary)
+                            Text(
+                                if (backfillProgress != null) "Done \${backfillProgress!!.first}/\${backfillProgress!!.second}"
+                                else "Fetch lyrics & covers for all tracks missing them",
+                                fontSize = 11.sp,
+                                color = Fp.TextSecondary,
+                            )
+                        }
+                        Box(
+                            Modifier
+                                .clip(RoundedCornerShape(4.dp))
+                                .border(1.dp, Fp.Orange, RoundedCornerShape(4.dp))
+                                .clickable(onClick = onStartBackfill)
+                                .padding(horizontal = 10.dp, vertical = 6.dp),
+                        ) {
+                            Text("Start", fontSize = 11.sp, color = Fp.Orange)
                         }
                     }
                 }

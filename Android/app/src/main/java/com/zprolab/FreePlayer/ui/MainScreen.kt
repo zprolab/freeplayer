@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -55,6 +56,7 @@ import com.zprolab.FreePlayer.data.Track
 import com.zprolab.FreePlayer.playback.PlayerController
 import com.zprolab.FreePlayer.playback.View
 import com.zprolab.FreePlayer.ui.components.EditModal
+import com.zprolab.FreePlayer.ui.components.EqualizerScreen
 import com.zprolab.FreePlayer.ui.components.ImportModal
 import com.zprolab.FreePlayer.ui.components.LibraryScreen
 import com.zprolab.FreePlayer.ui.components.NowPlayingScreen
@@ -139,12 +141,14 @@ fun MainScreen(
     var playlistModalMode by remember { mutableStateOf<String?>(null) }
     var playlistModalPlaylist by remember { mutableStateOf<Playlist?>(null) }
     var editingTrack by remember { mutableStateOf<Track?>(null) }
+    var eqOpen by remember { mutableStateOf(false) }
 
     var lyrics by remember { mutableStateOf<List<LrcLine>>(emptyList()) }
 
     // Load lyrics when the current track changes
     LaunchedEffect(state.currentTrack?.id) {
         lyrics = vm.loadLyrics(state.currentTrack)
+        vm.autoFetchMetadata(state.currentTrack) { lines -> lyrics = lines }
     }
 
     // Attach visualizer to the player's audio session
@@ -353,6 +357,10 @@ fun MainScreen(
                                         lyrics = emptyList()
                                     }
                                 },
+                                onFetchLyrics = { vm.fetchLyrics(state.currentTrack) { lines -> lyrics = lines } },
+                                onFetchCover = { vm.fetchCover(state.currentTrack) },
+                                lyricsFetchState = state.lyricsFetchState,
+                                coverFetchState = state.coverFetchState,
                                 isImmersive = state.isImmersive,
                                 onImmersiveChange = { v -> PlayerController.updateState { it.copy(isImmersive = v) } },
                             )
@@ -368,7 +376,18 @@ fun MainScreen(
                                 onDefaultVolumeChange = { vm.onDefaultVolumeChange(it) },
                                 defaultVisualizer = state.defaultVisualizer,
                                 onDefaultVisualizerChange = { vm.onDefaultVisualizerChange(it) },
+                                onOpenEqualizer = { eqOpen = true },
                                 onResetDatabase = { vm.onResetDatabase() },
+                                acoustidKey = vm.acoustidKey(),
+                                onAcoustidKeyChange = { vm.setAcoustidKey(it) },
+                                autoFetchMeta = vm.autoFetchMetaEnabled(),
+                                onAutoFetchMetaChange = { vm.setAutoFetchMeta(it) },
+                                onStartBackfill = {
+                                    vm.startBackfill { done, total ->
+                                        vm.updateState { it.copy(backfillDone = done, backfillTotal = total) }
+                                    }
+                                },
+                                backfillProgress = state.backfillProgress(),
                             )
                         }
                     }
@@ -388,6 +407,7 @@ fun MainScreen(
                     onSeek = { PlayerController.seek(it) },
                     onVolumeChange = { PlayerController.setVolume(it) },
                     onPlayModeChange = { PlayerController.setPlayMode(it) },
+                    onOpenEqualizer = { eqOpen = true },
                 )
             }
         }
@@ -400,6 +420,22 @@ fun MainScreen(
                 onClose = { vm.closeImportModal() },
                 onComplete = { vm.onImportComplete() },
             )
+        }
+
+        if (eqOpen) {
+            androidx.compose.ui.window.Dialog(onDismissRequest = { eqOpen = false }) {
+                Column(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp)
+                        .widthIn(max = 480.dp)
+                        .clip(androidx.compose.foundation.shape.RoundedCornerShape(8.dp))
+                        .background(androidx.compose.ui.graphics.Color.White)
+                        .padding(16.dp),
+                ) {
+                    EqualizerScreen(onClose = { eqOpen = false })
+                }
+            }
         }
 
         playlistModalMode?.let { mode ->

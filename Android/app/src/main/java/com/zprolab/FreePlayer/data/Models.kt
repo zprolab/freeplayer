@@ -27,6 +27,11 @@ data class Track(
     val addedToPlaylistAt: String? = null,
 ) {
     val displayTitle: String get() = title.ifEmpty { fileName }
+
+    companion object {
+        const val UNKNOWN_ARTIST = "Unknown Artist"
+        const val UNKNOWN_ALBUM = "Unknown Album"
+    }
 }
 
 data class Playlist(
@@ -87,3 +92,5 @@ data class ImportResult(
     val skipped: Int,
     val errors: List<Pair<String, String>>,
 )
+
+enum class FetchState { IDLE, FETCHING, NOT_FOUND, FAILED }

@@ -1,6 +1,7 @@
 package com.zprolab.FreePlayer.ui.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -52,6 +53,8 @@ fun LyricsDisplay(
     onFullscreen: () -> Unit,
     onUpload: () -> Unit,
     onRemoveLrc: () -> Unit,
+    onFetchLyrics: (() -> Unit)? = null,
+    fetchState: com.zprolab.FreePlayer.data.FetchState = com.zprolab.FreePlayer.data.FetchState.IDLE,
     modifier: Modifier = Modifier,
 ) {
     val listState = rememberLazyListState()
@@ -114,7 +117,7 @@ fun LyricsDisplay(
         }
 
         if (lines.isEmpty()) {
-            EmptyLyrics(onUpload, onFullscreen)
+            EmptyLyrics(onUpload, onFullscreen, onFetchLyrics, fetchState)
             return
         }
 
@@ -206,7 +209,12 @@ private fun formatLrcTime(time: Double): String {
 }
 
 @Composable
-private fun EmptyLyrics(onUpload: () -> Unit, onFullscreen: () -> Unit) {
+private fun EmptyLyrics(
+    onUpload: () -> Unit,
+    onFullscreen: () -> Unit,
+    onFetchLyrics: (() -> Unit)?,
+    fetchState: com.zprolab.FreePlayer.data.FetchState,
+) {
     Column(
         Modifier
             .fillMaxWidth()
@@ -223,6 +231,23 @@ private fun EmptyLyrics(onUpload: () -> Unit, onFullscreen: () -> Unit) {
             fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
         )
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            if (onFetchLyrics != null) {
+                val label = when (fetchState) {
+                    com.zprolab.FreePlayer.data.FetchState.FETCHING -> "Fetching..."
+                    com.zprolab.FreePlayer.data.FetchState.FAILED -> "Found failed"
+                    com.zprolab.FreePlayer.data.FetchState.NOT_FOUND -> "No lyrics found"
+                    else -> "Fetch Lyrics"
+                }
+                Box(
+                    Modifier
+                        .clip(RoundedCornerShape(4.dp))
+                        .border(1.dp, Fp.Orange, RoundedCornerShape(4.dp))
+                        .clickable(enabled = fetchState != com.zprolab.FreePlayer.data.FetchState.FETCHING) { onFetchLyrics() }
+                        .padding(horizontal = 12.dp, vertical = 7.dp),
+                ) {
+                    Text(label, fontSize = 12.sp, color = Fp.Orange)
+                }
+            }
             OutlinedButton(Fp.Orange) { onUpload() }
             Spacer(Modifier.width(6.dp))
             Icon(
