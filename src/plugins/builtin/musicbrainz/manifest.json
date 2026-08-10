@@ -1,0 +1,19 @@
+{
+  "id": "musicbrainz-meta",
+  "name": "MusicBrainz Metadata",
+  "version": "1.0.0",
+  "description": "Fetch metadata and covers from MusicBrainz (CC0 data, Cover Art Archive)",
+  "author": "zprolab",
+  "homepage": "https://musicbrainz.org",
+  "apiVersion": 1,
+  "main": "main.js",
+  "activationEvents": ["metadata:fetch", "cover:fetch"],
+  "provides": { "metadata": true, "cover": true },
+  "permissions": ["http", "metadata:write"],
+  "notice": "Bring your own API setup: use your own MusicBrainz instance or credentials. MusicBrainz data is CC0 but Cover Art Archive images are CC BY-NC-SA — personal use only, not for commercial distribution. Commercial use requires a MetaBrainz supporter agreement.",
+  "settings": [
+    { "key": "apiEndpoint", "type": "string", "label": "API endpoint", "default": "https://musicbrainz.org/ws/2", "description": "MusicBrainz Web Service root (self-hosted instances allowed)" },
+    { "key": "apiToken", "type": "string", "label": "API token", "default": "", "description": "Optional token for self-hosted instances or authenticated access" },
+    { "key": "minMatchScore", "type": "number", "label": "Min match score", "default": 0.8, "min": 0, "max": 1 }
+  ]
+}

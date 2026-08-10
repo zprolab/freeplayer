@@ -5,7 +5,7 @@ import { createLoader } from '../../src/plugins/loader';
 
 describe('BUILTIN_PLUGINS', () => {
   it('entries carry id/manifestRaw/builtin/module with a valid manifest', () => {
-    expect(BUILTIN_PLUGINS.map((p) => p.id)).toEqual(['lrclib-lyrics', 'itunes-cover']);
+    expect(BUILTIN_PLUGINS.map((p) => p.id)).toEqual(['lrclib-lyrics', 'itunes-cover', 'musicbrainz-meta']);
     for (const p of BUILTIN_PLUGINS) {
       expect(p.builtin).toBe(true);
       expect(p.manifestRaw.id).toBe(p.id);
