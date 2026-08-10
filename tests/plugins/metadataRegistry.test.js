@@ -137,4 +137,48 @@ describe('createMetadataRegistry', () => {
     expect(registry.logOp).toHaveBeenCalledWith('itunes-cover', 'fetchCover', 3, true);
     expect(registry.logOp).toHaveBeenCalledWith('itunes-cover', 'saveCover', 3, true);
   });
+  it('fetchMetadata: updates only differing whitelisted fields', async () => {
+    const registry = makeRegistry([
+      plugin('musicbrainz-meta', { metadata: true }),
+    ]);
+    const updateTrack = vi.fn(async () => true);
+    const reg = createMetadataRegistry({
+      registry,
+      getSetting: vi.fn(async (k) => k === 'meta.metadataBackend' ? 'musicbrainz-meta' : null),
+      saveLyrics: vi.fn(), saveCover: vi.fn(), updateTrack,
+    });
+    registry.invokeHook.mockResolvedValue({
+      title: 'Better Title', artist: 'A B', album: null, genre: 'Rock', year: 2020, track_number: 'bad', evil: 'x',
+    });
+    const track = { id: 7, title: 'Old Title', artist: 'A B', album: 'X' };
+    const res = await reg.fetchMetadata(track);
+    expect(res.saved).toBe(true);
+    expect(updateTrack).toHaveBeenCalledWith(7, { title: 'Better Title', genre: 'Rock', year: 2020 });
+    expect(res.updated).toEqual({ title: 'Better Title', genre: 'Rock', year: 2020 });
+  });
+  it('fetchMetadata: refuses without the metadata:write grant', async () => {
+    const registry = makeRegistry([
+      plugin('musicbrainz-meta', { metadata: true }, ['http']),
+    ]);
+    const updateTrack = vi.fn();
+    const reg = createMetadataRegistry({
+      registry, getSetting: vi.fn(async () => null),
+      saveLyrics: vi.fn(), saveCover: vi.fn(), updateTrack,
+    });
+    registry.invokeHook.mockResolvedValue({ title: 'X' });
+    expect(await reg.fetchMetadata({ id: 1, title: 'Y' })).toEqual({ saved: false, reason: 'no-write-permission' });
+    expect(updateTrack).not.toHaveBeenCalled();
+  });
+  it('fetchMetadata: not-found when nothing differs or result is empty', async () => {
+    const registry = makeRegistry([plugin('musicbrainz-meta', { metadata: true })]);
+    const updateTrack = vi.fn();
+    const reg = createMetadataRegistry({
+      registry, getSetting: vi.fn(async () => null),
+      saveLyrics: vi.fn(), saveCover: vi.fn(), updateTrack,
+    });
+    registry.invokeHook.mockResolvedValue({ title: 'Same', artist: 'Same' });
+    const res = await reg.fetchMetadata({ id: 1, title: 'Same', artist: 'Same' });
+    expect(res).toEqual({ saved: false, reason: 'not-found' });
+    expect(updateTrack).not.toHaveBeenCalled();
+  });
 });

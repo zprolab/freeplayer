@@ -53,11 +53,14 @@ function update(track, meta, dispatch) {
 
 // meta with getBackend stubbed; auto-fetch switches come from getSetting
 // (plugin.<backend>.autoFetch).
-function makeMeta({ lyricsBackend = 'lrclib-lyrics', coverBackend = 'itunes-cover' } = {}) {
+function makeMeta({ lyricsBackend = 'lrclib-lyrics', coverBackend = 'itunes-cover', metadataBackend = 'musicbrainz-meta' } = {}) {
   return {
-    getBackend: vi.fn(async (kind) => (kind === 'lyrics' ? lyricsBackend : coverBackend)),
+    getBackend: vi.fn(async (kind) => (
+      kind === 'lyrics' ? lyricsBackend : kind === 'metadata' ? metadataBackend : coverBackend
+    )),
     fetchCover: vi.fn(async () => ({ saved: false })),
     fetchLyrics: vi.fn(async () => ({ saved: false })),
+    fetchMetadata: vi.fn(async () => ({ saved: false })),
   };
 }
 
@@ -170,6 +173,66 @@ describe('useAutoMeta with per-backend switches', () => {
     expect(dispatch).toHaveBeenCalledWith({
       type: 'SET_CURRENT_TRACK',
       payload: expect.objectContaining({ id: 1, cover_path: '/new.jpg' }),
+    });
+  });
+
+  it('fetches metadata and dispatches the updated fields when the switch is on and fields are unknown', async () => {
+    setAutoFetch('lrclib-lyrics', false);
+    setAutoFetch('itunes-cover', false);
+    setAutoFetch('musicbrainz-meta', true);
+    const meta = { ...makeMeta(), fetchMetadata: vi.fn(async () => ({ saved: true, updated: { artist: 'Real Artist' } })) };
+    const dispatch = vi.fn();
+    mount({ ...track1, artist: 'Unknown Artist' }, meta, dispatch);
+    hookState.effects[0](); // resolve switches
+    await flush();
+    update({ ...track1, artist: 'Unknown Artist' }, meta, dispatch); // re-render with resolved auto state
+    hookState.effects[1](); // fetch pass
+    await flush();
+    expect(meta.fetchMetadata).toHaveBeenCalledTimes(1);
+    expect(meta.fetchMetadata).toHaveBeenCalledWith({ ...track1, artist: 'Unknown Artist' });
+    expect(dispatch).toHaveBeenCalledWith({
+      type: 'SET_CURRENT_TRACK',
+      payload: { id: 1, title: 'Sun', artist: 'Real Artist' },
+    });
+  });
+
+  it('does not fetch metadata when the metadata switch is off', async () => {
+    setAutoFetch('lrclib-lyrics', false);
+    setAutoFetch('itunes-cover', false);
+    setAutoFetch('musicbrainz-meta', false);
+    const meta = makeMeta();
+    const dispatch = vi.fn();
+    mount({ ...track1, artist: 'Unknown Artist' }, meta, dispatch);
+    hookState.effects[0]();
+    await flush();
+    update({ ...track1, artist: 'Unknown Artist' }, meta, dispatch);
+    hookState.effects[1]();
+    await flush();
+    expect(meta.fetchMetadata).not.toHaveBeenCalled();
+    expect(meta.fetchLyrics).not.toHaveBeenCalled();
+    expect(meta.fetchCover).not.toHaveBeenCalled();
+  });
+
+  it('merges fetched metadata and cover into one dispatch when both switches are on', async () => {
+    setAutoFetch('lrclib-lyrics', false);
+    setAutoFetch('itunes-cover', true);
+    setAutoFetch('musicbrainz-meta', true);
+    const meta = {
+      ...makeMeta(),
+      fetchCover: vi.fn(async () => ({ saved: true, coverPath: '/new.jpg' })),
+      fetchMetadata: vi.fn(async () => ({ saved: true, updated: { title: 'New' } })),
+    };
+    const dispatch = vi.fn();
+    mount({ ...track1, artist: 'Unknown Artist' }, meta, dispatch);
+    hookState.effects[0](); // resolve switches
+    await flush();
+    update({ ...track1, artist: 'Unknown Artist' }, meta, dispatch); // re-render with resolved auto state
+    hookState.effects[1](); // fetch pass
+    await flush();
+    expect(dispatch).toHaveBeenCalledTimes(1);
+    expect(dispatch).toHaveBeenCalledWith({
+      type: 'SET_CURRENT_TRACK',
+      payload: { id: 1, title: 'New', artist: 'Unknown Artist', cover_path: '/new.jpg' },
     });
   });
 });

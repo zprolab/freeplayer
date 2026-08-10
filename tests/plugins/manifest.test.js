@@ -115,4 +115,41 @@ describe('validateManifest', () => {
     const r = validateManifest({ ...base, icon: 42 });
     expect(r.ok).toBe(false);
   });
+  it('accepts provides.metadata with fetch event and write permission', () => {
+    const r = validateManifest({
+      ...base,
+      provides: { metadata: true },
+      activationEvents: ['metadata:fetch'],
+      permissions: ['http', 'metadata:write'],
+    });
+    expect(r.ok).toBe(true);
+  });
+  it('rejects provides.metadata without metadata:write', () => {
+    const r = validateManifest({
+      ...base,
+      provides: { metadata: true },
+      activationEvents: ['metadata:fetch'],
+      permissions: ['http'],
+    });
+    expect(r.ok).toBe(false);
+    expect(r.errors.join()).toContain('metadata:write');
+  });
+  it('rejects provides.metadata without the metadata:fetch event', () => {
+    const r = validateManifest({
+      ...base,
+      provides: { metadata: true },
+      permissions: ['http', 'metadata:write'],
+    });
+    expect(r.ok).toBe(false);
+    expect(r.errors.join()).toContain('metadata:fetch');
+  });
+  it('accepts a non-empty string notice', () => {
+    const r = validateManifest({ ...base, notice: 'Personal use only.' });
+    expect(r.ok).toBe(true);
+    expect(r.manifest.notice).toBe('Personal use only.');
+  });
+  it('rejects non-string or empty notices', () => {
+    expect(validateManifest({ ...base, notice: '' }).ok).toBe(false);
+    expect(validateManifest({ ...base, notice: 42 }).ok).toBe(false);
+  });
 });

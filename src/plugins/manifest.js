@@ -9,7 +9,7 @@ export const PERMISSIONS = [
 ];
 
 export const ACTIVATION_EVENTS = [
-  'lyrics:fetch', 'cover:fetch', 'track:changed', 'playback:changed',
+  'lyrics:fetch', 'cover:fetch', 'metadata:fetch', 'track:changed', 'playback:changed',
 ];
 
 const WRITE_IMPLIES_READ = {
@@ -53,12 +53,19 @@ export function validateManifest(raw) {
   const provides = raw.provides || {};
   if (provides.lyrics && !events.includes('lyrics:fetch')) errors.push('provides.lyrics requires activationEvents lyrics:fetch');
   if (provides.cover && !events.includes('cover:fetch')) errors.push('provides.cover requires activationEvents cover:fetch');
+  if (provides.metadata && !events.includes('metadata:fetch')) errors.push('provides.metadata requires activationEvents metadata:fetch');
+  if (provides.metadata && !perms.includes('metadata:write')) errors.push('provides.metadata requires permission metadata:write');
   // Provider hooks are persisted by the host on the plugin's behalf, so a
   // provider must explicitly request the write permission it relies on —
   // otherwise the permission model would let any lyrics/cover backend write
   // to the library without ever being granted metadata:write.
   if ((provides.lyrics || provides.cover) && !perms.includes('metadata:write')) {
     errors.push('provides.lyrics/cover requires permission metadata:write');
+  }
+  if (raw.notice !== undefined) {
+    if (typeof raw.notice !== 'string' || !raw.notice.trim() || raw.notice.length > 512) {
+      errors.push('notice: must be a non-empty string (max 512 chars)');
+    }
   }
   if (raw.icon !== undefined) {
     // Icon must be a sanitizable inline SVG (allowlisted elements/attrs,
@@ -89,6 +96,7 @@ export function validateManifest(raw) {
       apiVersion: raw.apiVersion, main: raw.main,
       permissions: normalizePermissions(perms),
       activationEvents: events, provides,
+      notice: raw.notice !== undefined ? raw.notice : undefined,
       settings: raw.settings || [],
     },
   };

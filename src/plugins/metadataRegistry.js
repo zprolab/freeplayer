@@ -1,8 +1,9 @@
 const BASE64_RE = /^[A-Za-z0-9+/]+={0,2}$/;
-const DEFAULTS = { lyrics: 'lrclib-lyrics', cover: 'itunes-cover' };
+const METADATA_FIELDS = ['title', 'artist', 'album', 'genre', 'year', 'track_number'];
+const DEFAULTS = { lyrics: 'lrclib-lyrics', cover: 'itunes-cover', metadata: 'musicbrainz-meta' };
 
 export function createMetadataRegistry(deps) {
-  const { registry, getSetting, saveLyrics, saveCover } = deps;
+  const { registry, getSetting, saveLyrics, saveCover, updateTrack } = deps;
 
   function getProviders(kind) {
     return registry.getPlugins()
@@ -12,7 +13,8 @@ export function createMetadataRegistry(deps) {
   }
 
   async function backendFor(kind) {
-    const saved = await getSetting(kind === 'lyrics' ? 'meta.lyricsBackend' : 'meta.coverBackend');
+    const key = kind === 'lyrics' ? 'meta.lyricsBackend' : kind === 'metadata' ? 'meta.metadataBackend' : 'meta.coverBackend';
+    const saved = await getSetting(key);
     return saved || DEFAULTS[kind];
   }
 
@@ -84,5 +86,39 @@ export function createMetadataRegistry(deps) {
     return { saved: ok, coverPath: res && res.coverPath, base64 };
   }
 
-  return { getBackend: backendFor, getProviders, fetchLyrics, fetchCover };
+  async function fetchMetadata(track) {
+    const backend = await backendFor('metadata');
+    if (!getProviders('metadata').includes(backend)) return { saved: false, reason: 'no-plugin' };
+    let result;
+    try {
+      result = await registry.invokeHook(backend, 'fetchMetadata', track);
+    } catch (err) {
+      registry.logOp(backend, 'fetchMetadata', track.id, false);
+      return { saved: false, reason: 'plugin-error' };
+    }
+    if (!canWrite(backend)) {
+      registry.logOp(backend, 'saveMetadata', track.id, false);
+      return { saved: false, reason: 'no-write-permission' };
+    }
+    const fields = {};
+    for (const key of METADATA_FIELDS) {
+      const value = result?.[key];
+      if (value === undefined || value === null || value === '') continue;
+      const numeric = key === 'year' || key === 'track_number';
+      const normalized = numeric ? Number(value) : String(value);
+      if (numeric && !Number.isInteger(normalized)) continue;
+      if (String(normalized) === String(track[key] ?? '')) continue; // unchanged
+      fields[key] = normalized;
+    }
+    if (Object.keys(fields).length === 0) {
+      registry.logOp(backend, 'fetchMetadata', track.id, true);
+      return { saved: false, reason: 'not-found' };
+    }
+    registry.logOp(backend, 'fetchMetadata', track.id, true);
+    const ok = await updateTrack(track.id, fields);
+    registry.logOp(backend, 'saveMetadata', track.id, ok);
+    return { saved: !!ok, updated: fields };
+  }
+
+  return { getBackend: backendFor, getProviders, fetchLyrics, fetchCover, fetchMetadata };
 }

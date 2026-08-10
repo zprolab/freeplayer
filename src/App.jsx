@@ -80,6 +80,7 @@ async function getPluginRuntime() {
     getSetting: (k) => window.freeplayer.getSetting(k),
     saveLyrics: (trackId, content) => window.freeplayer.saveLrcContent(trackId, content),
     saveCover: (trackId, base64) => window.freeplayer.saveCover(trackId, base64),
+    updateTrack: (id, fields) => window.freeplayer.updateTrack({ id, ...fields }),
   });
   pluginRuntime = { registry, meta };
   return pluginRuntime;

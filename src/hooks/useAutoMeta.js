@@ -1,10 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 
 // One fetch attempt per track per app session; failures stay quiet.
-// meta = { fetchLyrics, fetchCover, getBackend } from the plugin metadata
-// registry. Auto-fetch is controlled per backend by the
-// `plugin.<backend>.autoFetch` setting (default off); lyrics and covers are
-// independent — each only runs when its own backend switch is on.
+// meta = { fetchLyrics, fetchCover, fetchMetadata, getBackend } from the
+// plugin metadata registry. Auto-fetch is controlled per backend by the
+// `plugin.<backend>.autoFetch` setting (default off); lyrics, covers and
+// metadata are independent — each only runs when its own backend switch is
+// on. Metadata auto-fetch only runs for tracks with unknown/missing
+// title/artist/album, and dispatches SET_CURRENT_TRACK with the fetched
+// fields so lists refresh.
 // Dispatch guards:
 //  - currentIdRef: a slow fetch from a previous track can never clobber
 //    state.currentTrack after the user switched tracks.
@@ -19,7 +22,7 @@ function autoSettingOn(value) {
 export function useAutoMeta(currentTrack, meta, dispatch) {
   const attempted = useRef(new Set());
   const currentIdRef = useRef(currentTrack?.id ?? null);
-  const [auto, setAuto] = useState({ lyrics: false, cover: false });
+  const [auto, setAuto] = useState({ lyrics: false, cover: false, metadata: false });
   currentIdRef.current = currentTrack?.id ?? null;
 
   // Resolve per-backend auto-fetch switches; re-runs when the plugin runtime
@@ -29,35 +32,41 @@ export function useAutoMeta(currentTrack, meta, dispatch) {
     let cancelled = false;
     (async () => {
       if (!meta) return;
-      const [lyricsBackend, coverBackend] = await Promise.all([
+      const [lyricsBackend, coverBackend, metadataBackend] = await Promise.all([
         meta.getBackend('lyrics'),
         meta.getBackend('cover'),
+        meta.getBackend('metadata'),
       ]);
-      const [lyricsOn, coverOn] = await Promise.all([
+      const [lyricsOn, coverOn, metadataOn] = await Promise.all([
         lyricsBackend
           ? window.freeplayer.getSetting(`plugin.${lyricsBackend}.autoFetch`).then(autoSettingOn).catch(() => false)
           : Promise.resolve(false),
         coverBackend
           ? window.freeplayer.getSetting(`plugin.${coverBackend}.autoFetch`).then(autoSettingOn).catch(() => false)
           : Promise.resolve(false),
+        metadataBackend
+          ? window.freeplayer.getSetting(`plugin.${metadataBackend}.autoFetch`).then(autoSettingOn).catch(() => false)
+          : Promise.resolve(false),
       ]);
-      if (!cancelled) setAuto({ lyrics: lyricsOn, cover: coverOn });
+      if (!cancelled) setAuto({ lyrics: lyricsOn, cover: coverOn, metadata: metadataOn });
     })();
     return () => { cancelled = true; };
   }, [meta]);
 
   useEffect(() => {
     if (!meta) return;
-    if (!currentTrack?.id || !currentTrack?.title) return;
-    if (!auto.lyrics && !auto.cover) return;
+    if (!currentTrack?.id) return;
+    if (!auto.lyrics && !auto.cover && !auto.metadata) return;
     if (attempted.current.has(currentTrack.id)) return;
     attempted.current.add(currentTrack.id);
 
     const track = currentTrack;
     (async () => {
       try {
+        let out = track;
         let coverPath = track.cover_path;
         let lyricsSaved = false;
+        let metaSaved = false;
         if (auto.cover) {
           // cover_path set but file deleted (getCover -> null) still counts
           // as missing, per the "only fetch when missing" rule.
@@ -75,11 +84,27 @@ export function useAutoMeta(currentTrack, meta, dispatch) {
             if (saved) lyricsSaved = true;
           }
         }
-        const changed = coverPath !== track.cover_path || lyricsSaved;
+        if (auto.metadata) {
+          const needsMeta = track.title === 'Unknown Title'
+            || track.artist === 'Unknown Artist'
+            || !track.title
+            || !track.artist
+            || !track.album;
+          if (needsMeta) {
+            const { saved, updated } = await meta.fetchMetadata(track);
+            // Merge fetched fields into out so a later cover/lyrics dispatch
+            // can never clobber them (reducer replaces the whole track).
+            if (saved && updated) {
+              out = { ...out, ...updated };
+              metaSaved = true;
+            }
+          }
+        }
+        const changed = coverPath !== track.cover_path || lyricsSaved || metaSaved;
         if (changed && currentIdRef.current === track.id) {
           // Fresh object identity re-triggers NowPlaying's getLrc/cover
           // effects; cover_path merged so the fetched art actually shows.
-          dispatch({ type: 'SET_CURRENT_TRACK', payload: { ...track, cover_path: coverPath } });
+          dispatch({ type: 'SET_CURRENT_TRACK', payload: { ...out, cover_path: coverPath } });
         }
       } catch (err) {
         console.warn('Auto meta fetch failed:', err.message || err);

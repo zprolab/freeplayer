@@ -1,17 +1,23 @@
-// Batch backfill for missing metadata, scoped to one kind ('lyrics' | 'cover').
-// Moved out of Settings so plugin details can run per-backend backfills.
-// ~1.5s/track keeps both APIs (LRCLIB ~50/min, iTunes ~20/min) under their
-// rate limits; the services' own pacing + 429/403 cooldowns also apply.
+// Batch backfill for missing metadata, scoped to one kind
+// ('lyrics' | 'cover' | 'metadata'). Moved out of Settings so plugin details
+// can run per-backend backfills. ~1.5s/track keeps the APIs (LRCLIB ~50/min,
+// iTunes ~20/min, MusicBrainz rate-limited) under their limits; the services'
+// own pacing + 429/403 cooldowns also apply. Tests pass sleepMs: 0.
 let backfillRunning = false;
 
 export function isBackfillRunning() {
   return backfillRunning;
 }
 
-// kind: 'lyrics' — fetch lyrics only; 'cover' — fetch covers only.
+// kind: 'lyrics' — fetch lyrics only; 'cover' — fetch covers only;
+// 'metadata' — fill missing title/artist/album fields.
 // fetchForTrack: (track) => meta.fetchLyrics(track) | meta.fetchCover(track)
-// missingCheck: (track) => Promise<boolean> — true when the item is missing.
-export async function backfillMissing({ tracks, kind, fetchForTrack, missingCheck, onProgress }) {
+//   | meta.fetchMetadata(track)
+// missingCheck: (track) => Promise<boolean> — true when the item is missing;
+//   supplied by the caller (each kind knows its own missing condition).
+export async function backfillMissing({
+  tracks, kind, fetchForTrack, missingCheck, onProgress, sleepMs = 1500,
+}) {
   if (backfillRunning) return;
   const total = tracks?.length || 0;
   if (!total) return;
@@ -42,7 +48,7 @@ export async function backfillMissing({ tracks, kind, fetchForTrack, missingChec
       else if (hadMissing && !saved) noMatch++;
       done++;
       onProgress?.({ done, total, ok, fail, noMatch });
-      await sleep(1500);
+      await sleep(sleepMs);
     }
   } finally {
     backfillRunning = false;
