@@ -2647,6 +2647,10 @@ input[type="range"]::-webkit-slider-thumb {
   gap: 8px;
 }
 
+.confirm-dialog .perm-list {
+  margin-bottom: 20px;
+}
+
 /* Import mode badge in import modal */
 .import-mode-badge {
   display: inline-flex;
@@ -3976,7 +3980,9 @@ input[type="range"]::-webkit-slider-thumb {
 
 .plugin-select {
   max-width: 320px;
-  padding: 7px 10px;
+  height: 32px;
+  box-sizing: border-box;
+  padding: 0 10px;
   font-size: 13px;
   color: var(--gl-text-primary);
   background: var(--gl-white);

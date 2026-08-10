@@ -275,7 +275,7 @@ export default function PluginPage({ registry, meta, tracks }) {
                     </div>
                     <div className="plugin-field">
                       <button
-                        className="btn"
+                        className="btn btn-secondary"
                         disabled={isBackfillRunning() || (backfillProgress && backfillProgress.pluginId === p.id)}
                         onClick={() => handleBackfill(p)}
                       >
@@ -316,11 +316,17 @@ export default function PluginPage({ registry, meta, tracks }) {
                   <div className="plugin-field" key={s.key}>
                     <label>{s.label || s.key}</label>
                     {s.type === 'boolean' && (
-                      <ToggleSwitch
-                        checked={!!(settingsValues[p.id]?.[s.key] ?? s.default)}
-                        onChange={(v) => handleSettingChange(p, s, v)}
-                        label={s.label || s.key}
-                      />
+                      <div className="plugin-field plugin-field--row">
+                        <div className="plugin-field-label-group">
+                          <span className="plugin-field-label">{s.label || s.key}</span>
+                          {s.description && <span className="plugin-field-hint">{s.description}</span>}
+                        </div>
+                        <ToggleSwitch
+                          checked={!!(settingsValues[p.id]?.[s.key] ?? s.default)}
+                          onChange={(v) => handleSettingChange(p, s, v)}
+                          label={s.label || s.key}
+                        />
+                      </div>
                     )}
                     {s.type === 'number' && (
                       <input
