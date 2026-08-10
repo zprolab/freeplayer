@@ -11,6 +11,8 @@ import com.zprolab.FreePlayer.data.Track
 import com.zprolab.FreePlayer.import.ImportManager
 import com.zprolab.FreePlayer.playback.PlayerController
 import com.zprolab.FreePlayer.playback.QueueLogic
+import com.zprolab.FreePlayer.data.FetchState
+import com.zprolab.FreePlayer.metadata.OnlineMetadataService
 import com.zprolab.FreePlayer.util.LrcLine
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.Dispatchers
@@ -306,6 +308,10 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
         PlayerController.updateState { it.copy(importModalOpen = false) }
     }
 
+    fun updateState(transform: (com.zprolab.FreePlayer.playback.PlayerUiState) -> com.zprolab.FreePlayer.playback.PlayerUiState) {
+        PlayerController.updateState(transform)
+    }
+
     fun setVisualizerMode(mode: String) {
         PlayerController.updateState { it.copy(visualizerMode = mode) }
     }
@@ -330,6 +336,205 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
             val raw = runCatching { file.readBytes() }.getOrNull() ?: return@withContext emptyList()
             val content = com.zprolab.FreePlayer.util.LrcParser.decodeLrc(raw)
             com.zprolab.FreePlayer.util.LrcParser.parse(content)
+        }
+    }
+
+    // ── Online metadata: strict content verification + fetch ──
+
+    private val verifiedIdentities = mutableMapOf<Long, Pair<String, String>>()
+
+    /** Tracks whose title was derived from the file name (no real tags). */
+    private fun titleLooksDerivedFromFileName(track: Track): Boolean {
+        val stem = com.zprolab.FreePlayer.metadata.MetadataExtractor.cleanStem(
+            track.fileName.substringBeforeLast('.', track.fileName)
+        )
+        return track.title == stem
+    }
+
+    /**
+     * Strict content gate: returns the verified (title, artist) of the audio
+     * content, or null when verification fails (distorted audio, empty file,
+     * name collision). Mirrors the Swift verifiedIdentity.
+     */
+    private suspend fun verifiedIdentity(track: Track): Pair<String, String>? {
+        verifiedIdentities[track.id]?.let { return it }
+
+        val recognized = com.zprolab.FreePlayer.metadata.AudioRecognizer.recognize(track.filePath) ?: return null
+        if (recognized.score < com.zprolab.FreePlayer.metadata.AudioRecognizer.minimumScore) return null
+
+        if (!titleLooksDerivedFromFileName(track)) {
+            val titleSimilar = OnlineMetadataService.similarity(track.title, recognized.title) >= 0.7
+            val artistSimilar = track.artist.isEmpty() || track.artist == Track.UNKNOWN_ARTIST ||
+                OnlineMetadataService.similarity(track.artist, recognized.artist) >= 0.7
+            if (!(titleSimilar && artistSimilar)) return null
+        }
+
+        val identity = recognized.title to recognized.artist
+        verifiedIdentities[track.id] = identity
+        // Write back the recognized identity for random-named downloads.
+        db.updateTrack(track.id, mapOf("title" to recognized.title, "artist" to recognized.artist))
+        return identity
+    }
+
+    /**
+     * Prefer content recognition, but keep online metadata useful for tracks
+     * whose local tags are already meaningful when fpcalc/AcoustID is absent.
+     */
+    private suspend fun metadataLookup(track: Track): Track? {
+        verifiedIdentity(track)?.let { identity ->
+            return track.copy(title = identity.first, artist = identity.second)
+        }
+        val title = track.title.trim()
+        if (title.isBlank() || title.equals("Unknown Title", ignoreCase = true)) return null
+        return track
+    }
+
+    fun fetchLyrics(track: Track?, onLoaded: (List<LrcLine>) -> Unit) {
+        val t = track ?: return
+        PlayerController.updateState { it.copy(lyricsFetchState = FetchState.FETCHING) }
+        viewModelScope.launch {
+            val lookup = metadataLookup(t)
+            if (lookup == null) {
+                PlayerController.updateState { it.copy(lyricsFetchState = FetchState.FAILED) }
+                return@launch
+            }
+            val content = OnlineMetadataService.fetchLyrics(lookup)
+            if (content == null) {
+                PlayerController.updateState { it.copy(lyricsFetchState = FetchState.NOT_FOUND) }
+                return@launch
+            }
+            saveFetchedLyrics(content, t)
+            PlayerController.updateState { it.copy(lyricsFetchState = FetchState.IDLE) }
+            onLoaded(loadLyrics(t))
+        }
+    }
+
+    fun fetchCover(track: Track?) {
+        val t = track ?: return
+        PlayerController.updateState { it.copy(coverFetchState = FetchState.FETCHING) }
+        viewModelScope.launch {
+            val lookup = metadataLookup(t)
+            if (lookup == null) {
+                PlayerController.updateState { it.copy(coverFetchState = FetchState.FAILED) }
+                return@launch
+            }
+            val data = OnlineMetadataService.fetchCover(lookup) ?: run {
+                PlayerController.updateState { it.copy(coverFetchState = FetchState.NOT_FOUND) }
+                return@launch
+            }
+            saveFetchedCover(data, t)
+            PlayerController.updateState { it.copy(coverFetchState = FetchState.IDLE) }
+            refreshTrack(t.id)
+        }
+    }
+
+    /** Auto-fetch lyrics/cover when a track starts playing (one attempt per track). */
+    private val autoMetadataAttempts = mutableSetOf<Long>()
+
+    fun autoFetchMetadata(track: Track?, onLyricsLoaded: (List<LrcLine>) -> Unit = {}) {
+        val t = track ?: return
+        if (!autoFetchMetaEnabled() || t.id in autoMetadataAttempts) return
+        autoMetadataAttempts.add(t.id)
+        viewModelScope.launch {
+            if (t.coverPath == null || !File(t.coverPath!!).exists()) {
+                PlayerController.updateState { it.copy(coverFetchState = FetchState.FETCHING) }
+                val saved = fetchCoverInner(t)
+                PlayerController.updateState { it.copy(coverFetchState = if (saved) FetchState.IDLE else FetchState.NOT_FOUND) }
+                if (saved) refreshTrack(t.id)
+            }
+            if (loadLyrics(t).isEmpty()) {
+                if (fetchLyricsInner(t)) onLyricsLoaded(loadLyrics(t))
+            }
+        }
+    }
+
+    private suspend fun fetchLyricsInner(track: Track): Boolean {
+        val lookup = metadataLookup(track) ?: return false
+        val content = OnlineMetadataService.fetchLyrics(lookup) ?: return false
+        return saveFetchedLyrics(content, track)
+    }
+
+    private suspend fun fetchCoverInner(track: Track): Boolean {
+        val lookup = metadataLookup(track) ?: return false
+        val data = OnlineMetadataService.fetchCover(lookup) ?: return false
+        return saveFetchedCover(data, track)
+    }
+
+    private fun saveFetchedLyrics(content: String, track: Track): Boolean {
+        val dir = File(track.filePath).parentFile ?: return false
+        val stem = com.zprolab.FreePlayer.metadata.MetadataExtractor.cleanStem(track.fileName.substringBeforeLast('.', track.fileName))
+        val target = File(dir, "$stem.${track.id}.lrc")
+        return runCatching {
+            target.writeText(content, Charsets.UTF_8)
+            db.setTrackLrc(track.id, target.absolutePath)
+        }.getOrDefault(false)
+    }
+
+    private fun saveFetchedCover(data: ByteArray, track: Track): Boolean {
+        val audioFile = File(track.filePath)
+        val dir = audioFile.parentFile ?: return false
+        val coverDir = File(dir, ".covers")
+        coverDir.mkdirs()
+        val target = File(coverDir, "cover-${track.id}.jpg")
+        return runCatching {
+            target.writeBytes(data)
+            db.updateTrack(track.id, mapOf("cover_path" to target.absolutePath))
+        }.getOrDefault(false)
+    }
+
+    private fun refreshTrack(trackId: Long) {
+        val updated = db.getTrackById(trackId) ?: return
+        PlayerController.updateState { current ->
+            current.copy(
+                tracks = current.tracks.map { if (it.id == trackId) updated else it },
+                playlistTracks = current.playlistTracks.map { if (it.id == trackId) updated else it },
+                queue = current.queue.map { if (it.id == trackId) updated else it },
+                currentTrack = if (current.currentTrack?.id == trackId) updated else current.currentTrack,
+            )
+        }
+    }
+
+    fun autoFetchMetaEnabled(): Boolean =
+        db.getSetting("auto_fetch_meta", "true")?.toBoolean() ?: true
+
+    fun setAutoFetchMeta(enabled: Boolean) {
+        db.setSetting("auto_fetch_meta", enabled.toString())
+    }
+
+    fun setAcoustidKey(key: String) {
+        com.zprolab.FreePlayer.metadata.AudioRecognizer.setApiKey(key)
+    }
+
+    fun acoustidKey(): String =
+        db.getSetting("acoustid_api_key", null) ?: com.zprolab.FreePlayer.metadata.AudioRecognizer.defaultAPIKey
+
+    // ── backfill (Settings: one-tap fill missing lyrics/covers) ──
+
+    private var backfillRunning = false
+
+    val backfillProgress = MutableStateFlow<Pair<Int, Int>?>(null) // done, total
+
+    fun startBackfill(onProgress: (done: Int, total: Int) -> Unit) {
+        if (backfillRunning) return
+        backfillRunning = true
+        viewModelScope.launch {
+            val snapshot = state.value.tracks.toList()
+            var done = 0
+            for (track in snapshot) {
+                var isSaved = false
+                if (track.coverPath == null || !File(track.coverPath!!).exists()) {
+                    isSaved = fetchCoverInner(track) || isSaved
+                }
+                if (loadLyrics(track).isEmpty()) {
+                    isSaved = fetchLyricsInner(track) || isSaved
+                }
+                if (isSaved) refreshTrack(track.id)
+                done++
+                backfillProgress.value = done to snapshot.size
+                onProgress(done, snapshot.size)
+                kotlinx.coroutines.delay(1200)
+            }
+            backfillRunning = false
         }
     }
 

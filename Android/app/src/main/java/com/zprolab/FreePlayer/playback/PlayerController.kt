@@ -45,9 +45,15 @@ data class PlayerUiState(
     val playlistTracks: List<Track> = emptyList(),
     val dragOver: Boolean = false,
     val isImmersive: Boolean = false,
+    val lyricsFetchState: com.zprolab.FreePlayer.data.FetchState = com.zprolab.FreePlayer.data.FetchState.IDLE,
+    val coverFetchState: com.zprolab.FreePlayer.data.FetchState = com.zprolab.FreePlayer.data.FetchState.IDLE,
+    val backfillDone: Int = 0,
+    val backfillTotal: Int = 0,
 ) {
     val displayedTracks: List<Track>
         get() = if (activePlaylistId == null) tracks else playlistTracks
+
+    fun backfillProgress(): Pair<Int, Int>? = if (backfillTotal > 0) backfillDone to backfillTotal else null
 }
 
 /**
@@ -77,6 +83,10 @@ object PlayerController {
 
         override fun onPlaybackStateChanged(playbackState: Int) {
             when (playbackState) {
+                Player.STATE_READY -> {
+                    // Audio session becomes valid once prepared — bind the EQ.
+                    player?.let { com.zprolab.FreePlayer.audio.EqualizerEngine.attach(it.audioSessionId) }
+                }
                 Player.STATE_ENDED -> {
                     if (_state.value.playMode == QueueLogic.MODE_REPEAT_ONE) {
                         player?.seekTo(0)
@@ -96,6 +106,7 @@ object PlayerController {
     fun init(context: Context) {
         appContext = context.applicationContext
         db = Database.get(appContext)
+        com.zprolab.FreePlayer.audio.EqualizerEngine.restore()
     }
 
     private fun ensurePlayer(): ExoPlayer {
@@ -112,6 +123,8 @@ object PlayerController {
         p.addListener(listener)
         player = p
         p.volume = (_state.value.volume * replayGainMultiplier(_state.value.currentTrack)).coerceIn(0f, 1f)
+        // Attach the equalizer to the audio session (no-op until prepared).
+        com.zprolab.FreePlayer.audio.EqualizerEngine.attach(p.audioSessionId)
         return p
     }
 

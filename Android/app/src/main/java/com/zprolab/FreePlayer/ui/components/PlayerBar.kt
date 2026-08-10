@@ -29,6 +29,7 @@ import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material.icons.filled.VolumeDown
 import androidx.compose.material.icons.filled.VolumeOff
+import androidx.compose.material.icons.filled.Equalizer
 import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -63,6 +64,7 @@ fun PlayerBar(
     onSeek: (Double) -> Unit,
     onVolumeChange: (Float) -> Unit,
     onPlayModeChange: (String) -> Unit,
+    onOpenEqualizer: (() -> Unit)? = null,
 ) {
     BoxWithConstraints(Modifier.fillMaxWidth()) {
         if (maxWidth < 560.dp) {
@@ -74,6 +76,7 @@ fun PlayerBar(
                 onTogglePlay = onTogglePlay,
                 onNext = onNext,
                 onPrev = onPrev,
+                onOpenEqualizer = onOpenEqualizer,
             )
         } else {
             Column(
@@ -169,6 +172,9 @@ fun PlayerBar(
                         color = Fp.TextSecondary,
                         fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
                     )
+                    if (onOpenEqualizer != null) {
+                        ModeButton(Icons.Filled.Equalizer, false, "Equalizer") { onOpenEqualizer() }
+                    }
                     VolumeControl(volume, onVolumeChange)
                 }
             }
@@ -186,6 +192,7 @@ private fun CompactPlayerBar(
     onTogglePlay: () -> Unit,
     onNext: () -> Unit,
     onPrev: () -> Unit,
+    onOpenEqualizer: (() -> Unit)? = null,
 ) {
     Column(
         Modifier
@@ -232,6 +239,9 @@ private fun CompactPlayerBar(
                 )
             }
             IconButton(16.dp, Icons.Filled.SkipNext, "Next") { onNext() }
+            if (onOpenEqualizer != null) {
+                ModeButton(Icons.Filled.Equalizer, false, "Equalizer") { onOpenEqualizer() }
+            }
         }
     }
 }

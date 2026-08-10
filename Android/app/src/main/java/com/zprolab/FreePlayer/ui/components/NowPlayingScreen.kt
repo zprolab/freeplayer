@@ -68,6 +68,10 @@ fun NowPlayingScreen(
     lyrics: List<LrcLine>,
     onUploadLrc: () -> Unit,
     onRemoveLrc: () -> Unit,
+    onFetchLyrics: () -> Unit,
+    onFetchCover: () -> Unit,
+    lyricsFetchState: com.zprolab.FreePlayer.data.FetchState,
+    coverFetchState: com.zprolab.FreePlayer.data.FetchState,
     isImmersive: Boolean,
     onImmersiveChange: (Boolean) -> Unit,
 ) {
@@ -131,6 +135,8 @@ fun NowPlayingScreen(
                 onPrev = onPrev,
                 onUploadLrc = onUploadLrc,
                 onRemoveLrc = onRemoveLrc,
+                onFetchCover = onFetchCover,
+                coverFetchState = coverFetchState,
                 onFullscreen = { onImmersiveChange(true) },
                 compact = compact,
             )
@@ -139,6 +145,8 @@ fun NowPlayingScreen(
                 currentTime = currentTime,
                 onUploadLrc = onUploadLrc,
                 onRemoveLrc = onRemoveLrc,
+                onFetchLyrics = onFetchLyrics,
+                fetchState = lyricsFetchState,
                 onFullscreen = { onImmersiveChange(true) },
             )
             2 -> ScopeTab(
@@ -196,12 +204,20 @@ private fun OverviewTab(
     onPrev: () -> Unit,
     onUploadLrc: () -> Unit,
     onRemoveLrc: () -> Unit,
+    onFetchCover: () -> Unit,
+    coverFetchState: com.zprolab.FreePlayer.data.FetchState,
     onFullscreen: () -> Unit,
     compact: Boolean,
 ) {
     if (compact) {
         Column(Modifier.fillMaxWidth()) {
-            TrackDetails(track, coverSize = 160.dp, titleSize = 22)
+            TrackDetails(
+                track,
+                coverSize = 160.dp,
+                titleSize = 22,
+                onFetchCover = onFetchCover,
+                coverFetchState = coverFetchState,
+            )
             Spacer(Modifier.height(20.dp))
             LyricsDisplay(
                 lines = lyrics,
@@ -218,7 +234,14 @@ private fun OverviewTab(
         }
     } else {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(32.dp)) {
-            TrackDetails(track, coverSize = 200.dp, titleSize = 26, modifier = Modifier.width(280.dp))
+            TrackDetails(
+                track,
+                coverSize = 200.dp,
+                titleSize = 26,
+                onFetchCover = onFetchCover,
+                coverFetchState = coverFetchState,
+                modifier = Modifier.width(280.dp),
+            )
             Column(Modifier.weight(1f)) {
                 LyricsDisplay(
                     lines = lyrics,
@@ -242,10 +265,36 @@ private fun TrackDetails(
     track: Track,
     coverSize: androidx.compose.ui.unit.Dp,
     titleSize: Int,
+    onFetchCover: () -> Unit,
+    coverFetchState: com.zprolab.FreePlayer.data.FetchState,
     modifier: Modifier = Modifier,
 ) {
     Column(modifier) {
         CoverArt(track.coverPath, size = coverSize, cornerRadius = 8.dp)
+        if (track.coverPath.isNullOrBlank() || coverFetchState != com.zprolab.FreePlayer.data.FetchState.IDLE) {
+            Spacer(Modifier.height(8.dp))
+            Box(
+                Modifier
+                    .clip(RoundedCornerShape(5.dp))
+                    .background(Fp.ContentBg)
+                    .clickable(
+                        enabled = coverFetchState != com.zprolab.FreePlayer.data.FetchState.FETCHING,
+                        onClick = onFetchCover,
+                    )
+                    .padding(horizontal = 10.dp, vertical = 6.dp),
+            ) {
+                Text(
+                    when (coverFetchState) {
+                        com.zprolab.FreePlayer.data.FetchState.FETCHING -> "Finding cover…"
+                        com.zprolab.FreePlayer.data.FetchState.NOT_FOUND -> "Cover not found · Retry"
+                        com.zprolab.FreePlayer.data.FetchState.FAILED -> "Cover lookup failed · Retry"
+                        com.zprolab.FreePlayer.data.FetchState.IDLE -> "Find cover online"
+                    },
+                    fontSize = 11.sp,
+                    color = if (coverFetchState == com.zprolab.FreePlayer.data.FetchState.FAILED) Fp.Orange else Fp.TextSecondary,
+                )
+            }
+        }
         Spacer(Modifier.height(16.dp))
         Text(
             track.title,
@@ -295,6 +344,8 @@ private fun LyricsTab(
     currentTime: Double,
     onUploadLrc: () -> Unit,
     onRemoveLrc: () -> Unit,
+    onFetchLyrics: () -> Unit,
+    fetchState: com.zprolab.FreePlayer.data.FetchState,
     onFullscreen: () -> Unit,
 ) {
     LyricsDisplay(
@@ -304,6 +355,8 @@ private fun LyricsTab(
         onFullscreen = onFullscreen,
         onUpload = onUploadLrc,
         onRemoveLrc = onRemoveLrc,
+        onFetchLyrics = onFetchLyrics,
+        fetchState = fetchState,
         modifier = Modifier.fillMaxWidth().height(640.dp),
     )
 }
