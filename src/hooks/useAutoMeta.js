@@ -1,14 +1,14 @@
 import { useEffect, useRef } from 'react';
-import { fetchAndSaveLyrics, fetchAndSaveCover } from '../services/metaPersistence';
 
 // One fetch attempt per track per app session; failures stay quiet.
+// meta = { fetchLyrics, fetchCover } from the plugin metadata registry.
 // Dispatch guards:
 //  - currentIdRef: a slow fetch from a previous track can never clobber
 //    state.currentTrack after the user switched tracks.
 //  - enabledRef: toggling the setting off mid-flight cancels the refresh.
 //  - "changed" check: no pointless re-render / re-fetch when nothing was
 //    actually saved.
-export function useAutoMeta(currentTrack, enabled, dispatch) {
+export function useAutoMeta(currentTrack, enabled, meta, dispatch) {
   const attempted = useRef(new Set());
   const currentIdRef = useRef(currentTrack?.id ?? null);
   const enabledRef = useRef(enabled);
@@ -16,7 +16,7 @@ export function useAutoMeta(currentTrack, enabled, dispatch) {
   enabledRef.current = enabled;
 
   useEffect(() => {
-    if (!enabled) return;
+    if (!enabled || !meta) return;
     if (!currentTrack?.id || !currentTrack?.title) return;
     if (attempted.current.has(currentTrack.id)) return;
     attempted.current.add(currentTrack.id);
@@ -31,12 +31,12 @@ export function useAutoMeta(currentTrack, enabled, dispatch) {
         const coverMissing = !track.cover_path
           || !(await window.freeplayer.getCover(track.cover_path).catch(() => null));
         if (coverMissing) {
-          const { saved, coverPath: newCoverPath } = await fetchAndSaveCover(track);
+          const { saved, coverPath: newCoverPath } = await meta.fetchCover(track);
           if (saved && newCoverPath) coverPath = newCoverPath;
         }
         const lrc = await window.freeplayer.getLrc(track.id);
         if (!lrc || !lrc.content) {
-          const { saved } = await fetchAndSaveLyrics(track);
+          const { saved } = await meta.fetchLyrics(track);
           if (saved) lyricsSaved = true;
         }
         const changed = coverPath !== track.cover_path || lyricsSaved;
@@ -49,5 +49,5 @@ export function useAutoMeta(currentTrack, enabled, dispatch) {
         console.warn('Auto meta fetch failed:', err.message || err);
       }
     })();
-  }, [currentTrack, enabled, dispatch]);
+  }, [currentTrack, enabled, meta, dispatch]);
 }

@@ -1,19 +1,14 @@
-import { fetchLyricsForTrack, fetchCoverForTrack } from './metaFetch';
-
-// Fetch + persist for one track. Used by both the explicit Now Playing
-// buttons and the auto-fetch hook, so both paths behave identically.
-export async function fetchAndSaveLyrics(track) {
+// Thin persistence facade: fetch + persist for one track. Delegates to the
+// plugin metadata registry (meta = { fetchLyrics, fetchCover }) injected by
+// the caller — used by the explicit Now Playing buttons, the Settings batch
+// backfill and the auto-fetch hook, so all paths behave identically. Without
+// a meta object (plugin runtime not ready) they no-op with { saved: false }.
+export async function fetchAndSaveLyrics(track, meta) {
   if (!track?.id) return { saved: false };
-  const lyrics = await fetchLyricsForTrack(track);
-  if (!lyrics) return { saved: false };
-  const res = await window.freeplayer.saveLrcContent(track.id, lyrics);
-  return { saved: !!(res && res.success), lrcPath: res && res.lrcPath };
+  return meta ? meta.fetchLyrics(track) : { saved: false };
 }
 
-export async function fetchAndSaveCover(track) {
+export async function fetchAndSaveCover(track, meta) {
   if (!track?.id) return { saved: false };
-  const cover = await fetchCoverForTrack(track);
-  if (!cover) return { saved: false };
-  const res = await window.freeplayer.saveCover(track.id, cover);
-  return { saved: !!(res && res.success), coverPath: res && res.coverPath };
+  return meta ? meta.fetchCover(track) : { saved: false };
 }

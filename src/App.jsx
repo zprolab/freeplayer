@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Sidebar from './components/Sidebar';
 import Library from './components/Library';
 import NowPlaying from './components/NowPlaying';
@@ -6,6 +6,7 @@ import Stats from './components/Stats';
 import PlayerBar from './components/PlayerBar';
 import ImportModal from './components/ImportModal';
 import Settings from './components/Settings';
+import PluginPage from './components/PluginPage';
 import PlaylistModal from './components/PlaylistModal';
 import { usePlayer, VIEWS } from './context/PlayerContext';
 import { usePlayback } from './hooks/usePlayback';
@@ -13,6 +14,76 @@ import { useLibrary } from './hooks/useLibrary';
 import { usePlaylists } from './hooks/usePlaylists';
 import { useAutoMeta } from './hooks/useAutoMeta';
 import { audioEngine } from './audioEngine';
+import { createRegistry } from './plugins/registry';
+import { createMetadataRegistry } from './plugins/metadataRegistry';
+import { BUILTIN_PLUGINS } from './plugins/builtin';
+import { createLoader } from './plugins/loader';
+import { createPluginApi } from './plugins/api';
+import { createEventBus } from './plugins/hooks';
+
+// Plugin runtime singleton: registry + metadata registry assembled lazily on
+// first use. Player/audio/events are resolved per plugin activation via
+// window.__fpRuntimeState (written below), so lazily-activated plugins always
+// see the live player bridge.
+let pluginRuntime = null;
+
+async function getPluginRuntime() {
+  if (pluginRuntime) return pluginRuntime;
+  const loader = createLoader({
+    readFile: (pluginId, relPath) => window.freeplayer.readPluginFile(pluginId, relPath),
+    importUrl: (url) => import(/* @vite-ignore */ url),
+    createApi: (pluginId) => createPluginApi(pluginId, [], {
+      bridge: {
+        http: {
+          getJson: (url) => window.freeplayer.httpGetJson(url),
+          getBase64: (url) => window.freeplayer.httpGetBase64(url),
+        },
+        metadata: {
+          getTrackInfo: (id) => window.freeplayer.getTrack(id),
+          getLyrics: (id) => window.freeplayer.getLrc(id).then((r) => r && r.content),
+          getCover: (id) => window.freeplayer.getTrack(id).then((t) => (t ? window.freeplayer.getCover(t.cover_path) : null)),
+          saveLyrics: (id, content) => window.freeplayer.saveLrcContent(id, content),
+          saveCover: (id, base64) => window.freeplayer.saveCover(id, base64),
+          updateTrack: (id, fields) => window.freeplayer.updateTrack({ id, ...fields }),
+          removeLyrics: (id) => window.freeplayer.removeLrc(id),
+        },
+        audio: null, // provided by App via window.__fpRuntimeState (Step 5b)
+      },
+      player: null, // provided by App via window.__fpRuntimeState (Step 5b)
+      settings: {
+        get: (key) => window.freeplayer.getSetting(key),
+        set: ({ key, value }) => window.freeplayer.setSetting({ key, value }),
+      },
+      pluginSettings: {
+        get: (key) => window.freeplayer.getSetting(`plugin.${key}`),
+        set: (key, value) => window.freeplayer.setSetting({ key: `plugin.${key}`, value: JSON.stringify(value) }),
+      },
+      log: (id, level, msg) => console.warn(`[plugin:${id}]`, level, msg),
+      events: null, // provided by App via window.__fpRuntimeState (Step 5b)
+    }),
+    onDenied: (pluginId, key) => console.warn(`[plugin:${pluginId}] permission denied: ${key}`),
+  });
+  const registry = createRegistry({
+    listPlugins: () => window.freeplayer.listPlugins(),
+    readFile: (pluginId, relPath) => window.freeplayer.readPluginFile(pluginId, relPath),
+    loader,
+    log: (id, level, msg) => console.warn(`[plugin:${id}]`, level, msg),
+    getSetting: (k) => window.freeplayer.getSetting(k),
+    setSetting: (data) => window.freeplayer.setSetting(data),
+    uninstallPlugin: (id) => window.freeplayer.uninstallPlugin(id),
+  });
+  for (const b of BUILTIN_PLUGINS) registry.registerBuiltin(b);
+  await registry.discover();
+  await registry.restoreState();
+  const meta = createMetadataRegistry({
+    registry,
+    getSetting: (k) => window.freeplayer.getSetting(k),
+    saveLyrics: (trackId, content) => window.freeplayer.saveLrcContent(trackId, content),
+    saveCover: (trackId, base64) => window.freeplayer.saveCover(trackId, base64),
+  });
+  pluginRuntime = { registry, meta };
+  return pluginRuntime;
+}
 
 export default function App() {
   const { state, dispatch, audioRef } = usePlayer();
@@ -31,7 +102,79 @@ export default function App() {
     handleAddToPlaylist, handleRemoveFromPlaylist, handleOpenCreateForTrack,
   } = usePlaylists();
 
-  useAutoMeta(state.currentTrack, state.autoFetchMeta, dispatch);
+  const [pluginRuntime, setPluginRuntime] = useState(null);
+  const meta = pluginRuntime?.meta;
+
+  useAutoMeta(state.currentTrack, state.autoFetchMeta, meta, dispatch);
+
+  // Plugin bridge: real player/audio/events are written into
+  // window.__fpRuntimeState and read lazily by createPluginApi per activation.
+  // pluginBridgeRef.current is re-assigned every render, so the closures below
+  // must dereference it at call time — never snapshotted at mount (F1).
+  const stateRef = useRef(state);
+  stateRef.current = state;
+  const eventBusRef = useRef(createEventBus());
+  const registryRef = useRef(null);
+  registryRef.current = pluginRuntime?.registry;
+  const pluginBridgeRef = useRef({});
+  pluginBridgeRef.current = { state, togglePlayPause, handleNext, handlePrev, handleSeek, handleVolumeChange, audioRef };
+
+  useEffect(() => {
+    window.__fpRuntimeState = {
+      player: {
+        getState: () => pluginBridgeRef.current.state,
+        getTrack: () => pluginBridgeRef.current.state.currentTrack,
+        play: () => { if (!pluginBridgeRef.current.state.isPlaying) pluginBridgeRef.current.togglePlayPause(); },
+        pause: () => { if (pluginBridgeRef.current.state.isPlaying) pluginBridgeRef.current.togglePlayPause(); },
+        seek: (t) => pluginBridgeRef.current.handleSeek(t),
+        next: () => pluginBridgeRef.current.handleNext(),
+        previous: () => pluginBridgeRef.current.handlePrev(),
+        setVolume: (v) => pluginBridgeRef.current.handleVolumeChange(v),
+      },
+      audio: { getSource: () => (pluginBridgeRef.current.audioRef.current ? pluginBridgeRef.current.audioRef.current.src : null) },
+      events: eventBusRef.current,
+    };
+  }, []);
+
+  // Plugin runtime: registry + metadata registry (auto-fetch pipeline).
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const rt = await getPluginRuntime();
+        if (cancelled) return;
+        setPluginRuntime(rt);
+        rt.registry.subscribe('trackChanged', (track) => {
+          // App stays the source of truth for playback: only adopt a
+          // plugin-emitted track change when it names a different track.
+          if (track?.id && track.id !== stateRef.current.currentTrack?.id) {
+            dispatch({ type: 'SET_CURRENT_TRACK', payload: track });
+          }
+        });
+      } catch (err) {
+        console.warn('Plugin runtime init failed:', err.message || err);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Forward playback/track state to plugin listeners (api.events) and to the
+  // registry (lazy-activation hooks onTrackChanged / onPlaybackChanged).
+  // registryRef keeps the registry out of the deps so runtime init doesn't
+  // cause spurious re-emits; the ref always holds the latest instance.
+  useEffect(() => {
+    if (!state.currentTrack) return;
+    window.__fpRuntimeState?.events?.emit('trackChanged', state.currentTrack);
+    registryRef.current?.emit('trackChanged', state.currentTrack);
+  }, [state.currentTrack]);
+
+  useEffect(() => {
+    const payload = {
+      isPlaying: state.isPlaying, currentTime: state.currentTime, duration: state.duration,
+    };
+    window.__fpRuntimeState?.events?.emit('playbackChanged', payload);
+    registryRef.current?.emit('playbackChanged', payload);
+  }, [state.isPlaying, state.currentTime, state.duration]);
 
   // Native shell: file drops arrive with real filesystem paths
   useEffect(() => {
@@ -183,6 +326,7 @@ export default function App() {
               )}
               {state.view === VIEWS.NOW_PLAYING && 'Now Playing'}
               {state.view === VIEWS.STATS && 'Statistics'}
+              {state.view === VIEWS.PLUGINS && 'Plugins'}
               {state.view === VIEWS.SETTINGS && 'Settings'}
             </h1>
             {state.view === VIEWS.LIBRARY && (
@@ -232,7 +376,22 @@ export default function App() {
               </div>
             </div>
           )}
-          {state.view === VIEWS.SETTINGS ? (
+          {state.view === VIEWS.PLUGINS ? (
+            pluginRuntime ? (
+              <PluginPage registry={pluginRuntime.registry} />
+            ) : (
+              <div className="empty-state">
+                <div className="empty-state-icon">
+                  <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2">
+                    <rect x="3" y="3" width="18" height="18" rx="2"/>
+                    <path d="M12 8v8M8 12h8"/>
+                  </svg>
+                </div>
+                <h2>Plugins unavailable</h2>
+                <p>Plugin runtime failed to initialize. Restart FreePlayer and try again.</p>
+              </div>
+            )
+          ) : state.view === VIEWS.SETTINGS ? (
             <Settings
               importMode={state.importMode}
               onImportModeChange={handleImportModeChange}
@@ -255,6 +414,7 @@ export default function App() {
                 window.freeplayer.setSetting({ key: 'auto_fetch_meta', value: val ? '1' : '0' }).catch(() => {});
               }}
               tracks={state.tracks}
+              meta={meta}
               onResetDatabase={handleResetDatabase}
             />
           ) : !state.isSetup ? (
@@ -315,6 +475,7 @@ export default function App() {
                   visualizerMode={state.visualizerMode}
                   onVisualizerModeChange={(m) => dispatch({ type: 'SET', payload: { visualizerMode: m } })}
                   onCoverSaved={(coverPath) => dispatch({ type: 'SET_CURRENT_TRACK', payload: { ...state.currentTrack, cover_path: coverPath } })}
+                  meta={meta}
                 />
               )}
               {state.view === VIEWS.STATS && <Stats />}

@@ -50,5 +50,9 @@ global.window = {
     importFiles: async () => ({ imported: 0, errors: [] }),
     selectLibraryDir: async () => ({ canceled: true }),
     getTotalDuration: async () => 0,
+    listPlugins: async () => [],
+    readPluginFile: async () => null,
+    uninstallPlugin: async () => {},
+    openPluginsDir: async () => {},
   },
 };
