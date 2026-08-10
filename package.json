@@ -2,6 +2,8 @@
   "name": "freeplayer",
   "version": "1.0.0",
   "description": "A local music player with metadata tracking and listening statistics",
+  "license": "GPL-3.0-or-later",
+  "author": "zprolab",
   "scripts": {
     "dev": "bash shell/scripts/dev.sh",
     "build": "vite build",

@@ -47,6 +47,7 @@ bundle: $(APP)
 	mkdir -p $(BUNDLE)/Contents/MacOS $(BUNDLE)/Contents/Resources/web
 	cp $(APP) $(BUNDLE)/Contents/MacOS/FreePlayer
 	cp -R $(DIST)/. $(BUNDLE)/Contents/Resources/web/
+	cp ../LICENSE $(BUNDLE)/Contents/Resources/LICENSE
 	cp Info.plist $(BUNDLE)/Contents/Info.plist
 	codesign --force --sign - $(BUNDLE)
 	@echo "==> $(BUNDLE) ready"
