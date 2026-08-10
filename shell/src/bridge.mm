@@ -277,6 +277,11 @@ static void fpHttpGet(NSString *urlStr, NSNumber *mid, void (^replyBlock)(NSNumb
   }
   NSMutableURLRequest *req = [NSMutableURLRequest requestWithURL:url];
   req.timeoutInterval = 10;
+  // Descriptive User-Agent — LRCLIB and iTunes both ask clients to identify
+  // themselves so abuse is attributable instead of IP-banned.
+  NSString *ver = NSBundle.mainBundle.infoDictionary[@"CFBundleShortVersionString"] ?: @"dev";
+  [req setValue:[NSString stringWithFormat:@"FreePlayer/%@ (+https://github.com/zprolab/FreePlayer)", ver]
+      forHTTPHeaderField:@"User-Agent"];
   NSURLSessionDataTask *task = [fpSharedSession() dataTaskWithRequest:req
     completionHandler:^(NSData *data, NSURLResponse *resp, NSError *err) {
       NSHTTPURLResponse *http = (NSHTTPURLResponse *)resp;
