@@ -5,7 +5,6 @@ const SUPPORTED_FORMATS = ['.mp3', '.flac', '.wav', '.ogg', '.m4a', '.aac', '.wm
 export default function ImportModal({ onClose, onComplete, importMode, initialPaths }) {
   const [step, setStep] = useState('select-source');
   const [sourceDir, setSourceDir] = useState('');
-  const [libraryDir, setLibraryDir] = useState('');
   const [files, setFiles] = useState([]);
   const [scanning, setScanning] = useState(false);
   const [importing, setImporting] = useState(false);
@@ -22,7 +21,6 @@ export default function ImportModal({ onClose, onComplete, importMode, initialPa
         return;
       }
       setSourceDir(result.sourceDir);
-      setLibraryDir(result.libraryDir);
 
       setScanning(true);
       setStep('scanning');
@@ -44,13 +42,14 @@ export default function ImportModal({ onClose, onComplete, importMode, initialPa
     setError('');
     setErrorDetails([]);
     try {
-      const res = await window.freeplayer.importFiles({
-        files,
-        libraryDir,
-      });
+      const res = await window.freeplayer.importFiles({ files });
       setResult(res);
       setImporting(false);
-      if (res.imported === 0 && res.errors.length > 0) {
+      if (res.error) {
+        setError(res.error);
+        setErrorDetails(res.errors || []);
+        setStep('error');
+      } else if (res.imported === 0 && res.errors.length > 0) {
         setError(`All ${res.errors.length} files failed to import`);
         setErrorDetails(res.errors);
         setStep('error');
@@ -79,18 +78,12 @@ export default function ImportModal({ onClose, onComplete, importMode, initialPa
 
   const handleInitialPaths = useCallback(async (paths) => {
     try {
-      // Get library directory
-      let libDir = await window.freeplayer.getSetting('library_dir');
+      // Library dir must exist (set during onboarding); Import never sets it.
+      const libDir = await window.freeplayer.getSetting('library_dir');
       if (!libDir) {
-        // Fall back to import dialog to set library dir
-        const result = await window.freeplayer.importDialog();
-        if (result.canceled) {
-          onComplete({ canceled: true });
-          return;
-        }
-        libDir = result.libraryDir;
+        onComplete({ canceled: true, error: 'Set up your library first (first-run wizard).' });
+        return;
       }
-      setLibraryDir(libDir);
 
       setScanning(true);
       setStep('scanning');
@@ -209,10 +202,6 @@ export default function ImportModal({ onClose, onComplete, importMode, initialPa
                 <div className="summary-row">
                   <span className="summary-label">Source</span>
                   <span className="summary-value mono">{sourceDir}</span>
-                </div>
-                <div className="summary-row">
-                  <span className="summary-label">Library</span>
-                  <span className="summary-value mono">{libraryDir}</span>
                 </div>
                 <div className="summary-row">
                   <span className="summary-label">Files found</span>
