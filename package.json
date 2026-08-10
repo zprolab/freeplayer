@@ -12,7 +12,9 @@
     "test:watch": "vitest",
     "shell:dev": "bash shell/scripts/dev.sh",
     "shell:bundle": "vite build && make -C shell bundle",
-    "shell:dist": "bash shell/scripts/package.sh"
+    "shell:dist": "bash shell/scripts/package.sh",
+    "install": "bash shell/scripts/install.sh",
+    "clean": "bash shell/scripts/clean.sh"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.3.4",
