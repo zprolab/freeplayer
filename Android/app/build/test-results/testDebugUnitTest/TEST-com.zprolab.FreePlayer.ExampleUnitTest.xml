@@ -1,7 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<testsuite name="com.zprolab.FreePlayer.ExampleUnitTest" tests="1" skipped="0" failures="0" errors="0" timestamp="2026-08-08T14:38:35.834Z" hostname="taoyuchendeMacBook-Pro.local" time="0.002">
-  <properties/>
-  <testcase name="addition_isCorrect" classname="com.zprolab.FreePlayer.ExampleUnitTest" time="0.0"/>
-  <system-out><![CDATA[]]></system-out>
-  <system-err><![CDATA[]]></system-err>
-</testsuite>

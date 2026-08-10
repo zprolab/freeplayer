@@ -1,0 +1,14 @@
+{
+  "pins" : [
+    {
+      "identity" : "chromaswift",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/wallisch/ChromaSwift.git",
+      "state" : {
+        "branch" : "master",
+        "revision" : "900b29aff4129541c19e5e2b91f9cd4068afd19d"
+      }
+    }
+  ],
+  "version" : 2
+}

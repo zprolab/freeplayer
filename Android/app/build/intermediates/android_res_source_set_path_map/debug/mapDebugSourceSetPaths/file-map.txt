@@ -1,8 +1,0 @@
-com.zprolab.FreePlayer.app-pngs-0 /Users/tyc/Documents/AI/FreePlayer/Android/app/build/generated/res/pngs/debug
-com.zprolab.FreePlayer.app-updated_navigation_xml-1 /Users/tyc/Documents/AI/FreePlayer/Android/app/build/generated/updated_navigation_xml/debug
-com.zprolab.FreePlayer.app-packageDebugResources-2 /Users/tyc/Documents/AI/FreePlayer/Android/app/build/intermediates/incremental/debug/packageDebugResources/merged.dir
-com.zprolab.FreePlayer.app-packageDebugResources-3 /Users/tyc/Documents/AI/FreePlayer/Android/app/build/intermediates/incremental/debug/packageDebugResources/stripped.dir
-com.zprolab.FreePlayer.app-debug-4 /Users/tyc/Documents/AI/FreePlayer/Android/app/build/intermediates/merged_res/debug/mergeDebugResources
-com.zprolab.FreePlayer.app-debug-5 /Users/tyc/Documents/AI/FreePlayer/Android/app/src/debug/res
-com.zprolab.FreePlayer.app-main-6 /Users/tyc/Documents/AI/FreePlayer/Android/app/src/main/res
-gradleHome-0 /Users/tyc/.gradle

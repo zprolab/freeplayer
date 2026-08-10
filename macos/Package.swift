@@ -4,9 +4,16 @@ import PackageDescription
 let package = Package(
     name: "FreePlayer",
     platforms: [.macOS(.v13)],
+    dependencies: [
+        // Audio fingerprinting (Chromaprint) + AcoustID online recognition.
+        .package(url: "https://github.com/wallisch/ChromaSwift.git", branch: "master"),
+    ],
     targets: [
         .executableTarget(
             name: "FreePlayer",
+            dependencies: [
+                .product(name: "ChromaSwift", package: "ChromaSwift"),
+            ],
             path: "Sources/FreePlayer",
             linkerSettings: [
                 .linkedFramework("AppKit"),

@@ -503,15 +503,32 @@ final class AppModel: ObservableObject {
 
     // ── LRC ──
 
+    /// Loads lyrics with a three-stage fallback chain:
+    ///   1. lrc_path recorded in the DB
+    ///   2. sidecar .lrc next to the audio file (filename-based)
+    ///   3. content-based: audio fingerprint → online recognition → lyric
+    ///      fetch → write .lrc next to the file (only when an AcoustID key
+    ///      is configured and online matching is enabled).
     func lrcContent(for track: Track?) -> String? {
         guard let track else { return nil }
         var path = Database.shared.trackLrc(trackId: track.id)
         if path == nil {
             path = MetadataExtractor.findSidecarLrc(forAudioPath: track.filePath)
         }
+        if path == nil, FileManager.default.fileExists(atPath: track.filePath),
+           UserDefaults.standard.bool(forKey: "online_lrc_enabled") {
+            path = onlineLrcCache[track.filePath]
+            if path == nil {
+                // Strict path: fingerprint verification first, then LRCLIB.
+                Task { await self.fetchLyrics(for: track, reportState: false) }
+            }
+        }
         guard let path, FileManager.default.fileExists(atPath: path) else { return nil }
         return LRC.read(path: path)
     }
+
+    /// In-memory cache: audio path -> lrc path found via online recognition.
+    private var onlineLrcCache: [String: String] = [:]
 
     func uploadLrc(for track: Track) {
         let panel = NSOpenPanel()
@@ -546,10 +563,85 @@ final class AppModel: ObservableObject {
 
     // ── Remote metadata ──
 
+    /// True when the track title was likely derived from the file name
+    /// (import fallback), i.e. we don't actually know what this song is.
+    private func titleLooksDerivedFromFileName(_ track: Track) -> Bool {
+        let stem = MetadataExtractor.cleanStem(
+            ((track.filePath as NSString).lastPathComponent as NSString).deletingPathExtension)
+        return track.title == stem
+    }
+
+    // ── Strict content verification ──
+
+    /// Tracks whose audio content has been verified against their identity
+    /// (fingerprint matched the tags). Verified tracks may use the fast
+    /// name-based lookup path; unverified tracks must pass verification first.
+    private var verifiedTrackIds: Set<Int64> = []
+
+    /// Strictly verifies that the audio CONTENT matches the track's identity.
+    ///
+    /// Returns the verified (title, artist) to look up lyrics/cover with, or
+    /// nil when verification fails — in which case nothing is fetched:
+    ///   - fingerprint can't identify the content (empty / heavily distorted
+    ///     audio, not in the database) → nil
+    ///   - match score below threshold (possible same-title-different-song) → nil
+    ///   - content is recognized as a DIFFERENT song than the tags claim → nil
+    ///
+    /// On success the real identity is written back and cached, so the next
+    /// lookup is instant.
+    private func verifiedIdentity(for track: Track) async -> (title: String, artist: String)? {
+        if verifiedTrackIds.contains(track.id) {
+            return (track.title, track.artist)
+        }
+
+        guard let recognized = await AudioRecognizer.recognize(url: URL(fileURLWithPath: track.filePath)) else {
+            NSLog("[verify] content unrecognized (empty/distorted/not in DB) — rejecting %@", track.fileName)
+            return nil
+        }
+        guard recognized.score >= AudioRecognizer.minimumScore else {
+            NSLog("[verify] score %.2f < %.2f — rejecting %@", recognized.score, AudioRecognizer.minimumScore, track.fileName)
+            return nil
+        }
+
+        // Track claims an explicit identity (real tags): it must agree with
+        // what the content actually is — protects against same-title
+        // different-song and replaced/re-distorted audio.
+        if !titleLooksDerivedFromFileName(track) {
+            let titleSimilar = MetadataFetchService.similarity(track.title, recognized.title) >= 0.7
+            let artistSimilar = track.artist.isEmpty || track.artist == Track.unknownArtist ||
+                MetadataFetchService.similarity(track.artist, recognized.artist) >= 0.7
+            guard titleSimilar && artistSimilar else {
+                NSLog("[verify] content is '%@' but tags claim '%@' — rejecting", recognized.title, track.title)
+                return nil
+            }
+        }
+
+        verifiedTrackIds.insert(track.id)
+        return (recognized.title, recognized.artist)
+    }
+
     @discardableResult
     func fetchLyrics(for track: Track, reportState: Bool = true) async -> Bool {
         if reportState { lyricsFetchState = .fetching }
-        guard let content = await metadataFetcher.fetchLyrics(for: track),
+
+        // Strict content gate: lyrics are only fetched for audio whose
+        // fingerprint matches its identity (never by name alone).
+        guard let identity = await verifiedIdentity(for: track) else {
+            // Gate rejected: content could not be verified (distorted audio,
+            // name collision) — NOT a "no lyrics" outcome.
+            if reportState, currentTrack?.id == track.id { lyricsFetchState = .failed }
+            return false
+        }
+
+        // Write back the verified identity when the content told us more
+        // (random-named downloads get their real title/artist).
+        if identity.title != track.title || identity.artist != track.artist {
+            Database.shared.updateTrack(id: track.id, fields: ["title": identity.title, "artist": identity.artist])
+            refreshAfterMutation()
+        }
+
+        let lookup = track.withIdentity(title: identity.title, artist: identity.artist)
+        guard let content = await metadataFetcher.fetchLyrics(for: lookup),
               saveFetchedLyrics(content, for: track) else {
             if reportState, currentTrack?.id == track.id { lyricsFetchState = .notFound }
             return false
@@ -561,7 +653,20 @@ final class AppModel: ObservableObject {
     @discardableResult
     func fetchCover(for track: Track, reportState: Bool = true) async -> Bool {
         if reportState { coverFetchState = .fetching }
-        guard let data = await metadataFetcher.fetchCover(for: track),
+
+        // Same strict content gate as lyrics.
+        guard let identity = await verifiedIdentity(for: track) else {
+            if reportState, currentTrack?.id == track.id { coverFetchState = .failed }
+            return false
+        }
+
+        if identity.title != track.title || identity.artist != track.artist {
+            Database.shared.updateTrack(id: track.id, fields: ["title": identity.title, "artist": identity.artist])
+            refreshAfterMutation()
+        }
+
+        let lookup = track.withIdentity(title: identity.title, artist: identity.artist)
+        guard let data = await metadataFetcher.fetchCover(for: lookup),
               NSImage(data: data) != nil,
               saveFetchedCover(data, for: track) else {
             if reportState, currentTrack?.id == track.id { coverFetchState = .notFound }

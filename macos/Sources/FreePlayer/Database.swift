@@ -314,7 +314,7 @@ final class Database {
 
     func updateTrack(id: Int64, fields: [String: Any]) -> Bool {
         queue.sync {
-            let allowed = ["title", "artist", "album", "genre", "year", "track_number"]
+            let allowed = ["title", "artist", "album", "genre", "year", "track_number", "cover_path"]
             var sets: [String] = []
             var params: [Any?] = []
             for key in allowed where fields[key] != nil {
