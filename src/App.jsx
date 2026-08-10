@@ -185,6 +185,26 @@ export default function App() {
     });
   }, [state.view, state.importModalOpen, dispatch]);
 
+  // macOS menu bar: actions pushed from the native menu (Playback/View/File)
+  useEffect(() => {
+    const actionRef = {
+      playpause: togglePlayPause,
+      next: handleNext,
+      prev: handlePrev,
+      import: () => dispatch({ type: 'SET', payload: { importModalOpen: true } }),
+      'view-library': () => dispatch({ type: 'SET', payload: { view: VIEWS.LIBRARY } }),
+      'view-now-playing': () => dispatch({ type: 'SET', payload: { view: VIEWS.NOW_PLAYING } }),
+      'view-stats': () => dispatch({ type: 'SET', payload: { view: VIEWS.STATS } }),
+      'view-plugins': () => dispatch({ type: 'SET', payload: { view: VIEWS.PLUGINS } }),
+      'view-settings': () => dispatch({ type: 'SET', payload: { view: VIEWS.SETTINGS } }),
+      'open-eq': () => window.freeplayer?.openEq?.(),
+    };
+    window.__freeplayerMenuAction = (action) => {
+      actionRef[action]?.();
+    };
+    return () => { delete window.__freeplayerMenuAction; };
+  }, [togglePlayPause, handleNext, handlePrev, dispatch]);
+
   // Load playlists on mount
   useEffect(() => {
     loadPlaylists();

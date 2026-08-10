@@ -33,12 +33,127 @@ static NSURL *gMainLoadURL = nil;
 
 @implementation ShellAppDelegate
 
+// Menu actions targeting the renderer (playback, views, import) are routed
+// through one selector; the action string is a controlled whitelist below.
+- (void)fpMenuAction:(NSMenuItem *)sender {
+  NSString *action = sender.representedObject;
+  if (action.length == 0) return;
+  NSString *js = [NSString stringWithFormat:
+      @"try { window.__freeplayerMenuAction && window.__freeplayerMenuAction('%@'); } catch (e) {}",
+      action];
+  dispatch_async(dispatch_get_main_queue(), ^{
+    [gWebView evaluateJavaScript:js completionHandler:nil];
+  });
+}
+
+- (void)buildMenu {
+  NSMenu *mainMenu = [[NSMenu alloc] init];
+
+  // ── FreePlayer (app) menu ──
+  NSMenuItem *appItem = [[NSMenuItem alloc] init];
+  [mainMenu addItem:appItem];
+  NSMenu *appMenu = [[NSMenu alloc] initWithTitle:@"FreePlayer"];
+  [appMenu addItemWithTitle:@"About FreePlayer"
+                     action:@selector(orderFrontStandardAboutPanel:) keyEquivalent:@""];
+  [appMenu addItem:[NSMenuItem separatorItem]];
+  NSMenuItem *settingsItem = [[NSMenuItem alloc] initWithTitle:@"Settings…"
+                                                        action:@selector(fpMenuAction:)
+                                                 keyEquivalent:@","];
+  settingsItem.target = self;
+  settingsItem.representedObject = @"view-settings";
+  [appMenu addItem:settingsItem];
+  [appMenu addItem:[NSMenuItem separatorItem]];
+  [appMenu addItemWithTitle:@"Hide FreePlayer" action:@selector(hide:) keyEquivalent:@"h"];
+  [appMenu addItemWithTitle:@"Quit FreePlayer" action:@selector(terminate:) keyEquivalent:@"q"];
+  appItem.submenu = appMenu;
+
+  // ── File ──
+  NSMenuItem *fileItem = [[NSMenuItem alloc] init];
+  [mainMenu addItem:fileItem];
+  NSMenu *fileMenu = [[NSMenu alloc] initWithTitle:@"File"];
+  NSMenuItem *importItem = [[NSMenuItem alloc] initWithTitle:@"Import Music…"
+                                                      action:@selector(fpMenuAction:)
+                                               keyEquivalent:@"o"];
+  importItem.target = self;
+  importItem.representedObject = @"import";
+  [fileMenu addItem:importItem];
+  [fileMenu addItem:[NSMenuItem separatorItem]];
+  [fileMenu addItemWithTitle:@"Close Window" action:@selector(performClose:) keyEquivalent:@"w"];
+  fileItem.submenu = fileMenu;
+
+  // ── Edit (standard responder chain — works with the webview) ──
+  NSMenuItem *editItem = [[NSMenuItem alloc] init];
+  [mainMenu addItem:editItem];
+  NSMenu *editMenu = [[NSMenu alloc] initWithTitle:@"Edit"];
+  [editMenu addItemWithTitle:@"Undo" action:@selector(undo:) keyEquivalent:@"z"];
+  [editMenu addItemWithTitle:@"Redo" action:@selector(redo:) keyEquivalent:@"Z"];
+  [editMenu addItem:[NSMenuItem separatorItem]];
+  [editMenu addItemWithTitle:@"Cut" action:@selector(cut:) keyEquivalent:@"x"];
+  [editMenu addItemWithTitle:@"Copy" action:@selector(copy:) keyEquivalent:@"c"];
+  [editMenu addItemWithTitle:@"Paste" action:@selector(paste:) keyEquivalent:@"v"];
+  [editMenu addItemWithTitle:@"Select All" action:@selector(selectAll:) keyEquivalent:@"a"];
+  editItem.submenu = editMenu;
+
+  // ── Playback ──
+  NSMenuItem *playItem = [[NSMenuItem alloc] init];
+  [mainMenu addItem:playItem];
+  NSMenu *playMenu = [[NSMenu alloc] initWithTitle:@"Playback"];
+  [playMenu addItem:[self menuItem:@"Play / Pause" action:@"playpause" key:@"p"]];
+  [playMenu addItem:[self menuItem:@"Next Track" action:@"next" key:@"→"]];
+  [playMenu addItem:[self menuItem:@"Previous Track" action:@"prev" key:@"←"]];
+  playItem.submenu = playMenu;
+
+  // ── View ──
+  NSMenuItem *viewItem = [[NSMenuItem alloc] init];
+  [mainMenu addItem:viewItem];
+  NSMenu *viewMenu = [[NSMenu alloc] initWithTitle:@"View"];
+  [viewMenu addItem:[self menuItem:@"Library" action:@"view-library" key:@"1"]];
+  [viewMenu addItem:[self menuItem:@"Now Playing" action:@"view-now-playing" key:@"2"]];
+  [viewMenu addItem:[self menuItem:@"Statistics" action:@"view-stats" key:@"3"]];
+  [viewMenu addItem:[self menuItem:@"Plugins" action:@"view-plugins" key:@"4"]];
+  [viewMenu addItem:[NSMenuItem separatorItem]];
+  NSMenuItem *eqItem = [[NSMenuItem alloc] initWithTitle:@"Equalizer…"
+                                                  action:@selector(fpMenuAction:)
+                                           keyEquivalent:@"e"];
+  eqItem.keyEquivalentModifierMask = NSEventModifierFlagOption | NSEventModifierFlagCommand;
+  eqItem.target = self;
+  eqItem.representedObject = @"open-eq";
+  [viewMenu addItem:eqItem];
+  viewItem.submenu = viewMenu;
+
+  // ── Window ──
+  NSMenuItem *winItem = [[NSMenuItem alloc] init];
+  [mainMenu addItem:winItem];
+  NSMenu *winMenu = [[NSMenu alloc] initWithTitle:@"Window"];
+  [winMenu addItemWithTitle:@"Minimize" action:@selector(performMiniaturize:) keyEquivalent:@"m"];
+  [winMenu addItemWithTitle:@"Zoom" action:@selector(performZoom:) keyEquivalent:@""];
+  [winMenu addItem:[NSMenuItem separatorItem]];
+  [winMenu addItemWithTitle:@"Bring All to Front"
+                     action:@selector(arrangeInFront:) keyEquivalent:@""];
+  winItem.submenu = winMenu;
+
+  NSApp.mainMenu = mainMenu;
+}
+
+// Playback/View menu items share the fpMenuAction: selector; ⌘ modifier is
+// the default so only explicit modifiers need overrides.
+- (NSMenuItem *)menuItem:(NSString *)title action:(NSString *)action key:(NSString *)key {
+  NSMenuItem *item = [[NSMenuItem alloc] initWithTitle:title
+                                                action:@selector(fpMenuAction:)
+                                         keyEquivalent:key];
+  item.target = self;
+  item.representedObject = action;
+  return item;
+}
+
 - (void)applicationDidFinishLaunching:(NSNotification *)notification {
   if (!fpdb::open(fpdb::defaultDbPath())) {
     NSLog(@"[shell] FATAL: db open failed");
     [NSApp terminate:nil];
     return;
   }
+
+  [self buildMenu];
 
   NSRect frame = NSMakeRect(0, 0, 1280, 820);
   NSWindow *window = [[NSWindow alloc] initWithContentRect:frame
