@@ -39,12 +39,6 @@ export function useLibrary() {
       if (defVis) {
         dispatch({ type: 'SET', payload: { defaultVisualizer: defVis, visualizerMode: defVis } });
       }
-      const savedAutoFetch = await window.freeplayer.getSetting('auto_fetch_meta');
-      if (savedAutoFetch != null) {
-        const s = String(savedAutoFetch).toLowerCase();
-        const on = s === '1' || s === 'true' || s === 'yes' || s === 'on';
-        dispatch({ type: 'SET', payload: { autoFetchMeta: on } });
-      }
       if (result.setup) {
         await loadTracks();
       }

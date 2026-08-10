@@ -105,7 +105,7 @@ export default function App() {
   const [pluginRuntime, setPluginRuntime] = useState(null);
   const meta = pluginRuntime?.meta;
 
-  useAutoMeta(state.currentTrack, state.autoFetchMeta, meta, dispatch);
+  useAutoMeta(state.currentTrack, meta, dispatch);
 
   // Plugin bridge: real player/audio/events are written into
   // window.__fpRuntimeState and read lazily by createPluginApi per activation.
@@ -378,7 +378,7 @@ export default function App() {
           )}
           {state.view === VIEWS.PLUGINS ? (
             pluginRuntime ? (
-              <PluginPage registry={pluginRuntime.registry} />
+              <PluginPage registry={pluginRuntime.registry} meta={meta} tracks={state.tracks} />
             ) : (
               <div className="empty-state">
                 <div className="empty-state-icon">
@@ -407,14 +407,6 @@ export default function App() {
               onDefaultVolumeChange={handleDefaultVolumeChange}
               defaultVisualizer={state.defaultVisualizer}
               onDefaultVisualizerChange={handleDefaultVisualizerChange}
-              autoFetchMeta={state.autoFetchMeta}
-              onAutoFetchMetaChange={(val) => {
-                dispatch({ type: 'SET', payload: { autoFetchMeta: val } });
-                // Store as '1'/'0' strings (EQ convention) — booleans round-trip as "1.0"
-                window.freeplayer.setSetting({ key: 'auto_fetch_meta', value: val ? '1' : '0' }).catch(() => {});
-              }}
-              tracks={state.tracks}
-              meta={meta}
               onResetDatabase={handleResetDatabase}
             />
           ) : !state.isSetup ? (

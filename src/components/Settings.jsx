@@ -1,9 +1,6 @@
 import { useState, useEffect, memo } from 'react';
-import { fetchAndSaveLyrics, fetchAndSaveCover } from '../services/metaPersistence';
 import ToggleSwitch from './ToggleSwitch';
 import SegmentedControl from './SegmentedControl';
-
-let batchRunning = false;
 
 const Settings = memo(function Settings({
   importMode,
@@ -14,15 +11,13 @@ const Settings = memo(function Settings({
   onDefaultVolumeChange,
   defaultVisualizer,
   onDefaultVisualizerChange,
-  autoFetchMeta, onAutoFetchMetaChange, tracks, meta,
   onResetDatabase,
 }) {
   const [showResetConfirm, setShowResetConfirm] = useState(false);
-  const [batchProgress, setBatchProgress] = useState(null); // { done, total, ok, fail, noMatch }
-  const [batchActive, setBatchActive] = useState(batchRunning);
   const [trayEnabled, setTrayEnabled] = useState(false);
   const [trayNotify, setTrayNotify] = useState(false);
   const [startOnBoot, setStartOnBoot] = useState(false);
+  const [startHidden, setStartHidden] = useState(false);
   const [settingsLoaded, setSettingsLoaded] = useState(false);
 
   const coerceBool = (val) => {
@@ -39,10 +34,12 @@ const Settings = memo(function Settings({
     Promise.all([
       window.freeplayer.getSetting('tray_enabled'),
       window.freeplayer.getSetting('tray_notify'),
+      window.freeplayer.getSetting('start_hidden'),
       window.freeplayer.getLoginItemSettings(),
-    ]).then(([tray, notify, login]) => {
+    ]).then(([tray, notify, hidden, login]) => {
       setTrayEnabled(coerceBool(tray));
       setTrayNotify(coerceBool(notify));
+      setStartHidden(coerceBool(hidden));
       setStartOnBoot(!!(login && login.openAtLogin));
       setSettingsLoaded(true);
     }).catch(() => setSettingsLoaded(true));
@@ -60,55 +57,6 @@ const Settings = memo(function Settings({
     await window.freeplayer.resetDatabase();
     setShowResetConfirm(false);
     onResetDatabase();
-  };
-
-  const handleFetchMissing = async () => {
-    if (batchRunning) return;
-    const total = tracks?.length || 0;
-    if (!total) return;
-    batchRunning = true;
-    setBatchActive(true);
-    let ok = 0;
-    let fail = 0;
-    let noMatch = 0;
-    let done = 0;
-    setBatchProgress({ done: 0, total, ok: 0, fail: 0, noMatch: 0 });
-    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-    // ~1.5s/track keeps both APIs (LRCLIB ~50/min, iTunes ~20/min) under
-    // their rate limits; the services' own pacing + 429/403 cooldowns also
-    // apply on top of this.
-    for (const t of tracks) {
-      let saved = false;
-      let threw = false;
-      let hadMissing = false;
-      try {
-        const coverMissing = !t.cover_path
-          || !(await window.freeplayer.getCover(t.cover_path).catch(() => null));
-        if (coverMissing) {
-          hadMissing = true;
-          const { saved: coverSaved } = await fetchAndSaveCover(t, meta);
-          if (coverSaved) { ok++; saved = true; }
-        }
-        const lrc = await window.freeplayer.getLrc(t.id);
-        if (!lrc || !lrc.content) {
-          hadMissing = true;
-          const { saved: lrcSaved } = await fetchAndSaveLyrics(t, meta);
-          if (lrcSaved) { ok++; saved = true; }
-        }
-      } catch {
-        threw = true;
-      }
-      // noMatch only counts when something WAS missing but nothing got saved
-      // (complete tracks must not inflate the bucket)
-      if (threw) fail++;
-      else if (hadMissing && !saved) noMatch++;
-      done++;
-      setBatchProgress({ done, total, ok, fail, noMatch });
-      await sleep(1500);
-    }
-    batchRunning = false;
-    setBatchActive(false);
-    setBatchProgress(null);
   };
 
   return (
@@ -218,34 +166,6 @@ const Settings = memo(function Settings({
 
         <div className="playback-row">
           <div className="playback-label-group">
-            <span className="playback-label">Auto-Fetch Lyrics & Covers</span>
-            <span className="playback-hint">Automatically download missing lyrics (LRCLIB) and album art (iTunes) when playing a track</span>
-          </div>
-          <ToggleSwitch checked={autoFetchMeta} onChange={onAutoFetchMetaChange} label="Auto-Fetch Lyrics & Covers" />
-        </div>
-
-        <div className="playback-row">
-          <div className="playback-label-group">
-            <span className="playback-label">Backfill Missing Metadata</span>
-            <span className="playback-hint">
-              {batchProgress
-                ? `Fetching ${batchProgress.done}/${batchProgress.total} · ${batchProgress.ok} saved${batchProgress.fail ? ` · ${batchProgress.fail} failed` : ''}${batchProgress.noMatch ? ` · ${batchProgress.noMatch} no match` : ''}`
-                : batchActive
-                  ? 'A metadata fetch is already running…'
-                  : `Fetch lyrics and covers for ${tracks?.length || 0} tracks that are missing them`}
-            </span>
-          </div>
-          <button
-            className="btn"
-            disabled={!!batchProgress || batchActive}
-            onClick={handleFetchMissing}
-          >
-            {batchProgress || batchActive ? 'Fetching…' : 'Fetch Missing'}
-          </button>
-        </div>
-
-        <div className="playback-row">
-          <div className="playback-label-group">
             <span className="playback-label">Close to Tray</span>
             <span className="playback-hint">Minimize to system tray instead of quitting when closing the window</span>
           </div>
@@ -289,11 +209,30 @@ const Settings = memo(function Settings({
                 onChange={(val) => {
                   setStartOnBoot(val);
                   window.freeplayer.setSetting({ key: 'start_on_boot', value: val });
-                  window.freeplayer.setLoginItemSettings({ openAtLogin: val, openAsHidden: true });
+                  window.freeplayer.setLoginItemSettings({ openAtLogin: val, openAsHidden: startHidden });
                 }}
                 label="Launch at Login"
               />
             </div>
+
+            {startOnBoot && (
+              <div className="playback-row">
+                <div className="playback-label-group">
+                  <span className="playback-label">Launch at Login Hidden</span>
+                  <span className="playback-hint">Start in the tray without a window when launched at login</span>
+                </div>
+                <ToggleSwitch
+                  checked={startHidden}
+                  disabled={!settingsLoaded}
+                  onChange={(val) => {
+                    setStartHidden(val);
+                    window.freeplayer.setSetting({ key: 'start_hidden', value: val ? '1' : '0' });
+                    window.freeplayer.setLoginItemSettings({ openAtLogin: startOnBoot, openAsHidden: val });
+                  }}
+                  label="Launch at Login Hidden"
+                />
+              </div>
+            )}
           </>
         )}
       </div>

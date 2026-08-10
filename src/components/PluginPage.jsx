@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import ToggleSwitch from './ToggleSwitch';
+import { backfillMissing, isBackfillRunning } from '../services/backfill';
 
 const STATUS_LABEL = { enabled: 'ENABLED', disabled: 'OFF', active: 'ACTIVE', error: 'ERROR', incompatible: 'INCOMPATIBLE' };
 
@@ -20,7 +21,7 @@ function permDesc(perm) {
   return PERM_DESC[perm] || 'Access requested by this plugin';
 }
 
-export default function PluginPage({ registry, onRegistryChange }) {
+export default function PluginPage({ registry, meta, tracks }) {
   const [plugins, setPlugins] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
   const [pendingPlugin, setPendingPlugin] = useState(null); // 权限弹窗对象 { id, manifest }
@@ -28,6 +29,48 @@ export default function PluginPage({ registry, onRegistryChange }) {
   const [openDetail, setOpenDetail] = useState(null); // 详情面板插件 id
   const [detailTab, setDetailTab] = useState('settings');
   const [settingsValues, setSettingsValues] = useState({});
+  const [autoFetch, setAutoFetch] = useState({}); // { [pluginId]: boolean }
+  const [backfillProgress, setBackfillProgress] = useState(null); // { pluginId, done, total, ok, fail, noMatch }
+
+  // Auto-fetch switches (plugin.<id>.autoFetch, default off) for provider
+  // plugins — each backend controls its own missing-metadata auto-fetch.
+  useEffect(() => {
+    if (!openDetail) return;
+    let cancelled = false;
+    (async () => {
+      const v = await window.freeplayer.getSetting(`plugin.${openDetail}.autoFetch`).catch(() => null);
+      if (cancelled) return;
+      const s = String(v ?? '').toLowerCase();
+      setAutoFetch((a) => ({ ...a, [openDetail]: s === '1' || s === '1.0' || s === 'true' || s === 'yes' || s === 'on' }));
+    })();
+    return () => { cancelled = true; };
+  }, [openDetail]);
+
+  const handleAutoFetchChange = (pluginId, val) => {
+    setAutoFetch((a) => ({ ...a, [pluginId]: val }));
+    window.freeplayer.setSetting({ key: `plugin.${pluginId}.autoFetch`, value: val ? '1' : '0' }).catch(() => {});
+  };
+
+  const handleBackfill = async (p) => {
+    if (isBackfillRunning() || !meta) return;
+    const kind = p.manifest.provides?.lyrics ? 'lyrics' : 'cover';
+    setBackfillProgress({ pluginId: p.id, done: 0, total: tracks?.length || 0, ok: 0, fail: 0, noMatch: 0 });
+    await backfillMissing({
+      tracks,
+      kind,
+      fetchForTrack: (t) => (kind === 'lyrics' ? meta.fetchLyrics(t) : meta.fetchCover(t)),
+      missingCheck: async (t) => {
+        if (kind === 'lyrics') {
+          const lrc = await window.freeplayer.getLrc(t.id).catch(() => null);
+          return !lrc || !lrc.content;
+        }
+        return !t.cover_path
+          || !(await window.freeplayer.getCover(t.cover_path).catch(() => null));
+      },
+      onProgress: (prog) => setBackfillProgress({ pluginId: p.id, ...prog }),
+    });
+    setBackfillProgress(null);
+  };
 
   // 声明式设置：按 manifest.settings 声明从 plugin.<id>.<key> 读取初始值
   // （与 api.pluginSettings 命名空间一致），JSON.parse 兜底还原类型。
@@ -213,6 +256,42 @@ export default function PluginPage({ registry, onRegistryChange }) {
             </div>
             {detailTab === 'settings' && (
               <div className="plugin-detail-body">
+                {(p.manifest.provides?.lyrics || p.manifest.provides?.cover) && (
+                  <>
+                    <div className="plugin-field plugin-field--row">
+                      <div className="plugin-field-label-group">
+                        <span className="plugin-field-label">
+                          {p.manifest.provides?.lyrics ? 'Auto-fetch lyrics when missing' : 'Auto-fetch covers when missing'}
+                        </span>
+                        <span className="plugin-field-hint">
+                          Fetch automatically while playing (off by default)
+                        </span>
+                      </div>
+                      <ToggleSwitch
+                        checked={!!autoFetch[p.id]}
+                        onChange={(val) => handleAutoFetchChange(p.id, val)}
+                        label="Auto-fetch"
+                      />
+                    </div>
+                    <div className="plugin-field">
+                      <button
+                        className="btn"
+                        disabled={isBackfillRunning() || (backfillProgress && backfillProgress.pluginId === p.id)}
+                        onClick={() => handleBackfill(p)}
+                      >
+                        {backfillProgress && backfillProgress.pluginId === p.id
+                          ? `Fetching ${backfillProgress.done}/${backfillProgress.total} · ${backfillProgress.ok} saved`
+                          : p.manifest.provides?.lyrics ? 'Fetch All Missing Lyrics' : 'Fetch All Missing Covers'}
+                      </button>
+                      {backfillProgress && backfillProgress.pluginId === p.id && (
+                        <span className="plugin-backfill-hint">
+                          {backfillProgress.fail ? ` · ${backfillProgress.fail} failed` : ''}
+                          {backfillProgress.noMatch ? ` · ${backfillProgress.noMatch} no match` : ''}
+                        </span>
+                      )}
+                    </div>
+                  </>
+                )}
                 {p.manifest.provides?.lyrics && (
                   <div className="plugin-field">
                     <label>Lyrics backend</label>

@@ -41,7 +41,6 @@ const initialState = {
   dragOver: false,
   initialPaths: null,
   eqEnabled: false,
-  autoFetchMeta: false,
 };
 
 function reducer(state, action) {
