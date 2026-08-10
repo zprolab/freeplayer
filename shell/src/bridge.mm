@@ -928,9 +928,14 @@ static NSWindow *shellWindow(void) {
     }
     // ── Login item (M5) ──
     else if ([method isEqualToString:@"getLoginItemSettings"]) {
-      reply(idNum, @{ @"openAtLogin": @(fptrayLoginItemEnabled()) });
+      BOOL hidden = fptraySettingBool(@"start_hidden", NO);
+      reply(idNum, @{ @"openAtLogin": @(fptrayLoginItemEnabled()),
+                      @"openAsHidden": @(hidden) });
     } else if ([method isEqualToString:@"setLoginItemSettings"]) {
       NSDictionary *d = args.firstObject;
+      if (d[@"openAsHidden"] != nil) {
+        fpdb::setSetting(@"start_hidden", [d[@"openAsHidden"] boolValue] ? @"1" : @"0");
+      }
       reply(idNum, @{ @"ok": @(fptraySetLoginItem([d[@"openAtLogin"] boolValue])) });
     }
     // ── Plugins ──

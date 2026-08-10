@@ -100,8 +100,27 @@ static NSURL *gMainLoadURL = nil;
   gWebView = webView;
   window.contentView = webView;
 
-  [window makeKeyAndOrderFront:nil];
-  [NSApp activateIgnoringOtherApps:YES];
+  // Launch-at-login hidden: a login-item launch happens in the loginwindow
+  // session before any user app activation, so the frontmost app is still
+  // loginwindow here. Manual launches (Dock/terminal) have a real frontmost
+  // app, so the window always shows for those.
+  BOOL hideOnLaunch = NO;
+  if (fpdb::getSetting(@"library_dir", nil) && fptraySettingBool(@"start_hidden", NO)) {
+    NSRunningApplication *front = NSWorkspace.sharedWorkspace.frontmostApplication;
+    hideOnLaunch = front != nil
+        && [front.bundleIdentifier isEqualToString:@"com.apple.loginwindow"];
+  }
+  if (hideOnLaunch) {
+    [window orderOut:nil];
+    [NSApp setActivationPolicy:NSApplicationActivationPolicyProhibited];
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2.0 * NSEC_PER_SEC)),
+                   dispatch_get_main_queue(), ^{
+      [NSApp setActivationPolicy:NSApplicationActivationPolicyRegular];
+    });
+  } else {
+    [window makeKeyAndOrderFront:nil];
+    [NSApp activateIgnoringOtherApps:YES];
+  }
 
   [FpTray create];
 
