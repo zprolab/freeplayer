@@ -1,0 +1,16 @@
+{
+  "id": "itunes-cover",
+  "name": "iTunes Artwork",
+  "version": "1.0.0",
+  "description": "Fetch album art via the iTunes Search API",
+  "author": "zprolab",
+  "homepage": "https://developer.apple.com/library/archive/documentation/AudioVideo/Conceptual/iTuneSearchAPI/",
+  "apiVersion": 1,
+  "main": "main.js",
+  "activationEvents": ["cover:fetch"],
+  "provides": { "cover": true },
+  "permissions": ["http"],
+  "settings": [
+    { "key": "minMatchScore", "type": "number", "label": "Min match score", "default": 0.8, "min": 0, "max": 1 }
+  ]
+}
