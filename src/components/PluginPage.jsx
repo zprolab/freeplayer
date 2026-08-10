@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import ToggleSwitch from './ToggleSwitch';
-import { backfillMissing, isBackfillRunning } from '../services/backfill';
+import { backfillMissing, isBackfillRunning, needsMetadataFill } from '../services/backfill';
 
 
 const PERM_DESC = {
@@ -50,23 +50,33 @@ export default function PluginPage({ registry, meta, tracks }) {
     window.freeplayer.setSetting({ key: `plugin.${pluginId}.autoFetch`, value: val ? '1' : '0' }).catch(() => {});
   };
 
-  const handleBackfill = async (p) => {
+  const handleBackfill = async (p, kind) => {
     if (isBackfillRunning() || !meta) return;
-    const kind = p.manifest.provides?.lyrics ? 'lyrics' : 'cover';
-    setBackfillProgress({ pluginId: p.id, done: 0, total: tracks?.length || 0, ok: 0, fail: 0, noMatch: 0 });
+    // Progress is keyed per plugin+kind so a plugin with several
+    // capabilities (e.g. musicbrainz: cover + metadata) keeps each
+    // row's progress isolated from the others.
+    const key = `${p.id}:${kind}`;
+    setBackfillProgress({ key, done: 0, total: tracks?.length || 0, ok: 0, fail: 0, noMatch: 0 });
     await backfillMissing({
       tracks,
       kind,
-      fetchForTrack: (t) => (kind === 'lyrics' ? meta.fetchLyrics(t) : meta.fetchCover(t)),
+      fetchForTrack: (t) => (
+        kind === 'lyrics' ? meta.fetchLyrics(t)
+          : kind === 'cover' ? meta.fetchCover(t)
+          : meta.fetchMetadata(t)
+      ),
       missingCheck: async (t) => {
         if (kind === 'lyrics') {
           const lrc = await window.freeplayer.getLrc(t.id).catch(() => null);
           return !lrc || !lrc.content;
         }
-        return !t.cover_path
-          || !(await window.freeplayer.getCover(t.cover_path).catch(() => null));
+        if (kind === 'cover') {
+          return !t.cover_path
+            || !(await window.freeplayer.getCover(t.cover_path).catch(() => null));
+        }
+        return needsMetadataFill(t);
       },
-      onProgress: (prog) => setBackfillProgress({ pluginId: p.id, ...prog }),
+      onProgress: (prog) => setBackfillProgress({ key, ...prog }),
     });
     setBackfillProgress(null);
   };
@@ -119,21 +129,24 @@ export default function PluginPage({ registry, meta, tracks }) {
 
   useEffect(() => { refresh(); }, [refresh]);
 
-  // 后端下拉初始化：读取已存 meta.lyricsBackend / meta.coverBackend，
-  // 与 metadataRegistry.backendFor 的取值保持一致（未加载/无存值时回落默认）。
+  // 后端下拉初始化：读取已存 meta.lyricsBackend / meta.coverBackend /
+  // meta.metadataBackend，与 metadataRegistry.backendFor 的取值保持一致
+  // （未加载/无存值时回落默认）。
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const [lyrics, cover] = await Promise.all([
+        const [lyrics, cover, metadata] = await Promise.all([
           window.freeplayer.getSetting('meta.lyricsBackend'),
           window.freeplayer.getSetting('meta.coverBackend'),
+          window.freeplayer.getSetting('meta.metadataBackend'),
         ]);
         if (cancelled) return;
         setSettingsValues((s) => ({
           ...s,
           lyricsBackend: lyrics || s.lyricsBackend,
           coverBackend: cover || s.coverBackend,
+          metadataBackend: metadata || s.metadataBackend,
         }));
       } catch {
         // 读取失败则保持默认值
@@ -265,6 +278,10 @@ export default function PluginPage({ registry, meta, tracks }) {
       {openDetail && (() => {
         const p = plugins.find((x) => x.id === openDetail);
         if (!p) return null;
+        // Auto-fetch drives whatever capabilities the plugin provides,
+        // so the label lists them all ("covers & metadata" for musicbrainz).
+        const autoCapabilities = ['lyrics', 'cover', 'metadata'].filter((k) => p.manifest.provides?.[k]);
+        const autoLabel = `Auto-fetch ${autoCapabilities.map((k) => ({ lyrics: 'lyrics', cover: 'covers', metadata: 'metadata' })[k]).join(' & ')} when missing`;
         return (
           <div className="plugin-detail">
             <div className="plugin-detail-tabs">
@@ -274,13 +291,11 @@ export default function PluginPage({ registry, meta, tracks }) {
             </div>
             {detailTab === 'settings' && (
               <div className="plugin-detail-body">
-                {(p.manifest.provides?.lyrics || p.manifest.provides?.cover) && (
+                {(p.manifest.provides?.lyrics || p.manifest.provides?.cover || p.manifest.provides?.metadata) && (
                   <>
                     <div className="playback-row">
                       <div className="playback-label-group">
-                        <span className="playback-label">
-                          {p.manifest.provides?.lyrics ? 'Auto-fetch lyrics when missing' : 'Auto-fetch covers when missing'}
-                        </span>
+                        <span className="playback-label">{autoLabel}</span>
                         <span className="playback-hint">
                           Fetch automatically while playing (off by default)
                         </span>
@@ -291,27 +306,31 @@ export default function PluginPage({ registry, meta, tracks }) {
                         label="Auto-fetch"
                       />
                     </div>
-                    <div className="playback-row">
-                      <div className="playback-label-group">
-                        <span className="playback-label">
-                          {p.manifest.provides?.lyrics ? 'Fetch All Missing Lyrics' : 'Fetch All Missing Covers'}
-                        </span>
-                        <span className="playback-hint">
-                          {backfillProgress && backfillProgress.pluginId === p.id
-                            ? `${backfillProgress.fail ? `${backfillProgress.fail} failed · ` : ''}${backfillProgress.noMatch ? `${backfillProgress.noMatch} no match` : ''}`
-                            : `Backfill ${p.manifest.provides?.lyrics ? 'lyrics' : 'covers'} for tracks that are missing them`}
-                        </span>
+                    {['lyrics', 'cover', 'metadata'].filter((k) => p.manifest.provides?.[k]).map((kind) => (
+                      <div className="playback-row" key={kind}>
+                        <div className="playback-label-group">
+                          <span className="playback-label">
+                            {kind === 'lyrics' ? 'Fetch All Missing Lyrics'
+                              : kind === 'cover' ? 'Fetch All Missing Covers'
+                              : 'Fetch All Missing Metadata'}
+                          </span>
+                          <span className="playback-hint">
+                            {backfillProgress && backfillProgress.key === `${p.id}:${kind}`
+                              ? `${backfillProgress.fail ? `${backfillProgress.fail} failed · ` : ''}${backfillProgress.noMatch ? `${backfillProgress.noMatch} no match` : ''}`
+                              : `Backfill ${kind === 'lyrics' ? 'lyrics' : kind === 'cover' ? 'covers' : 'metadata'} for tracks that are missing them`}
+                          </span>
+                        </div>
+                        <button
+                          className="btn btn-secondary"
+                          disabled={isBackfillRunning() || (backfillProgress && backfillProgress.key === `${p.id}:${kind}`)}
+                          onClick={() => handleBackfill(p, kind)}
+                        >
+                          {backfillProgress && backfillProgress.key === `${p.id}:${kind}`
+                            ? `Fetching ${backfillProgress.done}/${backfillProgress.total} · ${backfillProgress.ok} saved`
+                            : 'Fetch Missing'}
+                        </button>
                       </div>
-                      <button
-                        className="btn btn-secondary"
-                        disabled={isBackfillRunning() || (backfillProgress && backfillProgress.pluginId === p.id)}
-                        onClick={() => handleBackfill(p)}
-                      >
-                        {backfillProgress && backfillProgress.pluginId === p.id
-                          ? `Fetching ${backfillProgress.done}/${backfillProgress.total} · ${backfillProgress.ok} saved`
-                          : 'Fetch Missing'}
-                      </button>
-                    </div>
+                    ))}
                   </>
                 )}
                 {p.manifest.provides?.lyrics && (
@@ -336,6 +355,19 @@ export default function PluginPage({ registry, meta, tracks }) {
                     <select className="plugin-select" value={settingsValues.coverBackend || 'itunes-cover'} onChange={(e) => { setSettingsValues((s) => ({ ...s, coverBackend: e.target.value })); window.freeplayer.setSetting({ key: 'meta.coverBackend', value: e.target.value }); }}>
                       {plugins.filter((x) => x.manifest.provides?.cover && (x.perms.enabled || x.status === 'active')).map((x) => (
                         <option key={x.id} value={x.id}>{x.manifest.name}{x.id === (settingsValues.coverBackend || 'itunes-cover') ? ' (current)' : ''}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+                {p.manifest.provides?.metadata && (
+                  <div className="playback-row">
+                    <div className="playback-label-group">
+                      <span className="playback-label">Metadata backend</span>
+                      <span className="playback-hint">Source used for filling in missing track fields</span>
+                    </div>
+                    <select className="plugin-select" value={settingsValues.metadataBackend || 'musicbrainz-meta'} onChange={(e) => { setSettingsValues((s) => ({ ...s, metadataBackend: e.target.value })); window.freeplayer.setSetting({ key: 'meta.metadataBackend', value: e.target.value }); }}>
+                      {plugins.filter((x) => x.manifest.provides?.metadata && (x.perms.enabled || x.status === 'active')).map((x) => (
+                        <option key={x.id} value={x.id}>{x.manifest.name}{x.id === (settingsValues.metadataBackend || 'musicbrainz-meta') ? ' (current)' : ''}</option>
                       ))}
                     </select>
                   </div>
@@ -385,8 +417,11 @@ export default function PluginPage({ registry, meta, tracks }) {
                     )}
                   </div>
                 ))}
-                {(p.manifest.settings || []).length === 0 && !p.manifest.provides?.lyrics && !p.manifest.provides?.cover && (
+                {(p.manifest.settings || []).length === 0 && !p.manifest.provides?.lyrics && !p.manifest.provides?.cover && !p.manifest.provides?.metadata && (
                   <p className="plugin-empty">This plugin has no settings.</p>
+                )}
+                {p.manifest.notice && (
+                  <p className="plugin-notice">{p.manifest.notice}</p>
                 )}
               </div>
             )}

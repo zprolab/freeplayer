@@ -1,5 +1,16 @@
 import { describe, it, expect, vi } from 'vitest';
-import { backfillMissing } from '../src/services/backfill';
+import { backfillMissing, needsMetadataFill } from '../src/services/backfill';
+
+describe('needsMetadataFill', () => {
+  it('flags tracks with missing or unknown title/artist/album', () => {
+    expect(needsMetadataFill({})).toBe(true);
+    expect(needsMetadataFill({ title: 'Sun', artist: 'A', album: 'B' })).toBe(false);
+    expect(needsMetadataFill({ title: 'Unknown Title', artist: 'A', album: 'B' })).toBe(true);
+    expect(needsMetadataFill({ title: 'Sun', artist: 'Unknown Artist', album: 'B' })).toBe(true);
+    expect(needsMetadataFill({ title: 'Sun', artist: 'A' })).toBe(true);
+    expect(needsMetadataFill({ title: 'Sun', artist: 'A', album: '' })).toBe(true);
+  });
+});
 
 describe('backfillMissing', () => {
   it('backfills only tracks missing the kind, reporting progress', async () => {

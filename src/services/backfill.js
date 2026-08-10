@@ -9,6 +9,15 @@ export function isBackfillRunning() {
   return backfillRunning;
 }
 
+// Shared missing-metadata predicate: a track needs filling when
+// title/artist/album are missing or still the placeholder "Unknown"
+// values. Used by the batch backfill (PluginPage) and the auto-fetch
+// hook (useAutoMeta) so both judge "missing" identically.
+export function needsMetadataFill(t) {
+  return !t.title || !t.artist || !t.album
+    || t.title === 'Unknown Title' || t.artist === 'Unknown Artist';
+}
+
 // kind: 'lyrics' — fetch lyrics only; 'cover' — fetch covers only;
 // 'metadata' — fill missing title/artist/album fields.
 // fetchForTrack: (track) => meta.fetchLyrics(track) | meta.fetchCover(track)

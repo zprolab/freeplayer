@@ -3926,6 +3926,17 @@ input[type="range"]::-webkit-slider-thumb {
   color: var(--gl-text-tertiary);
 }
 
+.plugin-notice {
+  margin-top: 14px;
+  padding: 10px 12px;
+  border-radius: var(--gl-radius-md);
+  background: var(--gl-border-light);
+  color: var(--gl-text-tertiary);
+  font-size: 11px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
 .audit-log {
   background: var(--gl-border-light);
   border-radius: var(--gl-radius-md);

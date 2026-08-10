@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { needsMetadataFill } from '../services/backfill';
 
 // One fetch attempt per track per app session; failures stay quiet.
 // meta = { fetchLyrics, fetchCover, fetchMetadata, getBackend } from the
@@ -85,12 +86,9 @@ export function useAutoMeta(currentTrack, meta, dispatch) {
           }
         }
         if (auto.metadata) {
-          const needsMeta = track.title === 'Unknown Title'
-            || track.artist === 'Unknown Artist'
-            || !track.title
-            || !track.artist
-            || !track.album;
-          if (needsMeta) {
+          // Shared with the batch backfill (PluginPage) so both judge
+          // "missing metadata" identically.
+          if (needsMetadataFill(track)) {
             const { saved, updated } = await meta.fetchMetadata(track);
             // Merge fetched fields into out so a later cover/lyrics dispatch
             // can never clobber them (reducer replaces the whole track).
