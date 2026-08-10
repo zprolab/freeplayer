@@ -20,8 +20,7 @@ struct NowPlayingView: View {
                                        emphasizeUpload: true,
                                        onUpload: { model.uploadLrc(for: track) },
                                        onFetchLyrics: { Task { await model.fetchLyrics(for: track) } },
-                                       fetchingLyrics: model.lyricsFetchState == .fetching,
-                                       lyricsFetchFailed: model.lyricsFetchState == .notFound,
+                                       lyricsFetchState: model.lyricsFetchState,
                                        onRemove: { model.removeLrc(for: track) },
                                        onImmersive: { model.immersivePresented = true })
                                 .frame(minHeight: 400)
@@ -114,8 +113,7 @@ struct NowPlayingView: View {
                 VStack(alignment: .leading, spacing: 16) {
                     CoverArtLarge(path: track.coverPath,
                                   onFetchCover: { Task { await model.fetchCover(for: track) } },
-                                  fetchingCover: model.coverFetchState == .fetching,
-                                  coverFetchFailed: model.coverFetchState == .notFound)
+                                  coverFetchState: model.coverFetchState)
                         .frame(width: 200, height: 200)
                     VStack(alignment: .leading, spacing: 4) {
                         Text(track.title)
@@ -142,8 +140,7 @@ struct NowPlayingView: View {
                     LyricsView(lrcContent: lrcContent, currentTime: model.currentTime,
                                onUpload: { model.uploadLrc(for: track) },
                                onFetchLyrics: { Task { await model.fetchLyrics(for: track) } },
-                               fetchingLyrics: model.lyricsFetchState == .fetching,
-                               lyricsFetchFailed: model.lyricsFetchState == .notFound,
+                               lyricsFetchState: model.lyricsFetchState,
                                onRemove: { model.removeLrc(for: track) },
                                onImmersive: { model.immersivePresented = true })
                         .frame(height: 420)
@@ -326,8 +323,7 @@ struct NowPlayingView: View {
 struct CoverArtLarge: View {
     let path: String?
     var onFetchCover: (() -> Void)?
-    var fetchingCover = false
-    var coverFetchFailed = false
+    var coverFetchState: MetadataFetchState = .idle
 
     var body: some View {
         if let path, let image = CoverLoader.shared.image(for: path) {
@@ -346,10 +342,9 @@ struct CoverArtLarge: View {
                     .font(.system(size: 56))
                     .foregroundStyle(Theme.textTertiary)
                 if let onFetchCover {
-                    Button(fetchingCover ? "Fetching..." : coverFetchFailed ? "No cover found" : "Fetch Cover",
-                           action: onFetchCover)
+                    Button(coverFetchLabel, action: onFetchCover)
                         .buttonStyle(.plain)
-                        .disabled(fetchingCover)
+                        .disabled(coverFetchState == .fetching)
                         .font(.system(size: 11, weight: .medium))
                         .foregroundStyle(Theme.accent)
                         .padding(.horizontal, 10)
@@ -376,5 +371,16 @@ final class CoverLoader {
         guard let img = NSImage(contentsOfFile: path) else { return nil }
         CoverCache.shared.setImage(img, for: path)
         return img
+    }
+}
+
+private extension CoverArtLarge {
+    var coverFetchLabel: String {
+        switch coverFetchState {
+        case .fetching: return "Fetching..."
+        case .failed: return "Found failed"
+        case .notFound: return "No cover found"
+        case .idle: return "Fetch Cover"
+        }
     }
 }

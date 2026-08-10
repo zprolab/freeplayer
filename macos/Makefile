@@ -14,6 +14,7 @@ build:
 	swift build -c release
 
 $(BIN): build
+	touch $(BIN)
 
 $(APP): $(BIN)
 	rm -rf $(APP)

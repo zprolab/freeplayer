@@ -6,6 +6,8 @@ struct SettingsView: View {
     @State private var trayNotify = true
     @State private var startOnBoot = false
     @State private var showResetConfirm = false
+    @State private var acoustidKey = UserDefaults.standard.string(forKey: "acoustid_api_key") ?? ""
+    @State private var onlineLrcEnabled = UserDefaults.standard.bool(forKey: "online_lrc_enabled")
     @AppStorage("liquid_glass_enabled") private var liquidGlassEnabled = false
 
     var body: some View {
@@ -15,6 +17,7 @@ struct SettingsView: View {
                 importModeSection
                 libraryDirSection
                 playbackSection
+                onlineSection
                 dangerZoneSection
             }
             .frame(maxWidth: 620)
@@ -373,6 +376,64 @@ struct SettingsView: View {
         if progress.failed > 0 { parts.append("\(progress.failed) failed") }
         if progress.noMatch > 0 { parts.append("\(progress.noMatch) no match") }
         return parts.joined(separator: " · ")
+    }
+
+    // ── Online recognition (content-based lyric matching) ──
+
+    private var onlineSection: some View {
+        cardSection {
+            VStack(alignment: .leading, spacing: 0) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Online Recognition")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(Theme.textPrimary)
+                    Text("Match lyrics by audio content (fingerprint) instead of file names.")
+                        .font(.system(size: 12))
+                        .foregroundStyle(Theme.textSecondary)
+                }
+                .padding(.bottom, 14)
+
+                row {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("AcoustID API Key")
+                            .font(.system(size: 13))
+                            .foregroundStyle(Theme.textPrimary)
+                        Text("Register an application at acoustid.org to get a key")
+                            .font(.system(size: 11))
+                            .foregroundStyle(Theme.textSecondary)
+                    }
+                    Spacer()
+                    SecureField("8-hex key", text: Binding(
+                        get: { acoustidKey },
+                        set: { newValue in
+                            acoustidKey = newValue
+                            UserDefaults.standard.set(newValue, forKey: "acoustid_api_key")
+                        }
+                    ))
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 160)
+                }
+
+                row(hasDivider: false) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Auto-match missing lyrics")
+                            .font(.system(size: 13))
+                            .foregroundStyle(Theme.textPrimary)
+                        Text("Recognize songs without sidecar .lrc files and fetch lyrics online")
+                            .font(.system(size: 11))
+                            .foregroundStyle(Theme.textSecondary)
+                    }
+                    Spacer()
+                    Toggle("", isOn: $onlineLrcEnabled)
+                        .toggleStyle(.switch)
+                        .tint(Theme.toggleChecked)
+                        .labelsHidden()
+                        .onChange(of: onlineLrcEnabled) { value in
+                            UserDefaults.standard.set(value, forKey: "online_lrc_enabled")
+                        }
+                }
+            }
+        }
     }
 
     // ── Danger Zone ──

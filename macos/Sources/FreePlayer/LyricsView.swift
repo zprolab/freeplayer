@@ -9,8 +9,7 @@ struct LyricsView: View {
     var emphasizeUpload: Bool = false
     var onUpload: (() -> Void)?
     var onFetchLyrics: (() -> Void)?
-    var fetchingLyrics = false
-    var lyricsFetchFailed = false
+    var lyricsFetchState: MetadataFetchState = .idle
     var onRemove: (() -> Void)?
     var onImmersive: (() -> Void)?
     var fontScale: CGFloat = 1.0
@@ -151,12 +150,11 @@ struct LyricsView: View {
                 .foregroundStyle(Theme.textSecondary)
             if let onFetchLyrics {
                 Button(action: onFetchLyrics) {
-                    Label(fetchingLyrics ? "Fetching..." : lyricsFetchFailed ? "No lyrics found" : "Fetch Lyrics",
-                          systemImage: fetchingLyrics ? "arrow.triangle.2.circlepath" : "arrow.down.doc")
+                    Label(fetchLabel, systemImage: lyricsFetchState == .fetching ? "arrow.triangle.2.circlepath" : "arrow.down.doc")
                         .font(.system(size: 12))
                 }
                 .buttonStyle(.plain)
-                .disabled(fetchingLyrics)
+                .disabled(lyricsFetchState == .fetching)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 5)
                 .background(RoundedRectangle(cornerRadius: 4).stroke(Theme.accent.opacity(0.6), lineWidth: 1))
@@ -189,5 +187,16 @@ struct LyricsView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
+private extension LyricsView {
+    var fetchLabel: String {
+        switch lyricsFetchState {
+        case .fetching: return "Fetching..."
+        case .failed: return "Found failed"
+        case .notFound: return "No lyrics found"
+        case .idle: return "Fetch Lyrics"
+        }
     }
 }

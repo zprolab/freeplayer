@@ -19,7 +19,7 @@ enum PlayMode: String, CaseIterable {
 }
 
 enum MetadataFetchState: Equatable {
-    case idle, fetching, notFound
+    case idle, fetching, notFound, failed
 }
 
 struct MetadataBackfillProgress: Equatable {
@@ -60,6 +60,15 @@ struct Track: Identifiable, Equatable, Hashable {
 
     static let unknownArtist = "Unknown Artist"
     static let unknownAlbum = "Unknown Album"
+
+    /// Copy with the verified identity applied (lookups must use the real
+    /// content-derived title/artist, never file names).
+    func withIdentity(title: String, artist: String) -> Track {
+        var copy = self
+        copy.title = title
+        copy.artist = artist
+        return copy
+    }
 }
 
 struct Playlist: Identifiable, Equatable, Hashable {
