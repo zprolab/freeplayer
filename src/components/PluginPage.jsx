@@ -258,12 +258,12 @@ export default function PluginPage({ registry, meta, tracks }) {
               <div className="plugin-detail-body">
                 {(p.manifest.provides?.lyrics || p.manifest.provides?.cover) && (
                   <>
-                    <div className="plugin-field plugin-field--row">
-                      <div className="plugin-field-label-group">
-                        <span className="plugin-field-label">
+                    <div className="playback-row">
+                      <div className="playback-label-group">
+                        <span className="playback-label">
                           {p.manifest.provides?.lyrics ? 'Auto-fetch lyrics when missing' : 'Auto-fetch covers when missing'}
                         </span>
-                        <span className="plugin-field-hint">
+                        <span className="playback-hint">
                           Fetch automatically while playing (off by default)
                         </span>
                       </div>
@@ -273,7 +273,17 @@ export default function PluginPage({ registry, meta, tracks }) {
                         label="Auto-fetch"
                       />
                     </div>
-                    <div className="plugin-field">
+                    <div className="playback-row">
+                      <div className="playback-label-group">
+                        <span className="playback-label">
+                          {p.manifest.provides?.lyrics ? 'Fetch All Missing Lyrics' : 'Fetch All Missing Covers'}
+                        </span>
+                        <span className="playback-hint">
+                          {backfillProgress && backfillProgress.pluginId === p.id
+                            ? `${backfillProgress.fail ? `${backfillProgress.fail} failed · ` : ''}${backfillProgress.noMatch ? `${backfillProgress.noMatch} no match` : ''}`
+                            : `Backfill ${p.manifest.provides?.lyrics ? 'lyrics' : 'covers'} for tracks that are missing them`}
+                        </span>
+                      </div>
                       <button
                         className="btn btn-secondary"
                         disabled={isBackfillRunning() || (backfillProgress && backfillProgress.pluginId === p.id)}
@@ -281,20 +291,17 @@ export default function PluginPage({ registry, meta, tracks }) {
                       >
                         {backfillProgress && backfillProgress.pluginId === p.id
                           ? `Fetching ${backfillProgress.done}/${backfillProgress.total} · ${backfillProgress.ok} saved`
-                          : p.manifest.provides?.lyrics ? 'Fetch All Missing Lyrics' : 'Fetch All Missing Covers'}
+                          : 'Fetch Missing'}
                       </button>
-                      {backfillProgress && backfillProgress.pluginId === p.id && (
-                        <span className="plugin-backfill-hint">
-                          {backfillProgress.fail ? ` · ${backfillProgress.fail} failed` : ''}
-                          {backfillProgress.noMatch ? ` · ${backfillProgress.noMatch} no match` : ''}
-                        </span>
-                      )}
                     </div>
                   </>
                 )}
                 {p.manifest.provides?.lyrics && (
-                  <div className="plugin-field">
-                    <label>Lyrics backend</label>
+                  <div className="playback-row">
+                    <div className="playback-label-group">
+                      <span className="playback-label">Lyrics backend</span>
+                      <span className="playback-hint">Source used when fetching lyrics</span>
+                    </div>
                     <select className="plugin-select" value={settingsValues.lyricsBackend || 'lrclib-lyrics'} onChange={(e) => { setSettingsValues((s) => ({ ...s, lyricsBackend: e.target.value })); window.freeplayer.setSetting({ key: 'meta.lyricsBackend', value: e.target.value }); }}>
                       {plugins.filter((x) => x.manifest.provides?.lyrics && (x.perms.enabled || x.status === 'active')).map((x) => (
                         <option key={x.id} value={x.id}>{x.manifest.name}{x.id === (settingsValues.lyricsBackend || 'lrclib-lyrics') ? ' (current)' : ''}</option>
@@ -303,8 +310,11 @@ export default function PluginPage({ registry, meta, tracks }) {
                   </div>
                 )}
                 {p.manifest.provides?.cover && (
-                  <div className="plugin-field">
-                    <label>Cover backend</label>
+                  <div className="playback-row">
+                    <div className="playback-label-group">
+                      <span className="playback-label">Cover backend</span>
+                      <span className="playback-hint">Source used when fetching artwork</span>
+                    </div>
                     <select className="plugin-select" value={settingsValues.coverBackend || 'itunes-cover'} onChange={(e) => { setSettingsValues((s) => ({ ...s, coverBackend: e.target.value })); window.freeplayer.setSetting({ key: 'meta.coverBackend', value: e.target.value }); }}>
                       {plugins.filter((x) => x.manifest.provides?.cover && (x.perms.enabled || x.status === 'active')).map((x) => (
                         <option key={x.id} value={x.id}>{x.manifest.name}{x.id === (settingsValues.coverBackend || 'itunes-cover') ? ' (current)' : ''}</option>
@@ -313,20 +323,17 @@ export default function PluginPage({ registry, meta, tracks }) {
                   </div>
                 )}
                 {(p.manifest.settings || []).map((s) => (
-                  <div className="plugin-field" key={s.key}>
-                    <label>{s.label || s.key}</label>
+                  <div className="playback-row" key={s.key}>
+                    <div className="playback-label-group">
+                      <span className="playback-label">{s.label || s.key}</span>
+                      {s.description && <span className="playback-hint">{s.description}</span>}
+                    </div>
                     {s.type === 'boolean' && (
-                      <div className="plugin-field plugin-field--row">
-                        <div className="plugin-field-label-group">
-                          <span className="plugin-field-label">{s.label || s.key}</span>
-                          {s.description && <span className="plugin-field-hint">{s.description}</span>}
-                        </div>
-                        <ToggleSwitch
-                          checked={!!(settingsValues[p.id]?.[s.key] ?? s.default)}
-                          onChange={(v) => handleSettingChange(p, s, v)}
-                          label={s.label || s.key}
-                        />
-                      </div>
+                      <ToggleSwitch
+                        checked={!!(settingsValues[p.id]?.[s.key] ?? s.default)}
+                        onChange={(v) => handleSettingChange(p, s, v)}
+                        label={s.label || s.key}
+                      />
                     )}
                     {s.type === 'number' && (
                       <input

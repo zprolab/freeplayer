@@ -3933,51 +3933,6 @@ input[type="range"]::-webkit-slider-thumb {
   gap: 12px;
 }
 
-.plugin-field {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.plugin-field--row {
-  flex-direction: row;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding-bottom: 12px;
-  margin-bottom: 12px;
-  border-bottom: 1px solid var(--gl-border-light);
-}
-
-.plugin-field-label-group {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.plugin-field-label {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--gl-text-primary);
-}
-
-.plugin-field-hint {
-  font-size: 11px;
-  color: var(--gl-text-tertiary);
-}
-
-.plugin-backfill-hint {
-  font-size: 11px;
-  color: var(--gl-text-tertiary);
-  margin-left: 8px;
-}
-
-.plugin-field label {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--gl-text-secondary);
-}
-
 .plugin-select {
   max-width: 320px;
   height: 32px;
