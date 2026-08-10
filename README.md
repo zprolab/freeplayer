@@ -32,6 +32,18 @@ MP3, FLAC, WAV, OGG, M4A, AAC, WMA, Opus, AIFF, APE
 - **深色主题** — 背景色 #1f1f23，暗色设计。
 - **标题栏隐藏** — macOS 下使用 hiddenInset 标题栏，红绿灯按钮嵌入窗口角落。
 
+## 插件
+
+### MusicBrainz 插件
+
+内置 MusicBrainz Metadata 插件可补全曲目元数据（标题/艺人/专辑/流派/年份/音轨号，数据 CC0）与封面（Cover Art Archive）。
+
+**版权提醒**：
+
+- 请使用**自己的** API 凭证（官方 MusicBrainz 公共 API 无需 key；自建实例或高级用途请自行申请/配置，勿共用他人凭证）
+- MusicBrainz 核心数据为 CC0（可自由使用）；**Cover Art Archive 图片为 CC BY-NC-SA——仅限个人使用，不可商用分发**；商用需与 MetaBrainz 签署支持者协议
+- 默认设置完全离线；Auto-Fetch 相关开关默认关闭
+
 ## 数据库结构
 
 | 表 | 内容 |
