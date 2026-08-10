@@ -2522,43 +2522,6 @@ input[type="range"]::-webkit-slider-thumb {
   text-align: right;
 }
 
-/* Visualizer segmented button */
-.vis-mode-group--settings {
-  display: flex;
-  border: 1px solid var(--gl-border);
-  border-radius: var(--gl-radius-sm);
-  overflow: hidden;
-}
-
-.vis-mode-btn--settings {
-  padding: 5px 12px;
-  border: none;
-  background: transparent;
-  color: var(--gl-text-secondary);
-  font-family: var(--font-ui);
-  font-size: 11px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: background 0.12s, color 0.12s;
-}
-
-.vis-mode-btn--settings + .vis-mode-btn--settings {
-  border-left: 1px solid var(--gl-border);
-}
-
-.vis-mode-btn--settings:hover {
-  background: var(--gl-border-light);
-}
-
-.vis-mode-btn--settings--active {
-  background: var(--gl-orange);
-  color: #fff;
-}
-
-.vis-mode-btn--settings--active:hover {
-  background: var(--gl-orange-hover);
-}
-
 /* Danger zone */
 .danger-row {
   display: flex;

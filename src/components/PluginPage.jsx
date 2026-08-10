@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback } from 'react';
 import ToggleSwitch from './ToggleSwitch';
 import { backfillMissing, isBackfillRunning } from '../services/backfill';
 
-const STATUS_LABEL = { enabled: 'ENABLED', disabled: 'OFF', active: 'ACTIVE', error: 'ERROR', incompatible: 'INCOMPATIBLE' };
 
 const PERM_DESC = {
   http: 'Make network requests (GET)',

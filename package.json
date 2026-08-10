@@ -10,7 +10,6 @@
     "vite:dev": "vite",
     "test": "vitest run",
     "test:watch": "vitest",
-    "shell:dev": "bash shell/scripts/dev.sh",
     "shell:bundle": "vite build && make -C shell bundle",
     "shell:dist": "bash shell/scripts/package.sh",
     "install": "bash shell/scripts/install.sh",
