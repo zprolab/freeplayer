@@ -6,6 +6,7 @@ const VIEWS = {
   LIBRARY: 'library',
   NOW_PLAYING: 'now-playing',
   STATS: 'stats',
+  PLUGINS: 'plugins',
   SETTINGS: 'settings',
 };
 

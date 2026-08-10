@@ -1,5 +1,7 @@
 import { useState, useEffect, memo } from 'react';
 import { fetchAndSaveLyrics, fetchAndSaveCover } from '../services/metaPersistence';
+import ToggleSwitch from './ToggleSwitch';
+import SegmentedControl from './SegmentedControl';
 
 let batchRunning = false;
 
@@ -12,15 +14,16 @@ const Settings = memo(function Settings({
   onDefaultVolumeChange,
   defaultVisualizer,
   onDefaultVisualizerChange,
-  autoFetchMeta, onAutoFetchMetaChange, tracks,
+  autoFetchMeta, onAutoFetchMetaChange, tracks, meta,
   onResetDatabase,
 }) {
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [batchProgress, setBatchProgress] = useState(null); // { done, total, ok, fail, noMatch }
   const [batchActive, setBatchActive] = useState(batchRunning);
-  const [trayEnabled, setTrayEnabled] = useState(true); // default true
-  const [trayNotify, setTrayNotify] = useState(true);
+  const [trayEnabled, setTrayEnabled] = useState(false);
+  const [trayNotify, setTrayNotify] = useState(false);
   const [startOnBoot, setStartOnBoot] = useState(false);
+  const [settingsLoaded, setSettingsLoaded] = useState(false);
 
   const coerceBool = (val) => {
     if (val === true || val === 1) return true;
@@ -33,15 +36,16 @@ const Settings = memo(function Settings({
   };
 
   useEffect(() => {
-    window.freeplayer.getSetting('tray_enabled').then(val => {
-      setTrayEnabled(coerceBool(val));
-    }).catch(() => {});
-    window.freeplayer.getSetting('tray_notify').then(val => {
-      setTrayNotify(coerceBool(val));
-    }).catch(() => {});
-    window.freeplayer.getLoginItemSettings().then(settings => {
-      setStartOnBoot(settings.openAtLogin);
-    }).catch(() => {});
+    Promise.all([
+      window.freeplayer.getSetting('tray_enabled'),
+      window.freeplayer.getSetting('tray_notify'),
+      window.freeplayer.getLoginItemSettings(),
+    ]).then(([tray, notify, login]) => {
+      setTrayEnabled(coerceBool(tray));
+      setTrayNotify(coerceBool(notify));
+      setStartOnBoot(!!(login && login.openAtLogin));
+      setSettingsLoaded(true);
+    }).catch(() => setSettingsLoaded(true));
   }, []);
 
   const handleChangeLibraryDir = async () => {
@@ -82,13 +86,13 @@ const Settings = memo(function Settings({
           || !(await window.freeplayer.getCover(t.cover_path).catch(() => null));
         if (coverMissing) {
           hadMissing = true;
-          const { saved: coverSaved } = await fetchAndSaveCover(t);
+          const { saved: coverSaved } = await fetchAndSaveCover(t, meta);
           if (coverSaved) { ok++; saved = true; }
         }
         const lrc = await window.freeplayer.getLrc(t.id);
         if (!lrc || !lrc.content) {
           hadMissing = true;
-          const { saved: lrcSaved } = await fetchAndSaveLyrics(t);
+          const { saved: lrcSaved } = await fetchAndSaveLyrics(t, meta);
           if (lrcSaved) { ok++; saved = true; }
         }
       } catch {
@@ -200,17 +204,16 @@ const Settings = memo(function Settings({
             <span className="playback-label">Default Visualizer</span>
             <span className="playback-hint">Visualization shown on Now Playing view</span>
           </div>
-          <div className="vis-mode-group--settings">
-            {['waveform', 'spectrogram', 'off'].map((mode) => (
-              <button
-                key={mode}
-                className={`vis-mode-btn--settings ${defaultVisualizer === mode ? 'vis-mode-btn--settings--active' : ''}`}
-                onClick={() => onDefaultVisualizerChange(mode)}
-              >
-                {mode === 'waveform' ? 'Waveform' : mode === 'spectrogram' ? 'Spectrogram' : 'Off'}
-              </button>
-            ))}
-          </div>
+          <SegmentedControl
+            options={[
+              { value: 'waveform', label: 'Waveform' },
+              { value: 'spectrogram', label: 'Spectrogram' },
+              { value: 'off', label: 'Off' },
+            ]}
+            value={defaultVisualizer}
+            onChange={onDefaultVisualizerChange}
+            disabled={settingsLoaded === false}
+          />
         </div>
 
         <div className="playback-row">
@@ -218,14 +221,7 @@ const Settings = memo(function Settings({
             <span className="playback-label">Auto-Fetch Lyrics & Covers</span>
             <span className="playback-hint">Automatically download missing lyrics (LRCLIB) and album art (iTunes) when playing a track</span>
           </div>
-          <label className="toggle-switch">
-            <input
-              type="checkbox"
-              checked={autoFetchMeta}
-              onChange={(e) => onAutoFetchMetaChange(e.target.checked)}
-            />
-            <span className="toggle-slider" />
-          </label>
+          <ToggleSwitch checked={autoFetchMeta} onChange={onAutoFetchMetaChange} label="Auto-Fetch Lyrics & Covers" />
         </div>
 
         <div className="playback-row">
@@ -253,18 +249,15 @@ const Settings = memo(function Settings({
             <span className="playback-label">Close to Tray</span>
             <span className="playback-hint">Minimize to system tray instead of quitting when closing the window</span>
           </div>
-          <label className="toggle-switch">
-            <input
-              type="checkbox"
-              checked={trayEnabled}
-              onChange={(e) => {
-                const val = e.target.checked;
-                setTrayEnabled(val);
-                window.freeplayer.setSetting({ key: 'tray_enabled', value: val });
-              }}
-            />
-            <span className="toggle-slider" />
-          </label>
+          <ToggleSwitch
+            checked={trayEnabled}
+            disabled={!settingsLoaded}
+            onChange={(val) => {
+              setTrayEnabled(val);
+              window.freeplayer.setSetting({ key: 'tray_enabled', value: val });
+            }}
+            label="Close to Tray"
+          />
         </div>
 
         {trayEnabled && (
@@ -274,18 +267,15 @@ const Settings = memo(function Settings({
                 <span className="playback-label">Tray Notification</span>
                 <span className="playback-hint">Show a notification when the app is minimized to the system tray</span>
               </div>
-              <label className="toggle-switch">
-                <input
-                  type="checkbox"
-                  checked={trayNotify}
-                  onChange={(e) => {
-                    const val = e.target.checked;
-                    setTrayNotify(val);
-                    window.freeplayer.setSetting({ key: 'tray_notify', value: val });
-                  }}
-                />
-                <span className="toggle-slider" />
-              </label>
+              <ToggleSwitch
+                checked={trayNotify}
+                disabled={!settingsLoaded}
+                onChange={(val) => {
+                  setTrayNotify(val);
+                  window.freeplayer.setSetting({ key: 'tray_notify', value: val });
+                }}
+                label="Tray Notification"
+              />
             </div>
 
             <div className="playback-row">
@@ -293,19 +283,16 @@ const Settings = memo(function Settings({
                 <span className="playback-label">Launch at Login</span>
                 <span className="playback-hint">Automatically start FreePlayer when you log in</span>
               </div>
-              <label className="toggle-switch">
-                <input
-                  type="checkbox"
-                  checked={startOnBoot}
-                  onChange={(e) => {
-                    const val = e.target.checked;
-                    setStartOnBoot(val);
-                    window.freeplayer.setSetting({ key: 'start_on_boot', value: val });
-                    window.freeplayer.setLoginItemSettings({ openAtLogin: val, openAsHidden: true });
-                  }}
-                />
-                <span className="toggle-slider" />
-              </label>
+              <ToggleSwitch
+                checked={startOnBoot}
+                disabled={!settingsLoaded}
+                onChange={(val) => {
+                  setStartOnBoot(val);
+                  window.freeplayer.setSetting({ key: 'start_on_boot', value: val });
+                  window.freeplayer.setLoginItemSettings({ openAtLogin: val, openAsHidden: true });
+                }}
+                label="Launch at Login"
+              />
             </div>
           </>
         )}
