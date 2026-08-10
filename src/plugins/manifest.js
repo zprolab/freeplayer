@@ -1,3 +1,5 @@
+import { sanitizeSvgIcon } from './svgIcon';
+
 export const API_VERSION = 1;
 
 export const PERMISSIONS = [
@@ -51,6 +53,13 @@ export function validateManifest(raw) {
   const provides = raw.provides || {};
   if (provides.lyrics && !events.includes('lyrics:fetch')) errors.push('provides.lyrics requires activationEvents lyrics:fetch');
   if (provides.cover && !events.includes('cover:fetch')) errors.push('provides.cover requires activationEvents cover:fetch');
+  if (raw.icon !== undefined) {
+    // Icon must be a sanitizable inline SVG (allowlisted elements/attrs,
+    // no scripts/handlers); invalid icons fail the manifest.
+    if (typeof raw.icon !== 'string' || !sanitizeSvgIcon(raw.icon)) {
+      errors.push('icon: must be a valid inline SVG string');
+    }
+  }
   if (raw.settings !== undefined) {
     if (!Array.isArray(raw.settings)) errors.push('settings: must be an array');
     else {
@@ -69,6 +78,7 @@ export function validateManifest(raw) {
       id: raw.id, name: raw.name, version: raw.version,
       description: raw.description || '', author: raw.author || '',
       homepage: raw.homepage || '',
+      icon: raw.icon !== undefined ? sanitizeSvgIcon(raw.icon) : undefined,
       apiVersion: raw.apiVersion, main: raw.main,
       permissions: normalizePermissions(perms),
       activationEvents: events, provides,

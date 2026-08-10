@@ -186,7 +186,13 @@ export default function PluginPage({ registry, meta, tracks }) {
         )}
         {plugins.map((p) => (
           <div key={p.id} className={`plugin-card${isNew(p) ? ' plugin-card--new' : ''}`} onClick={() => { setOpenDetail(p.id); setDetailTab('settings'); }}>
-            <div className="plugin-card-avatar">{p.manifest.provides?.lyrics ? '♪' : p.manifest.provides?.cover ? '◫' : '▦'}</div>
+            <div className="plugin-card-avatar">
+              {p.manifest.icon ? (
+                <span className="plugin-card-icon" dangerouslySetInnerHTML={{ __html: p.manifest.icon }} />
+              ) : (
+                (p.manifest.provides?.lyrics ? '♪' : p.manifest.provides?.cover ? '◫' : '▦')
+              )}
+            </div>
             <div className="plugin-card-body">
               <div className="plugin-card-name">
                 {p.manifest.name}

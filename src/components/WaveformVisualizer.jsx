@@ -174,7 +174,7 @@ export default function WaveformVisualizer({ audioElement, trackId, mode, onMode
         <div className="visualizer-off-inner">
           <span className="visualizer-off-label mono">VISUALIZER OFF</span>
           <button className="visualizer-off-btn" onClick={() => onModeChange('waveform')} title="Press V to enable">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
               <polyline points="4 12 10 18 20 6"/>
             </svg>
             Enable
@@ -218,7 +218,7 @@ export default function WaveformVisualizer({ audioElement, trackId, mode, onMode
           onClick={() => onModeChange('off')}
           title="Turn Off Visualizer"
         >
-          <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+          <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
             <line x1="4" y1="4" x2="12" y2="12"/>
             <line x1="12" y1="4" x2="4" y2="12"/>
           </svg>

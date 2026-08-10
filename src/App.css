@@ -3764,6 +3764,12 @@ input[type="range"]::-webkit-slider-thumb {
   font-size: 16px;
 }
 
+.plugin-card-icon svg {
+  width: 20px;
+  height: 20px;
+  display: block;
+}
+
 .plugin-card-body {
   flex: 1;
   min-width: 0;

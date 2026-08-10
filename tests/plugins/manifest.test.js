@@ -82,4 +82,22 @@ describe('validateManifest', () => {
     const r = validateManifest({ ...base, provides: { lyrics: true }, activationEvents: ['lyrics:fetch'] });
     expect(r.ok).toBe(true);
   });
+  it('accepts a valid sanitizable svg icon', () => {
+    const r = validateManifest({
+      ...base,
+      icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/></svg>',
+    });
+    expect(r.ok).toBe(true);
+    expect(r.manifest.icon).toContain('<path d="M9 18V5l12-2v13"/>');
+    expect(r.manifest.icon).not.toContain('width=');
+  });
+  it('rejects icons with scripts or handlers', () => {
+    const r = validateManifest({ ...base, icon: '<svg onload="alert(1)"><script>x()</script></svg>' });
+    expect(r.ok).toBe(false);
+    expect(r.errors.join()).toContain('icon');
+  });
+  it('rejects non-string icons', () => {
+    const r = validateManifest({ ...base, icon: 42 });
+    expect(r.ok).toBe(false);
+  });
 });

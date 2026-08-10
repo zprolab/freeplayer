@@ -227,7 +227,7 @@ export default function NowPlaying({
             <svg
               className={`np-queue-chevron ${queueOpen ? 'np-queue-chevron--open' : ''}`}
               width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-              strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+              strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"
             >
               <polyline points="6 9 12 15 18 9"/>
             </svg>
