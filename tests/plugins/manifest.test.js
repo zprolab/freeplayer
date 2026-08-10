@@ -78,9 +78,24 @@ describe('validateManifest', () => {
     expect(r.ok).toBe(false);
     expect(r.errors.join()).toContain('lyrics:fetch');
   });
-  it('accepts provides.lyrics with matching activation', () => {
-    const r = validateManifest({ ...base, provides: { lyrics: true }, activationEvents: ['lyrics:fetch'] });
+  it('accepts provides.lyrics with matching activation and write permission', () => {
+    const r = validateManifest({
+      ...base,
+      provides: { lyrics: true },
+      activationEvents: ['lyrics:fetch'],
+      permissions: ['http', 'metadata:write'],
+    });
     expect(r.ok).toBe(true);
+  });
+  it('rejects providers without the metadata:write permission', () => {
+    const r = validateManifest({
+      ...base,
+      provides: { cover: true },
+      activationEvents: ['cover:fetch'],
+      permissions: ['http'],
+    });
+    expect(r.ok).toBe(false);
+    expect(r.errors.join()).toContain('metadata:write');
   });
   it('accepts a valid sanitizable svg icon', () => {
     const r = validateManifest({

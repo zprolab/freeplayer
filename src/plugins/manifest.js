@@ -53,6 +53,13 @@ export function validateManifest(raw) {
   const provides = raw.provides || {};
   if (provides.lyrics && !events.includes('lyrics:fetch')) errors.push('provides.lyrics requires activationEvents lyrics:fetch');
   if (provides.cover && !events.includes('cover:fetch')) errors.push('provides.cover requires activationEvents cover:fetch');
+  // Provider hooks are persisted by the host on the plugin's behalf, so a
+  // provider must explicitly request the write permission it relies on —
+  // otherwise the permission model would let any lyrics/cover backend write
+  // to the library without ever being granted metadata:write.
+  if ((provides.lyrics || provides.cover) && !perms.includes('metadata:write')) {
+    errors.push('provides.lyrics/cover requires permission metadata:write');
+  }
   if (raw.icon !== undefined) {
     // Icon must be a sanitizable inline SVG (allowlisted elements/attrs,
     // no scripts/handlers); invalid icons fail the manifest.

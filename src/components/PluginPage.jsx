@@ -144,7 +144,20 @@ export default function PluginPage({ registry, meta, tracks }) {
 
   async function handleToggle(p, enabled) {
     if (enabled) {
-      if (isNew(p)) { setPendingPlugin(p); setPendingGrants((p.manifest.permissions || []).filter((x) => x.endsWith(':read') || x === 'http')); return; }
+      if (isNew(p)) {
+        // Default: read-level grants; providers additionally need
+        // metadata:write — the host persists their hook results on their
+        // behalf, so the write grant is required for them to function.
+        const defaults = (p.manifest.permissions || []).filter((x) => x.endsWith(':read') || x === 'http');
+        if ((p.manifest.provides?.lyrics || p.manifest.provides?.cover)
+            && (p.manifest.permissions || []).includes('metadata:write')
+            && !defaults.includes('metadata:write')) {
+          defaults.push('metadata:write');
+        }
+        setPendingPlugin(p);
+        setPendingGrants(defaults);
+        return;
+      }
       // 重新启用：保留既有 granted（disable 不清空），避免静默降权
       await registry.enable(p.id, p.perms.granted);
     } else {

@@ -24,6 +24,14 @@ export function createMetadataRegistry(deps) {
     return typeof v === 'string' && v.length > 16 && BASE64_RE.test(v);
   }
 
+  // The host persists hook results on the backend's behalf — that write must
+  // be covered by the user-granted metadata:write permission, matching what
+  // the permission dialog showed. Backends without the grant cannot save.
+  function canWrite(backend) {
+    const p = registry.getPlugin(backend);
+    return !!(p && Array.isArray(p.perms?.granted) && p.perms.granted.includes('metadata:write'));
+  }
+
   async function fetchLyrics(track) {
     const backend = await backendFor('lyrics');
     if (!getProviders('lyrics').includes(backend)) return { saved: false, reason: 'no-plugin' };
@@ -37,6 +45,10 @@ export function createMetadataRegistry(deps) {
     if (!validLyrics(content)) {
       registry.logOp(backend, 'fetchLyrics', track.id, false);
       return { saved: false, reason: 'not-found' };
+    }
+    if (!canWrite(backend)) {
+      registry.logOp(backend, 'saveLyrics', track.id, false);
+      return { saved: false, reason: 'no-write-permission' };
     }
     registry.logOp(backend, 'fetchLyrics', track.id, true);
     const res = await saveLyrics(track.id, content);
@@ -58,6 +70,10 @@ export function createMetadataRegistry(deps) {
     if (!validBase64(base64)) {
       registry.logOp(backend, 'fetchCover', track.id, false);
       return { saved: false, reason: 'not-found' };
+    }
+    if (!canWrite(backend)) {
+      registry.logOp(backend, 'saveCover', track.id, false);
+      return { saved: false, reason: 'no-write-permission' };
     }
     registry.logOp(backend, 'fetchCover', track.id, true);
     const res = await saveCover(track.id, base64);

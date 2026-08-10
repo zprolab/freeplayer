@@ -8,12 +8,38 @@
   "icon": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M3 9v6h4l5 5V4L7 9H3z\"/><path d=\"M16 8a5 5 0 0 1 0 8\"/></svg>",
   "apiVersion": 1,
   "main": "main.js",
-  "activationEvents": ["lyrics:fetch"],
-  "provides": { "lyrics": true },
-  "permissions": ["http"],
+  "activationEvents": [
+    "lyrics:fetch"
+  ],
+  "provides": {
+    "lyrics": true
+  },
+  "permissions": [
+    "http",
+    "metadata:write"
+  ],
   "settings": [
-    { "key": "minMatchScore", "type": "number", "label": "Min match score", "default": 0.8, "min": 0, "max": 1 },
-    { "key": "requestIntervalMs", "type": "number", "label": "Request interval (ms)", "default": 1200, "min": 100, "max": 60000 },
-    { "key": "silentCooldown", "type": "boolean", "label": "Silent failures (cooldown on 429/403)", "default": true }
+    {
+      "key": "minMatchScore",
+      "type": "number",
+      "label": "Min match score",
+      "default": 0.8,
+      "min": 0,
+      "max": 1
+    },
+    {
+      "key": "requestIntervalMs",
+      "type": "number",
+      "label": "Request interval (ms)",
+      "default": 1200,
+      "min": 100,
+      "max": 60000
+    },
+    {
+      "key": "silentCooldown",
+      "type": "boolean",
+      "label": "Silent failures (cooldown on 429/403)",
+      "default": true
+    }
   ]
 }

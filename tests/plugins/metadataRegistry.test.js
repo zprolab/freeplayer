@@ -4,13 +4,14 @@ import { createMetadataRegistry } from '../../src/plugins/metadataRegistry';
 function makeRegistry(plugins) {
   return {
     getPlugins: () => plugins,
+    getPlugin: (id) => plugins.find((p) => p.id === id) || null,
     invokeHook: vi.fn(async () => null),
     logOp: vi.fn(),
   };
 }
 
-function plugin(id, provides) {
-  return { id, status: 'enabled', manifest: { provides } };
+function plugin(id, provides, granted = ['metadata:write']) {
+  return { id, status: 'enabled', perms: { granted }, manifest: { provides } };
 }
 
 describe('createMetadataRegistry', () => {
@@ -37,6 +38,17 @@ describe('createMetadataRegistry', () => {
     const res = await reg.fetchLyrics({ id: 5, title: 'Sun' });
     expect(registry.invokeHook).toHaveBeenCalledWith('netease', 'fetchLyrics', { id: 5, title: 'Sun' });
     expect(res).toEqual({ saved: true, content: 'lrc-content' });
+  });
+  it('refuses to save when the backend lacks the metadata:write grant', async () => {
+    const registry = makeRegistry([
+      plugin('lrclib-lyrics', { lyrics: true }, ['http']),
+    ]);
+    const saveLyrics = vi.fn();
+    const reg = createMetadataRegistry({ registry, getSetting: vi.fn(async () => null), saveLyrics, saveCover: vi.fn() });
+    registry.invokeHook.mockResolvedValue('[00:01.00]hi');
+    const res = await reg.fetchLyrics({ id: 5, title: 'Sun' });
+    expect(res).toEqual({ saved: false, reason: 'no-write-permission' });
+    expect(saveLyrics).not.toHaveBeenCalled();
   });
   it('does not save when the backend is not an enabled provider', async () => {
     const reg = createMetadataRegistry({
