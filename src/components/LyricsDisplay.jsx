@@ -5,7 +5,7 @@ import { useActiveLineScroll } from '../hooks/useActiveLineScroll';
 
 export default function LyricsDisplay({
   lrcContent, currentTime = 0, onUpload, onRemove, onImmersive, autoScroll = false,
-  onFetchLyrics, fetchingLyrics, lyricsFetchFailed,
+  onFetchLyrics, fetchingLyrics, lyricsFailReason,
 }) {
   const lyrics = useMemo(() => parseLRC(lrcContent), [lrcContent]);
   const listRef = useRef(null);
@@ -52,7 +52,7 @@ export default function LyricsDisplay({
                 <polyline points="7 10 12 15 17 10"/>
                 <line x1="12" y1="15" x2="12" y2="3"/>
               </svg>
-              {fetchingLyrics ? 'Fetching…' : lyricsFetchFailed ? 'No lyrics found' : 'Fetch Lyrics'}
+              {fetchingLyrics ? 'Fetching…' : lyricsFailReason === 'no-plugin' || lyricsFailReason === 'plugin-error' ? 'Lyrics plugin unavailable' : lyricsFailReason ? 'No lyrics found' : 'Fetch Lyrics'}
             </button>
           )}
           {onUpload && (

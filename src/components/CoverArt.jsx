@@ -7,7 +7,7 @@ const VARIANTS = {
 
 export default function CoverArt({
   track, variant = 'bar',
-  onFetchCover, fetchingCover, coverFetchFailed,
+  onFetchCover, fetchingCover, coverFailReason,
 }) {
   const coverUrl = useCoverArt(track);
   const v = VARIANTS[variant];
@@ -16,7 +16,7 @@ export default function CoverArt({
     return <img src={coverUrl} alt="" className={v.imgClass} />;
   }
 
-  const showAction = fetchingCover || coverFetchFailed;
+  const showAction = fetchingCover || !!coverFailReason;
 
   return (
     <div className={v.placeholderClass}>
@@ -32,7 +32,7 @@ export default function CoverArt({
           disabled={fetchingCover}
           title="Search iTunes for album art"
         >
-          {fetchingCover ? 'Fetching…' : coverFetchFailed ? 'No cover found' : 'Fetch Cover'}
+          {fetchingCover ? 'Fetching…' : coverFailReason === 'no-plugin' || coverFailReason === 'plugin-error' ? 'Cover plugin unavailable' : coverFailReason ? 'No cover found' : 'Fetch Cover'}
         </button>
       )}
     </div>

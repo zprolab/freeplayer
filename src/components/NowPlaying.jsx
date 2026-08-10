@@ -14,15 +14,16 @@ export default function NowPlaying({
   audioElement,
   visualizerMode, onVisualizerModeChange,
   onCoverSaved,
+  meta,
 }) {
   const [lrcContent, setLrcContent] = useState(null);
   const [isImmersive, setIsImmersive] = useState(false);
   const [tab, setTab] = useState('overview');
   const [queueOpen, setQueueOpen] = useState(false);
   const [fetchingLyrics, setFetchingLyrics] = useState(false);
-  const [lyricsFetchFailed, setLyricsFetchFailed] = useState(false);
+  const [lyricsFailReason, setLyricsFailReason] = useState(null);
   const [fetchingCover, setFetchingCover] = useState(false);
-  const [coverFetchFailed, setCoverFetchFailed] = useState(false);
+  const [coverFailReason, setCoverFailReason] = useState(null);
 
   const coverUrl = useCoverArt(currentTrack);
 
@@ -42,8 +43,8 @@ export default function NowPlaying({
     } else {
       setLrcContent(null);
     }
-    setLyricsFetchFailed(false);
-    setCoverFetchFailed(false);
+    setLyricsFailReason(null);
+    setCoverFailReason(null);
     return () => { stale = true; };
   }, [currentTrack]);
 
@@ -67,31 +68,31 @@ export default function NowPlaying({
   const handleFetchLyrics = useCallback(async () => {
     if (!currentTrack?.id || fetchingLyrics) return;
     setFetchingLyrics(true);
-    setLyricsFetchFailed(false);
-    const { saved } = await fetchAndSaveLyrics(currentTrack);
+    setLyricsFailReason(null);
+    const { saved, reason } = await fetchAndSaveLyrics(currentTrack, meta);
     if (saved) {
       const lrcResult = await window.freeplayer.getLrc(currentTrack.id);
       if (lrcResult && lrcResult.content) {
         setLrcContent(lrcResult.content);
       }
     } else {
-      setLyricsFetchFailed(true);
+      setLyricsFailReason(reason || 'not-found');
     }
     setFetchingLyrics(false);
-  }, [currentTrack, fetchingLyrics]);
+  }, [currentTrack, fetchingLyrics, meta]);
 
   const handleFetchCover = useCallback(async () => {
     if (!currentTrack?.id || fetchingCover) return;
     setFetchingCover(true);
-    setCoverFetchFailed(false);
-    const { saved, coverPath } = await fetchAndSaveCover(currentTrack);
+    setCoverFailReason(null);
+    const { saved, coverPath, reason } = await fetchAndSaveCover(currentTrack, meta);
     if (saved && coverPath) {
       onCoverSaved(coverPath);
     } else {
-      setCoverFetchFailed(true);
+      setCoverFailReason(reason || 'not-found');
     }
     setFetchingCover(false);
-  }, [currentTrack, fetchingCover, onCoverSaved]);
+  }, [currentTrack, fetchingCover, onCoverSaved, meta]);
 
   if (!currentTrack) {
     return (
@@ -122,7 +123,7 @@ export default function NowPlaying({
       onUpload={handleUploadLrc}
       onFetchLyrics={handleFetchLyrics}
       fetchingLyrics={fetchingLyrics}
-      lyricsFetchFailed={lyricsFetchFailed}
+      lyricsFailReason={lyricsFailReason}
       onImmersive={() => setIsImmersive(true)}
       onRemove={handleRemoveLrc}
       autoScroll
@@ -163,7 +164,7 @@ export default function NowPlaying({
                 variant="np"
                 onFetchCover={handleFetchCover}
                 fetchingCover={fetchingCover}
-                coverFetchFailed={coverFetchFailed}
+                coverFailReason={coverFailReason}
               />
             </div>
 
