@@ -10,6 +10,7 @@
 #include "bridge.h"
 #include "metadata.h"
 #include "tray.h"
+#import "pluginfs.h"
 
 static const char *kAudioExtensions[] = { "mp3", "flac", "m4a", "aac", "ogg", "wav", "opus", "mp4" };
 
@@ -117,6 +118,11 @@ static const char *kBridgeScript = R"JS(
     onEqChange: (callback) => { window.__freeplayerEqHandler = callback; },
     // Native file drop -> renderer import flow
     onDropFiles: (callback) => { window.__freeplayerDropHandler = callback; },
+    // Plugins
+    listPlugins: () => api._invoke('listPlugins'),
+    readPluginFile: (id, rel) => api._invoke('readPluginFile', id, rel),
+    openPluginsDir: () => api._invoke('openPluginsDir'),
+    uninstallPlugin: (id) => api._invoke('uninstallPlugin', id),
   };
 
   api._invoke = (method, ...args) => new Promise((resolve, reject) => {
@@ -938,7 +944,25 @@ static NSWindow *shellWindow(void) {
     } else if ([method isEqualToString:@"setLoginItemSettings"]) {
       NSDictionary *d = args.firstObject;
       reply(idNum, @{ @"ok": @(fptraySetLoginItem([d[@"openAtLogin"] boolValue])) });
-    } else {
+    }
+    // ── Plugins ──
+    else if ([method isEqualToString:@"listPlugins"]) {
+      reply(idNum, fpplugin::listPlugins());
+    }
+    else if ([method isEqualToString:@"readPluginFile"]) {
+      NSString *pid = args.count > 0 ? args[0] : nil;
+      NSString *rel = args.count > 1 ? args[1] : nil;
+      NSString *content = fpplugin::readPluginFile(pid, rel);
+      reply(idNum, content ?: NSNull.null);
+    }
+    else if ([method isEqualToString:@"openPluginsDir"]) {
+      fpplugin::openPluginsDir();
+      reply(idNum, @YES);
+    }
+    else if ([method isEqualToString:@"uninstallPlugin"]) {
+      reply(idNum, @(fpplugin::removePlugin(args.firstObject)));
+    }
+    else {
       reject(idNum, [NSString stringWithFormat:@"not implemented: %@", method]);
     }
   } @catch (NSException *e) {
