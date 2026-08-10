@@ -3926,6 +3926,12 @@ input[type="range"]::-webkit-slider-thumb {
   color: var(--gl-text-tertiary);
 }
 
+.backfill-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
 .plugin-notice {
   margin-top: 14px;
   padding: 10px 12px;

@@ -24,6 +24,7 @@ export default function PluginPage({ registry, meta, tracks }) {
   const [plugins, setPlugins] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
   const [pendingPlugin, setPendingPlugin] = useState(null); // 权限弹窗对象 { id, manifest }
+  const [refetchConfirm, setRefetchConfirm] = useState(null); // { p, kind } 强制重新获取确认
   const [pendingGrants, setPendingGrants] = useState([]);
   const [openDetail, setOpenDetail] = useState(null); // 详情面板插件 id
   const [detailTab, setDetailTab] = useState('settings');
@@ -50,7 +51,7 @@ export default function PluginPage({ registry, meta, tracks }) {
     window.freeplayer.setSetting({ key: `plugin.${pluginId}.autoFetch`, value: val ? '1' : '0' }).catch(() => {});
   };
 
-  const handleBackfill = async (p, kind) => {
+  const handleBackfill = async (p, kind, force = false) => {
     if (isBackfillRunning() || !meta) return;
     // Progress is keyed per plugin+kind so a plugin with several
     // capabilities (e.g. musicbrainz: cover + metadata) keeps each
@@ -60,6 +61,7 @@ export default function PluginPage({ registry, meta, tracks }) {
     await backfillMissing({
       tracks,
       kind,
+      force,
       fetchForTrack: (t) => (
         kind === 'lyrics' ? meta.fetchLyrics(t)
           : kind === 'cover' ? meta.fetchCover(t)
@@ -275,6 +277,25 @@ export default function PluginPage({ registry, meta, tracks }) {
         </div>
       )}
 
+      {refetchConfirm && (
+        <div className="confirm-overlay" onClick={() => setRefetchConfirm(null)}>
+          <div className="confirm-dialog" onClick={(e) => e.stopPropagation()}>
+            <h3 className="confirm-title">Refetch all {refetchConfirm.kind === 'lyrics' ? 'lyrics' : refetchConfirm.kind === 'cover' ? 'covers' : 'metadata'}?</h3>
+            <p className="confirm-message">
+              This re-downloads {refetchConfirm.kind === 'lyrics' ? 'lyrics' : refetchConfirm.kind === 'cover' ? 'covers' : 'metadata'} for all {tracks?.length || 0} tracks and overwrites existing data — including lyrics or covers you associated manually.
+            </p>
+            <div className="confirm-actions">
+              <button className="btn btn-secondary" onClick={() => setRefetchConfirm(null)}>Cancel</button>
+              <button className="btn btn-primary" onClick={() => {
+                const { p: p0, kind: k0 } = refetchConfirm;
+                setRefetchConfirm(null);
+                handleBackfill(p0, k0, true);
+              }}>Refetch All</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {openDetail && (() => {
         const p = plugins.find((x) => x.id === openDetail);
         if (!p) return null;
@@ -320,15 +341,24 @@ export default function PluginPage({ registry, meta, tracks }) {
                               : `Backfill ${kind === 'lyrics' ? 'lyrics' : kind === 'cover' ? 'covers' : 'metadata'} for tracks that are missing them`}
                           </span>
                         </div>
-                        <button
-                          className="btn btn-secondary"
-                          disabled={isBackfillRunning() || (backfillProgress && backfillProgress.key === `${p.id}:${kind}`)}
-                          onClick={() => handleBackfill(p, kind)}
-                        >
-                          {backfillProgress && backfillProgress.key === `${p.id}:${kind}`
-                            ? `Fetching ${backfillProgress.done}/${backfillProgress.total} · ${backfillProgress.ok} saved`
-                            : 'Fetch Missing'}
-                        </button>
+                        <div className="backfill-actions">
+                          <button
+                            className="btn btn-secondary"
+                            disabled={isBackfillRunning() || (backfillProgress && backfillProgress.key === `${p.id}:${kind}`)}
+                            onClick={() => handleBackfill(p, kind, false)}
+                          >
+                            {backfillProgress && backfillProgress.key === `${p.id}:${kind}`
+                              ? `Fetching ${backfillProgress.done}/${backfillProgress.total} · ${backfillProgress.ok} saved`
+                              : 'Fetch Missing'}
+                          </button>
+                          <button
+                            className="btn btn-secondary"
+                            disabled={isBackfillRunning() || (backfillProgress && backfillProgress.key === `${p.id}:${kind}`)}
+                            onClick={() => setRefetchConfirm({ p, kind })}
+                          >
+                            Refetch All
+                          </button>
+                        </div>
                       </div>
                     ))}
                   </>

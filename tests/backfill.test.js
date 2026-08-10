@@ -42,3 +42,17 @@ describe('backfillMissing', () => {
     expect(p2).resolves.toBeUndefined();
   });
 });
+
+describe('backfillMissing force', () => {
+  it('refetches every track when force is true, ignoring missingCheck', async () => {
+    const tracks = [{ id: 1, title: 'Complete' }, { id: 2, title: 'Complete' }];
+    const fetchForTrack = vi.fn(async () => ({ saved: true }));
+    const missingCheck = vi.fn(async () => false); // would skip everything
+    await backfillMissing({
+      tracks, kind: 'lyrics', fetchForTrack, missingCheck,
+      onProgress: () => {}, sleepMs: 0, force: true,
+    });
+    expect(missingCheck).not.toHaveBeenCalled();
+    expect(fetchForTrack).toHaveBeenCalledTimes(2);
+  });
+});

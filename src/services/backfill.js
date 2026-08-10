@@ -24,8 +24,10 @@ export function needsMetadataFill(t) {
 //   | meta.fetchMetadata(track)
 // missingCheck: (track) => Promise<boolean> — true when the item is missing;
 //   supplied by the caller (each kind knows its own missing condition).
+// force: true — refetch every track, ignoring missingCheck (overwrites
+//   existing data); the caller is expected to confirm before passing it.
 export async function backfillMissing({
-  tracks, kind, fetchForTrack, missingCheck, onProgress, sleepMs = 1500,
+  tracks, kind, fetchForTrack, missingCheck, onProgress, sleepMs = 1500, force = false,
 }) {
   if (backfillRunning) return;
   const total = tracks?.length || 0;
@@ -41,9 +43,9 @@ export async function backfillMissing({
     for (const t of tracks) {
       let saved = false;
       let threw = false;
-      let hadMissing = false;
+      let hadMissing = force;
       try {
-        if (await missingCheck(t)) {
+        if (force || (await missingCheck(t))) {
           hadMissing = true;
           const res = await fetchForTrack(t);
           if (res && res.saved) { ok++; saved = true; }
