@@ -10,6 +10,13 @@ void close();
 id getSetting(NSString *key, id def);
 BOOL setSetting(NSString *key, NSString *value);
 
+// ── imported symlinks (S3e: trust anchor for library symlinks) ──
+// The symlink import mode creates links inside the library that point
+// outside it by design. Their targets are recorded here at import time so
+// the containment check can tell them apart from renderer-planted links.
+BOOL recordSymlink(NSString *libPath, NSString *resolvedTarget);
+NSString *symlinkTarget(NSString *libPath);
+
 NSArray *getAllTracks(NSString *search, NSString *sortBy, NSString *sortDir);
 id getTrackById(int64_t id);
 BOOL insertTrack(NSDictionary *t);

@@ -154,6 +154,8 @@ BOOL open(NSString *path) {
     " FOREIGN KEY (track_id) REFERENCES tracks(id) ON DELETE CASCADE,"
     " UNIQUE(playlist_id, track_id));"
     "CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);"
+    "CREATE TABLE IF NOT EXISTS imported_symlinks ("
+    " lib_path TEXT PRIMARY KEY, target TEXT NOT NULL);"
     "CREATE INDEX IF NOT EXISTS idx_tracks_title ON tracks(title);"
     "CREATE INDEX IF NOT EXISTS idx_tracks_artist ON tracks(artist);"
     "CREATE INDEX IF NOT EXISTS idx_tracks_album ON tracks(album);"
@@ -195,6 +197,20 @@ id getSetting(NSString *key, id def) {
 BOOL setSetting(NSString *key, NSString *value) {
   return runExec(@"INSERT INTO settings (key, value) VALUES (?, ?)"
                  @" ON CONFLICT(key) DO UPDATE SET value = excluded.value", @[ key, value ?: @"" ]);
+}
+
+// ── imported symlinks (S3e) ──
+
+BOOL recordSymlink(NSString *libPath, NSString *resolvedTarget) {
+  return runExec(@"INSERT INTO imported_symlinks (lib_path, target) VALUES (?, ?)"
+                 @" ON CONFLICT(lib_path) DO UPDATE SET target = excluded.target",
+                 @[ libPath ?: @"", resolvedTarget ?: @"" ]);
+}
+
+NSString *symlinkTarget(NSString *libPath) {
+  NSArray *rows = runQuery(@"SELECT target FROM imported_symlinks WHERE lib_path = ?",
+                           @[ libPath ?: @"" ]);
+  return rows.count ? rows[0][@"target"] : nil;
 }
 
 // ── tracks ──

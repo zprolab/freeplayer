@@ -1192,6 +1192,17 @@ static NSString *fpRedactConsole(NSString *msg) {
                   }
                 }
               }
+              // S3e: if the created (or already present) library entry is a
+              // symlink — symlink mode always, copy mode when the source was
+              // itself a symlink — record its RESOLVED target in the DB.
+              // fpIsPathInLibrary then allows it (target matches the record)
+              // while still rejecting renderer-planted or tampered links.
+              if ([fm attributesOfItemAtPath:targetPath error:NULL].fileType == NSFileTypeSymbolicLink) {
+                NSString *resolvedTarget = [NSURL fileURLWithPath:targetPath].URLByResolvingSymlinksInPath.path;
+                if (resolvedTarget.length > 0) {
+                  fpdb::recordSymlink(targetPath, resolvedTarget);
+                }
+              }
 
               // Cover art -> <albumDir>/.covers/cover.ext
               NSString *coverPath = nil;

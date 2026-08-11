@@ -32,6 +32,21 @@ BOOL fpIsPathInLibrary(NSString *path) {
   NSString *resolved = [NSURL fileURLWithPath:path].URLByResolvingSymlinksInPath.path;
   if (resolved.length == 0) return NO;
   NSString *resNorm = [resolved stringByStandardizingPath];
-  return [resNorm hasPrefix:[libNorm stringByAppendingString:@"/"]]
-      || [resNorm isEqualToString:libNorm];
+  if ([resNorm hasPrefix:[libNorm stringByAppendingString:@"/"]]
+      || [resNorm isEqualToString:libNorm]) {
+    return YES;
+  }
+  // S3e: symlinks the import pipeline itself created are trusted — their
+  // resolved targets are recorded in the DB at import time. A link only
+  // passes when its CURRENT on-disk target still matches the recorded one:
+  // a tampered or re-pointed symlink resolves differently and is rejected.
+  // This keeps the app's symlink import mode working (its targets
+  // legitimately live outside the library) while closing the boundary.
+  if (![pathNorm isEqualToString:resNorm]) {
+    NSString *recorded = fpdb::symlinkTarget(pathNorm);
+    if (recorded.length > 0 && [resNorm isEqualToString:[recorded stringByStandardizingPath]]) {
+      return YES;
+    }
+  }
+  return NO;
 }
