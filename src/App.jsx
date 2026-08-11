@@ -494,6 +494,7 @@ export default function App() {
                   onAddToPlaylist={handleAddToPlaylist}
                   onRemoveFromPlaylist={handleRemoveFromPlaylist}
                   onCreatePlaylistForTrack={handleOpenCreateForTrack}
+                  onSelectPlaylist={handleSelectPlaylist}
                 />
               )}
               {state.view === VIEWS.NOW_PLAYING && (

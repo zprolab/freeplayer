@@ -14,6 +14,7 @@ const SORT_COLUMNS = [
 const Library = memo(function Library({
   tracks, onPlay, currentTrack, isPlaying, sortBy, sortDir, onSort, onTracksChanged,
   activePlaylistId, playlists, onAddToPlaylist, onRemoveFromPlaylist, onCreatePlaylistForTrack,
+  onSelectPlaylist,
 }) {
   const [contextMenu, setContextMenu] = useState(null);
   const [editTrack, setEditTrack] = useState(null);
@@ -111,6 +112,23 @@ const Library = memo(function Library({
 
   return (
     <div className="library">
+      <div className="playlist-chips">
+        <button
+          className={`playlist-chip ${activePlaylistId === null ? 'playlist-chip--active' : ''}`}
+          onClick={() => onSelectPlaylist?.(null)}
+        >
+          All Tracks
+        </button>
+        {playlists.map((pl) => (
+          <button
+            key={pl.id}
+            className={`playlist-chip ${activePlaylistId === pl.id ? 'playlist-chip--active' : ''}`}
+            onClick={() => onSelectPlaylist?.(pl.id)}
+          >
+            {pl.name}
+          </button>
+        ))}
+      </div>
       <div className="table-container">
         <table className="data-table">
           <thead>

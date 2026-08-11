@@ -4246,3 +4246,35 @@ input[type="range"]::-webkit-slider-thumb {
     padding-bottom: calc(var(--player-height) + 56px);
   }
 }
+
+/* 播放列表 chips：桌面与平板隐藏 */
+.playlist-chips {
+  display: none;
+}
+
+@media (max-width: 767px) {
+  .playlist-chips {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    padding: 10px 16px;
+    -webkit-overflow-scrolling: touch;
+    flex-shrink: 0;
+  }
+  .playlist-chip {
+    flex-shrink: 0;
+    background: var(--gl-bg-elevated, rgba(255,255,255,0.06));
+    border: 1px solid var(--gl-border-light);
+    border-radius: 16px;
+    color: var(--gl-text-secondary);
+    font-size: 12px;
+    padding: 6px 14px;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .playlist-chip--active {
+    background: var(--gl-orange);
+    border-color: var(--gl-orange);
+    color: #fff;
+  }
+}
