@@ -1,6 +1,7 @@
-import { useState, useEffect, memo } from 'react';
+import { useState, memo } from 'react';
 import ToggleSwitch from './ToggleSwitch';
 import SegmentedControl from './SegmentedControl';
+import { useTraySettings } from '../hooks/useTraySettings';
 
 const Settings = memo(function Settings({
   importMode,
@@ -14,36 +15,18 @@ const Settings = memo(function Settings({
   onResetDatabase,
 }) {
   const [showResetConfirm, setShowResetConfirm] = useState(false);
-  const [trayEnabled, setTrayEnabled] = useState(false);
-  const [trayNotify, setTrayNotify] = useState(false);
-  const [startOnBoot, setStartOnBoot] = useState(false);
-  const [startHidden, setStartHidden] = useState(false);
-  const [settingsLoaded, setSettingsLoaded] = useState(false);
-
-  const coerceBool = (val) => {
-    if (val === true || val === 1) return true;
-    if (val === false || val === 0 || val == null) return false;
-    if (typeof val === 'string') {
-      const s = val.toLowerCase();
-      return s === 'true' || s === '1' || s === '1.0' || s === 'yes' || s === 'on';
-    }
-    return false;
-  };
-
-  useEffect(() => {
-    Promise.all([
-      window.freeplayer.getSetting('tray_enabled'),
-      window.freeplayer.getSetting('tray_notify'),
-      window.freeplayer.getSetting('start_hidden'),
-      window.freeplayer.getLoginItemSettings(),
-    ]).then(([tray, notify, hidden, login]) => {
-      setTrayEnabled(coerceBool(tray));
-      setTrayNotify(coerceBool(notify));
-      setStartHidden(coerceBool(hidden));
-      setStartOnBoot(!!(login && login.openAtLogin));
-      setSettingsLoaded(true);
-    }).catch(() => setSettingsLoaded(true));
-  }, []);
+  const {
+    settingsLoaded,
+    trayEnabled,
+    trayNotify,
+    startOnBoot,
+    startHidden,
+    settingsError,
+    changeTrayEnabled,
+    changeTrayNotify,
+    changeStartOnBoot,
+    changeStartHidden,
+  } = useTraySettings();
 
   const handleChangeLibraryDir = async () => {
     const result = await window.freeplayer.selectLibraryDir();
@@ -172,13 +155,14 @@ const Settings = memo(function Settings({
           <ToggleSwitch
             checked={trayEnabled}
             disabled={!settingsLoaded}
-            onChange={(val) => {
-              setTrayEnabled(val);
-              window.freeplayer.setSetting({ key: 'tray_enabled', value: val });
-            }}
+            onChange={changeTrayEnabled}
             label="Close to Tray"
           />
         </div>
+
+        {settingsError && (
+          <div className="settings-error" role="alert">{settingsError}</div>
+        )}
 
         {trayEnabled && (
           <>
@@ -190,10 +174,7 @@ const Settings = memo(function Settings({
               <ToggleSwitch
                 checked={trayNotify}
                 disabled={!settingsLoaded}
-                onChange={(val) => {
-                  setTrayNotify(val);
-                  window.freeplayer.setSetting({ key: 'tray_notify', value: val });
-                }}
+                onChange={changeTrayNotify}
                 label="Tray Notification"
               />
             </div>
@@ -206,11 +187,7 @@ const Settings = memo(function Settings({
               <ToggleSwitch
                 checked={startOnBoot}
                 disabled={!settingsLoaded}
-                onChange={(val) => {
-                  setStartOnBoot(val);
-                  window.freeplayer.setSetting({ key: 'start_on_boot', value: val });
-                  window.freeplayer.setLoginItemSettings({ openAtLogin: val, openAsHidden: startHidden });
-                }}
+                onChange={changeStartOnBoot}
                 label="Launch at Login"
               />
             </div>
@@ -224,11 +201,7 @@ const Settings = memo(function Settings({
                 <ToggleSwitch
                   checked={startHidden}
                   disabled={!settingsLoaded}
-                  onChange={(val) => {
-                    setStartHidden(val);
-                    window.freeplayer.setSetting({ key: 'start_hidden', value: val ? '1' : '0' });
-                    window.freeplayer.setLoginItemSettings({ openAtLogin: startOnBoot, openAsHidden: val });
-                  }}
+                  onChange={changeStartHidden}
                   label="Launch at Login Hidden"
                 />
               </div>
