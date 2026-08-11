@@ -4183,3 +4183,52 @@ input[type="range"]::-webkit-slider-thumb {
   border-top: 1px solid var(--gl-border);
   background: var(--gl-white);
 }
+
+/* ═══════════════════════════════════════════════════════════════════
+   Responsive — 平板/手机（spec: 2026-08-11-responsive-design.md）
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* MobileTabBar: 桌面与平板隐藏 */
+.mobile-tabbar {
+  display: none;
+}
+
+@media (max-width: 767px) {
+  .mobile-tabbar {
+    display: flex;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 56px;
+    background: var(--gl-white);
+    border-top: 1px solid var(--gl-border);
+    z-index: 200;
+    justify-content: space-around;
+    align-items: center;
+    padding-bottom: env(safe-area-inset-bottom, 0);
+  }
+  .mobile-tabbar-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    background: none;
+    border: none;
+    color: var(--gl-text-tertiary);
+    font-size: 10px;
+    padding: 6px 12px;
+    cursor: pointer;
+    min-width: 56px;
+  }
+  .mobile-tabbar-item--active {
+    color: var(--gl-orange);
+  }
+  .mobile-tabbar-icon svg {
+    width: 20px;
+    height: 20px;
+  }
+  .mobile-tabbar-label {
+    white-space: nowrap;
+  }
+}

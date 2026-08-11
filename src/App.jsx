@@ -4,6 +4,7 @@ import Library from './components/Library';
 import NowPlaying from './components/NowPlaying';
 import Stats from './components/Stats';
 import PlayerBar from './components/PlayerBar';
+import MobileTabBar from './components/MobileTabBar';
 import ImportModal from './components/ImportModal';
 import Settings from './components/Settings';
 import PluginPage from './components/PluginPage';
@@ -536,6 +537,11 @@ export default function App() {
         onPlayModeChange={(m) => dispatch({ type: 'SET_PLAY_MODE', payload: m })}
         eqEnabled={state.eqEnabled}
         onOpenEq={() => window.freeplayer?.openEq?.()}
+      />
+
+      <MobileTabBar
+        currentView={state.view}
+        onNavigate={(v) => dispatch({ type: 'SET', payload: { view: v } })}
       />
 
       {state.importModalOpen && (
