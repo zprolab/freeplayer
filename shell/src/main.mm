@@ -14,7 +14,14 @@
 @interface BridgeHandler : NSObject <WKScriptMessageHandler>
 @end
 
-void fpSetWebRoot(NSString *root);
+// S1: navigation lockdown — the bridge user script is injected on every
+// main-frame load and gBridge stays registered across navigations, so a
+// renderer redirect to any https:// page hands the attacker the whole
+// window.freeplayer surface. Main-frame navigations may only go to app://
+// (bundled UI, eq, onboarding) or, in dev binaries, the same origin the
+// shell was configured to load.
+
+@class FpNavGate; // navigation lockdown delegate (defined below)
 
 // WebKit does NOT retain scheme handlers / (per docs) message handlers —
 // keep strong globals for the app lifetime to avoid dangling dealloc.
@@ -24,7 +31,52 @@ WKWebView *gWebView = nil;
 NSWindow *gWindow = nil;
 WKWebView *gEqWebView = nil;
 static NSWindow *gEqWindow = nil;
+static WKWebView *gObWebView = nil;
+static FpNavGate *gNavGate = nil;
 static NSURL *gMainLoadURL = nil;
+
+static BOOL fpSameOrigin(NSURL *a, NSURL *b) {
+  if (!a || !b) return NO;
+  if (![a.scheme isEqualToString:b.scheme]) return NO;
+  if (![a.host isEqualToString:b.host]) return NO;
+  NSInteger pa = a.port ? a.port.integerValue : ([a.scheme isEqualToString:@"https"] ? 443 : 80);
+  NSInteger pb = b.port ? b.port.integerValue : ([b.scheme isEqualToString:@"https"] ? 443 : 80);
+  return pa == pb;
+}
+
+@interface FpNavGate : NSObject <WKNavigationDelegate>
+@end
+
+@implementation FpNavGate
+- (void)webView:(WKWebView *)webView
+    decidePolicyForNavigationAction:(WKNavigationAction *)navigationAction
+                    decisionHandler:(void (^)(WKNavigationActionPolicy))decisionHandler {
+  WKFrameInfo *frame = navigationAction.targetFrame;
+  // New-window requests (target=_blank / window.open): never open them
+  if (!frame) { decisionHandler(WKNavigationActionPolicyCancel); return; }
+  // Subframes get no bridge (S2) — their navigations are harmless
+  if (!frame.isMainFrame) { decisionHandler(WKNavigationActionPolicyAllow); return; }
+  NSURL *url = navigationAction.request.URL;
+  if ([url.scheme isEqualToString:@"app"]) {
+    decisionHandler(WKNavigationActionPolicyAllow);
+    return;
+  }
+  BOOL bundled = [[[NSBundle mainBundle] bundlePath] hasSuffix:@".app"];
+  if (!bundled && gMainLoadURL && fpSameOrigin(url, gMainLoadURL)) {
+    decisionHandler(WKNavigationActionPolicyAllow);
+    return;
+  }
+  NSLog(@"[shell] blocked main-frame navigation to %@", url.absoluteString);
+  decisionHandler(WKNavigationActionPolicyCancel);
+}
+@end
+
+// S2: only our own webviews may talk to the bridge
+BOOL fpIsAppWebView(WKWebView *w) {
+  return w == gWebView || w == gEqWebView || w == gObWebView;
+}
+
+void fpSetWebRoot(NSString *root);
 
 // ── App lifecycle ──
 @interface ShellAppDelegate : NSObject <NSApplicationDelegate, NSWindowDelegate>
@@ -179,15 +231,31 @@ static NSURL *gMainLoadURL = nil;
 
   // Prod/dev decision FIRST — WKWebViewConfiguration is copied at
   // initWithFrame:configuration:, so everything must be set before.
+  // S12: a bundled .app fails closed when its web assets are missing (no
+  // silent dev-server fallback), and env/userdefaults overrides
+  // (FP_WEB_ROOT/FP_URL/FP_DB) apply to dev binaries only.
   NSUserDefaults *defs = NSUserDefaults.standardUserDefaults;
+  BOOL bundled = [[[NSBundle mainBundle] bundlePath] hasSuffix:@".app"];
   NSString *webRoot = nil;
-  if ([[[NSBundle mainBundle] bundlePath] hasSuffix:@".app"]) {
+  if (bundled) {
     webRoot = [[NSBundle mainBundle].resourcePath stringByAppendingPathComponent:@"web"];
+    if (webRoot.length == 0 || ![NSFileManager.defaultManager fileExistsAtPath:webRoot]) {
+      NSAlert *alert = [[NSAlert alloc] init];
+      alert.alertStyle = NSAlertStyleCritical;
+      alert.messageText = @"FreePlayer is damaged";
+      alert.informativeText = [NSString stringWithFormat:
+          @"The bundled web assets were not found at %@.\n\nReinstall the app to fix this.", webRoot ?: @"?"];
+      [alert addButtonWithTitle:@"Quit"];
+      [alert runModal];
+      [NSApp terminate:nil];
+      return;
+    }
+  } else {
+    NSString *defRoot = [defs stringForKey:@"FP_WEB_ROOT"];
+    if (defRoot.length > 0) webRoot = defRoot;
+    NSString *envRoot = NSProcessInfo.processInfo.environment[@"FP_WEB_ROOT"];
+    if (envRoot.length > 0) webRoot = envRoot;
   }
-  NSString *defRoot = [defs stringForKey:@"FP_WEB_ROOT"];
-  if (defRoot.length > 0) webRoot = defRoot;
-  NSString *envRoot = NSProcessInfo.processInfo.environment[@"FP_WEB_ROOT"];
-  if (envRoot.length > 0) webRoot = envRoot;
 
   WKWebViewConfiguration *config = [[WKWebViewConfiguration alloc] init];
   config.mediaTypesRequiringUserActionForPlayback = WKAudiovisualMediaTypeNone;
@@ -212,6 +280,10 @@ static NSURL *gMainLoadURL = nil;
 
   ShellWebView *webView = [[ShellWebView alloc] initWithFrame:frame configuration:config];
   webView.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
+  // S1: every webview shares the navigation gate (main frame: app:// or the
+  // configured dev origin only)
+  if (!gNavGate) gNavGate = [[FpNavGate alloc] init];
+  webView.navigationDelegate = gNavGate;
   gWebView = webView;
   window.contentView = webView;
 
@@ -255,6 +327,9 @@ static NSURL *gMainLoadURL = nil;
     loadURL = [NSURL URLWithString:@"app://index.html"];
     NSLog(@"[shell] prod mode, webRoot=%@", webRoot);
   } else {
+    // Dev binaries only — a bundled app already failed closed above, so the
+    // FP_URL overrides below can never downgrade a release build to the
+    // dev server.
     NSString *url = [defs stringForKey:@"FP_URL"];
     if (url.length == 0) url = NSProcessInfo.processInfo.environment[@"FP_URL"];
     if (url.length == 0) url = @"http://localhost:5173";
@@ -317,11 +392,11 @@ static NSURL *gMainLoadURL = nil;
 }
 
 - (void)applicationWillTerminate:(NSNotification *)notification {
-  // M12: let an in-flight import finish (or time out) before closing the DB —
-  // closing mid-insert corrupts the library
-  for (int i = 0; i < 100 && fpPendingImports(); i++) {
-    [NSThread sleepForTimeInterval:0.1];
-  }
+  // Q1: wait (bounded) for in-flight imports to finish instead of polling a
+  // counter — the group drains exactly when the last import batch completed
+  // (including the exception paths), so sqlite3_close no longer races a
+  // background insert. fpdb functions are null-guarded as a safety net.
+  dispatch_group_wait(fpImportGroup(), dispatch_time(DISPATCH_TIME_NOW, (int64_t)(10 * NSEC_PER_SEC)));
   fpdb::close();
 }
 
@@ -365,16 +440,17 @@ void fpOpenEqWindow(void) {
 
     ShellWebView *webView = [[ShellWebView alloc] initWithFrame:frame configuration:config];
     webView.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
+    if (gNavGate) webView.navigationDelegate = gNavGate;
     win.contentView = webView;
     gEqWebView = webView;
     gEqWindow = win;
 
+    // Q8: build the URL with NSURLComponents — stringByAppendingString
+    // breaks dev URLs that already carry a query string
     NSURL *eqURL = nil;
-    if ([gMainLoadURL.scheme isEqualToString:@"app"]) {
-      eqURL = [NSURL URLWithString:@"app://index.html?view=eq"];
-    } else {
-      eqURL = [NSURL URLWithString:[gMainLoadURL.absoluteString stringByAppendingString:@"?view=eq"]];
-    }
+    NSURLComponents *comp = [NSURLComponents componentsWithURL:gMainLoadURL resolvingAgainstBaseURL:NO];
+    comp.queryItems = @[ [NSURLQueryItem queryItemWithName:@"view" value:@"eq"] ];
+    eqURL = comp.URL;
     [webView loadRequest:[NSURLRequest requestWithURL:eqURL]];
     [win makeKeyAndOrderFront:nil];
   });
@@ -388,7 +464,6 @@ void fpHideEqWindow(void) {
 
 // ── Onboarding window: first-run wizard (640x480) ──
 
-static WKWebView *gObWebView = nil;
 static NSWindow *gObWindow = nil;
 
 void fpOpenOnboardingWindow(void) {
@@ -430,16 +505,16 @@ void fpOpenOnboardingWindow(void) {
 
     ShellWebView *webView = [[ShellWebView alloc] initWithFrame:frame configuration:config];
     webView.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
+    if (gNavGate) webView.navigationDelegate = gNavGate;
     win.contentView = webView;
     gObWebView = webView;
     gObWindow = win;
 
+    // Q8: same URL-building fix as the EQ window
     NSURL *obURL = nil;
-    if ([gMainLoadURL.scheme isEqualToString:@"app"]) {
-      obURL = [NSURL URLWithString:@"app://index.html?view=onboarding"];
-    } else {
-      obURL = [NSURL URLWithString:[gMainLoadURL.absoluteString stringByAppendingString:@"?view=onboarding"]];
-    }
+    NSURLComponents *comp = [NSURLComponents componentsWithURL:gMainLoadURL resolvingAgainstBaseURL:NO];
+    comp.queryItems = @[ [NSURLQueryItem queryItemWithName:@"view" value:@"onboarding"] ];
+    obURL = comp.URL;
     [webView loadRequest:[NSURLRequest requestWithURL:obURL]];
     [win makeKeyAndOrderFront:nil];
   });

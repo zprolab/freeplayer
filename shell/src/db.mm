@@ -20,7 +20,14 @@ static id colValue(sqlite3_stmt *stmt, int i) {
     case SQLITE_FLOAT:   return @(sqlite3_column_double(stmt, i));
     case SQLITE_TEXT: {
       const unsigned char *t = sqlite3_column_text(stmt, i);
-      return t ? [NSString stringWithUTF8String:(const char *)t] : NSNull.null;
+      if (!t) return NSNull.null;
+      // Q4: invalid UTF-8 must not DROP the column (stringWithUTF8String:
+      // returns nil on bad bytes, and d[key]=nil removes the key) — fall
+      // back to a lossy conversion so the row keeps its value
+      NSData *d = [NSData dataWithBytes:t length:sqlite3_column_bytes(stmt, i)];
+      NSString *s = [[NSString alloc] initWithData:d encoding:NSUTF8StringEncoding];
+      if (!s) s = [[NSString alloc] initWithData:d encoding:NSISOLatin1StringEncoding];
+      return s ?: NSNull.null;
     }
     default: return NSNull.null;
   }
@@ -53,6 +60,9 @@ static void bindParam(sqlite3_stmt *stmt, int i, id p) {
 }
 
 static NSArray *runQuery(NSString *sql, NSArray *params) {
+  // Q1: the DB can be closed while a background import thread is mid-flight —
+  // every entry point must tolerate gDb == nullptr
+  if (!gDb) return @[];
   sqlite3_stmt *stmt = nullptr;
   if (sqlite3_prepare_v2(gDb, sql.UTF8String, -1, &stmt, nullptr) != SQLITE_OK) {
     NSLog(@"[db] prepare failed: %s | %@", sqlite3_errmsg(gDb), sql);
@@ -70,6 +80,8 @@ static NSArray *runQuery(NSString *sql, NSArray *params) {
 }
 
 static BOOL runExec(NSString *sql, NSArray *params) {
+  // Q1: see runQuery — never prepare on a closed DB
+  if (!gDb) return NO;
   sqlite3_stmt *stmt = nullptr;
   if (sqlite3_prepare_v2(gDb, sql.UTF8String, -1, &stmt, nullptr) != SQLITE_OK) {
     NSLog(@"[db] exec prepare failed: %s", sqlite3_errmsg(gDb));
@@ -86,8 +98,12 @@ static BOOL runExec(NSString *sql, NSArray *params) {
 // ── lifecycle ──
 
 NSString *defaultDbPath() {
-  NSString *env = NSProcessInfo.processInfo.environment[@"FP_DB"];
-  if (env.length > 0) return env;
+  // S12: FP_DB env override is a dev-binary convenience — a bundled release
+  // must never point at an attacker/repo-controlled database path
+  if (![NSBundle.mainBundle.bundlePath hasSuffix:@".app"]) {
+    NSString *env = NSProcessInfo.processInfo.environment[@"FP_DB"];
+    if (env.length > 0) return env;
+  }
   NSString *support = NSSearchPathForDirectoriesInDomains(NSApplicationSupportDirectory, NSUserDomainMask, YES).firstObject;
   return [support stringByAppendingPathComponent:@"freeplayer/freeplayer.db"];
 }
@@ -315,6 +331,7 @@ NSDictionary *getListeningStats() {
 // ── playlists ──
 
 int64_t createPlaylist(NSString *name, NSString *description) {
+  if (!gDb) return 0;
   sqlite3_stmt *stmt = nullptr;
   if (sqlite3_prepare_v2(gDb, "INSERT INTO playlists (name, description) VALUES (?, ?)", -1, &stmt, nullptr) != SQLITE_OK) {
     NSLog(@"[db] createPlaylist prepare failed: %s", sqlite3_errmsg(gDb));
@@ -341,6 +358,7 @@ BOOL addTrackToPlaylist(int64_t playlistId, int64_t trackId) {
 
 BOOL addTracksToPlaylist(int64_t playlistId, NSArray *trackIds) {
   if (trackIds.count == 0) return YES;
+  if (!gDb) return NO;
   NSArray *rows = runQuery(@"SELECT COALESCE(MAX(position), -1) + 1 as next_pos FROM playlist_tracks WHERE playlist_id = ?", @[ @(playlistId) ]);
   int64_t pos = rows.count ? [rows[0][@"next_pos"] longLongValue] : 0;
   sqlite3_stmt *stmt = nullptr;
@@ -349,35 +367,40 @@ BOOL addTracksToPlaylist(int64_t playlistId, NSArray *trackIds) {
     NSLog(@"[db] addTracksToPlaylist prepare failed: %s", sqlite3_errmsg(gDb));
     return NO;
   }
+  // Q6: a failed step must fail the call, not vanish
+  BOOL allOk = YES;
   for (id tid in trackIds) {
     sqlite3_bind_int64(stmt, 1, playlistId);
     sqlite3_bind_int64(stmt, 2, [tid longLongValue]);
     sqlite3_bind_int64(stmt, 3, pos++);
-    sqlite3_step(stmt);
+    if (sqlite3_step(stmt) != SQLITE_DONE) allOk = NO;
     sqlite3_reset(stmt);
   }
   sqlite3_finalize(stmt);
-  return runExec(@"UPDATE playlists SET updated_at = CURRENT_TIMESTAMP WHERE id = ?", @[ @(playlistId) ]);
+  return allOk && runExec(@"UPDATE playlists SET updated_at = CURRENT_TIMESTAMP WHERE id = ?", @[ @(playlistId) ]);
 }
 
 BOOL setPlaylistTracks(int64_t playlistId, NSArray *trackIds) {
   if (!runExec(@"DELETE FROM playlist_tracks WHERE playlist_id = ?", @[ @(playlistId) ])) return NO;
+  if (!gDb) return NO;
   sqlite3_stmt *stmt = nullptr;
   // M8: check prepare — stepping a null stmt would crash on DB failure
   if (sqlite3_prepare_v2(gDb, "INSERT INTO playlist_tracks (playlist_id, track_id, position) VALUES (?, ?, ?)", -1, &stmt, nullptr) != SQLITE_OK) {
     NSLog(@"[db] setPlaylistTracks prepare failed: %s", sqlite3_errmsg(gDb));
     return NO;
   }
+  // Q6: a failed step must fail the call, not vanish
   int64_t pos = 0;
+  BOOL allOk = YES;
   for (id tid in trackIds) {
     sqlite3_bind_int64(stmt, 1, playlistId);
     sqlite3_bind_int64(stmt, 2, [tid longLongValue]);
     sqlite3_bind_int64(stmt, 3, pos++);
-    sqlite3_step(stmt);
+    if (sqlite3_step(stmt) != SQLITE_DONE) allOk = NO;
     sqlite3_reset(stmt);
   }
   sqlite3_finalize(stmt);
-  return runExec(@"UPDATE playlists SET updated_at = CURRENT_TIMESTAMP WHERE id = ?", @[ @(playlistId) ]);
+  return allOk && runExec(@"UPDATE playlists SET updated_at = CURRENT_TIMESTAMP WHERE id = ?", @[ @(playlistId) ]);
 }
 
 NSArray *getPlaylistTracks(int64_t playlistId) {
@@ -425,6 +448,7 @@ BOOL clearTrackLrc(int64_t trackId) {
 }
 
 BOOL resetDatabase() {
+  if (!gDb) return NO;
   // sqlite3_exec runs ALL statements; runExec only compiles the first
   char *err = nullptr;
   int rc = sqlite3_exec(gDb,

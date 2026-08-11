@@ -26,5 +26,11 @@
 	<string>NSApplication</string>
 	<key>NSSupportsAutomaticTermination</key>
 	<false/>
+	<!-- Q12: the app is ad-hoc signed with the hardened runtime (see
+	     Makefile `codesign --options runtime`). If this is ever notarized
+	     with a Developer ID, add an entitlements file here, e.g.
+	     com.apple.security.cs.allow-jit is NOT needed (no JIT); keep the
+	     default hardened-runtime entitlements unless SMAppService
+	     (login item) registration requires more. -->
 </dict>
 </plist>

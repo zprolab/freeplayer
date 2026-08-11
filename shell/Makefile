@@ -11,7 +11,7 @@
 APP     := build/FreePlayerShell
 ASANAPP := build/FreePlayerShell-asan
 BUNDLE  := build/FreePlayer.app
-SRCS    := src/main.mm src/bridge.mm src/scheme.mm src/db.mm src/metadata.mm src/tray.mm src/webview.mm src/pluginfs.mm
+SRCS    := src/main.mm src/bridge.mm src/scheme.mm src/db.mm src/metadata.mm src/tray.mm src/webview.mm src/pluginfs.mm src/paths.mm
 CXX     := clang++
 # Memory/size-oriented build: -Os + section separation + dead-strip shrink
 # __TEXT/__DATA (smaller private footprint); release builds drop debug info.
@@ -49,7 +49,8 @@ bundle: $(APP)
 	cp -R $(DIST)/. $(BUNDLE)/Contents/Resources/web/
 	cp ../LICENSE $(BUNDLE)/Contents/Resources/LICENSE
 	cp Info.plist $(BUNDLE)/Contents/Info.plist
-	codesign --force --sign - $(BUNDLE)
+	# Q12: hardened runtime for release bundles (ad-hoc identity)
+	codesign --force --sign - --options runtime $(BUNDLE)
 	@echo "==> $(BUNDLE) ready"
 
 run: $(APP)

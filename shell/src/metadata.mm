@@ -158,10 +158,16 @@ static NSDictionary *parseId3v2(NSString *path) {
   if (tagSize > data.length - 10) tagSize = (uint32_t)(data.length - 10);
   const uint8_t *end = p + 10 + tagSize;
   p += 10;
-  if (p < end && (p[5] & 0x40)) { // extended header
+  // S10: the extended-header block must fit inside the tag — p[5] is only
+  // readable when 10 bytes remain, and p += 10 + extSize must not jump past
+  // `end`. Malformed headers are skipped gracefully (tags stay readable).
+  if (p + 10 <= end && (p[5] & 0x40)) { // extended header
     uint32_t extSize = ver == 4
       ? (((uint32_t)(p[6] & 0x7f) << 21) | ((uint32_t)(p[7] & 0x7f) << 14) | ((uint32_t)(p[8] & 0x7f) << 7) | (p[9] & 0x7f))
       : ((uint32_t)p[6] << 24) | ((uint32_t)p[7] << 16) | ((uint32_t)p[8] << 8) | p[9];
+    if (p + 10 + extSize > end) {
+      return nil; // malformed — treat the whole tag as unreadable
+    }
     p += 10 + extSize;
   }
   NSMutableDictionary *tags = [NSMutableDictionary dictionary];

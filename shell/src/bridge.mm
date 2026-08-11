@@ -5,14 +5,18 @@
 #import <Cocoa/Cocoa.h>
 #import <WebKit/WebKit.h>
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
+#import <ImageIO/ImageIO.h>
 #include <atomic>
+#include <netdb.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <sys/socket.h>
 #include "db.h"
 #include "bridge.h"
 #include "metadata.h"
+#include "paths.h"
 #include "tray.h"
 #import "pluginfs.h"
-
-static const char *kAudioExtensions[] = { "mp3", "flac", "m4a", "aac", "ogg", "wav", "opus", "mp4" };
 
 // M12: in-flight import counter — app termination waits for it to drain
 std::atomic<int> gImportTasks{0};
@@ -21,21 +25,26 @@ bool fpPendingImports(void) {
   return gImportTasks.load() > 0;
 }
 
-static BOOL isAudioFile(NSString *path) {
-  NSString *ext = path.pathExtension.lowercaseString;
-  for (const char *e : kAudioExtensions) {
-    if ([ext isEqualToString:@(e)]) return YES;
-  }
-  return NO;
+// Q1: completion group for in-flight imports — applicationWillTerminate
+// waits on this (bounded) before closing the DB, replacing the poll loop.
+dispatch_group_t fpImportGroup(void) {
+  static dispatch_group_t g = nil;
+  static dispatch_once_t once;
+  dispatch_once(&once, ^{ g = dispatch_group_create(); });
+  return g;
 }
 
 // Recursive audio file scan (M3: skip hidden dirs without descending; use
-// the enumerator's own attributes instead of stat-ing every entry)
+// the enumerator's own attributes instead of stat-ing every entry; S7: cap
+// at 100k entries / 60s so a hostile root can't wedge the app)
 static NSArray *scanAudioFiles(NSString *root) {
   NSMutableArray *found = [NSMutableArray array];
   NSFileManager *fm = NSFileManager.defaultManager;
   NSDirectoryEnumerator *en = [fm enumeratorAtPath:root];
+  NSUInteger scanned = 0;
+  CFAbsoluteTime start = CFAbsoluteTimeGetCurrent();
   for (NSString *rel in en) {
+    if (++scanned >= 100000 || CFAbsoluteTimeGetCurrent() - start > 60.0) break;
     NSDictionary *attrs = [en fileAttributes];
     BOOL isDir = [attrs[NSFileType] isEqualToString:NSFileTypeDirectory];
     if (isDir) {
@@ -45,11 +54,32 @@ static NSArray *scanAudioFiles(NSString *root) {
     }
     if ([rel.lastPathComponent hasPrefix:@"."]) continue; // hidden file
     NSString *full = [root stringByAppendingPathComponent:rel];
-    if (isAudioFile(full)) {
+    if (fpIsAudioFile(full)) {
       [found addObject:full];
     }
   }
   return found;
+}
+
+// S7: scanDirectory is renderer-callable, so it may only enumerate roots the
+// user actually picked natively (import NSOpenPanel result, drag-and-drop
+// paths) — otherwise it's an arbitrary filesystem enumeration primitive.
+static NSMutableOrderedSet *gTrustedScanRoots = nil; // main thread only
+
+static void fpAddTrustedScanRoot(NSString *root) {
+  if (root.length == 0) return;
+  if (!gTrustedScanRoots) gTrustedScanRoots = [NSMutableOrderedSet new];
+  [gTrustedScanRoots addObject:root];
+  while (gTrustedScanRoots.count > 128) [gTrustedScanRoots removeObjectAtIndex:0];
+}
+
+static BOOL fpIsTrustedScanRoot(NSString *root) {
+  NSString *norm = [root stringByStandardizingPath];
+  for (NSString *t in gTrustedScanRoots) {
+    NSString *tn = [t stringByStandardizingPath];
+    if ([norm hasPrefix:[tn stringByAppendingString:@"/"]] || [norm isEqualToString:tn]) return YES;
+  }
+  return NO;
 }
 
 // ── Injected script ──
@@ -244,14 +274,8 @@ static BOOL fpVerboseLogging(void) {
 
 // Shared library containment check — the trust anchor for all renderer-
 // facing file reads (covers, LRC, media streaming). See NEW-2: library_dir
-// itself can only be set by the native NSOpenPanel flows.
-static BOOL fpPathInLibrary(NSString *path) {
-  NSString *libNorm = [fpdb::getSetting(@"library_dir", nil) stringByStandardizingPath];
-  if (libNorm.length == 0) return NO;
-  NSString *pathNorm = [path stringByStandardizingPath];
-  return [pathNorm hasPrefix:[libNorm stringByAppendingString:@"/"]]
-      || [pathNorm isEqualToString:libNorm];
-}
+// itself can only be set by the native NSOpenPanel flows. Implemented once
+// in paths.mm (Q2), including symlink resolution (S3d).
 
 // ── Native HTTP (M1: shared helper + one session for json/base64) ──
 static const NSUInteger kMaxHttpBytes = 8 * 1024 * 1024; // H5: response cap
@@ -269,51 +293,135 @@ static NSURLSession *fpSharedSession(void) {
   return session;
 }
 
-// Shared GET pipeline: validates scheme (H5 — never file:// or friends),
-// enforces a size cap, shapes {ok, status, retryAfter?, error?}, hands the
-// body to `fill` on success, and hops back to the main thread to reply.
+// S6: SSRF guard — https-only (http is tolerated solely for localhost, i.e.
+// the dev server), and the host must not resolve to loopback / link-local /
+// private / multicast / unspecified addresses. Every resolved address must
+// be public: a hostname that resolves to a mix of public + private IPs is
+// rejected (getaddrinfo on the bare host, then one check per address).
+static BOOL fpUrlAllowed(NSURL *url) {
+  if (![url.scheme isEqualToString:@"https"] && ![url.scheme isEqualToString:@"http"]) return NO;
+  NSString *host = url.host.lowercaseString;
+  if (host.length == 0) return NO;
+  if ([url.scheme isEqualToString:@"http"] && ![host isEqualToString:@"localhost"]) return NO;
+  if ([host isEqualToString:@"localhost"]) return YES;
+
+  struct addrinfo hints = {};
+  hints.ai_family = AF_UNSPEC;
+  hints.ai_socktype = SOCK_STREAM;
+  struct addrinfo *res = NULL;
+  if (getaddrinfo(host.UTF8String, NULL, &hints, &res) != 0) return NO;
+  BOOL allowed = YES;
+  for (struct addrinfo *ai = res; ai; ai = ai->ai_next) {
+    if (ai->ai_family == AF_INET) {
+      uint32_t a = ntohl(((struct sockaddr_in *)ai->ai_addr)->sin_addr.s_addr);
+      if (a == 0                 // 0.0.0.0
+          || (a >> 24) == 127    // 127.0.0.0/8
+          || (a >> 16) == 0xA9FE // 169.254.0.0/16 link-local
+          || (a >> 24) == 10     // 10.0.0.0/8
+          || (a >> 20) == 0xAC1  // 172.16.0.0/12
+          || (a >> 16) == 0xC0A8 // 192.168.0.0/16
+          || (a >> 28) == 0xE) { // 224.0.0.0/4 multicast
+        allowed = NO;
+        break;
+      }
+    } else if (ai->ai_family == AF_INET6) {
+      struct in6_addr *a6 = &((struct sockaddr_in6 *)ai->ai_addr)->sin6_addr;
+      if (IN6_IS_ADDR_UNSPECIFIED(a6) || IN6_IS_ADDR_LOOPBACK(a6)
+          || IN6_IS_ADDR_LINKLOCAL(a6) || IN6_IS_ADDR_MULTICAST(a6)) {
+        allowed = NO;
+        break;
+      }
+    } else {
+      allowed = NO;
+      break;
+    }
+  }
+  freeaddrinfo(res);
+  return allowed;
+}
+
+// Shared GET pipeline: validates scheme + host (S6 — never file://, and no
+// loopback/private targets), follows redirects only when each hop re-passes
+// fpUrlAllowed (cap 5), enforces a size cap, shapes {ok, status,
+// retryAfter?, error?}, hands the body to `fill` on success, and hops back
+// to the main thread to reply.
 static void fpHttpGet(NSString *urlStr, NSNumber *mid, void (^replyBlock)(NSNumber *, id),
                       void (^fill)(NSMutableDictionary *, NSData *)) {
   if (urlStr.length == 0) { replyBlock(mid, @{ @"ok": @NO, @"error": @"empty url" }); return; }
   NSURL *url = [NSURL URLWithString:urlStr];
   if (!url) { replyBlock(mid, @{ @"ok": @NO, @"error": @"bad url" }); return; }
-  // H5: http/https only — NSURLSession would happily serve file:// (arbitrary
-  // local file read from a compromised renderer)
-  if (![url.scheme isEqualToString:@"http"] && ![url.scheme isEqualToString:@"https"]) {
-    replyBlock(mid, @{ @"ok": @NO, @"error": @"unsupported scheme" });
-    return;
-  }
-  NSMutableURLRequest *req = [NSMutableURLRequest requestWithURL:url];
-  req.timeoutInterval = 10;
-  // Descriptive User-Agent — LRCLIB and iTunes both ask clients to identify
-  // themselves so abuse is attributable instead of IP-banned.
+  if (!fpUrlAllowed(url)) { replyBlock(mid, @{ @"ok": @NO, @"error": @"url not allowed" }); return; }
+
   NSString *ver = NSBundle.mainBundle.infoDictionary[@"CFBundleShortVersionString"] ?: @"dev";
-  [req setValue:[NSString stringWithFormat:@"FreePlayer/%@ (+https://github.com/zprolab/FreePlayer)", ver]
-      forHTTPHeaderField:@"User-Agent"];
-  NSURLSessionDataTask *task = [fpSharedSession() dataTaskWithRequest:req
-    completionHandler:^(NSData *data, NSURLResponse *resp, NSError *err) {
-      NSHTTPURLResponse *http = (NSHTTPURLResponse *)resp;
-      NSMutableDictionary *result = [NSMutableDictionary dictionary];
-      if (err) {
-        result[@"ok"] = @NO;
-        result[@"error"] = err.localizedDescription ?: @"network error";
-      } else if (http.statusCode >= 400) {
-        result[@"ok"] = @NO;
-        result[@"status"] = @(http.statusCode);
-        result[@"error"] = @"http error";
-        NSString *ra = http.allHeaderFields[@"Retry-After"];
-        if (ra.length > 0) result[@"retryAfter"] = ra;
-      } else if (data.length > kMaxHttpBytes) {
-        result[@"ok"] = @NO;
-        result[@"error"] = @"response too large";
-      } else {
-        result[@"ok"] = @YES;
-        result[@"status"] = @(http.statusCode);
-        fill(result, data);
+  NSString *ua = [NSString stringWithFormat:@"FreePlayer/%@ (+https://github.com/zprolab/FreePlayer)", ver];
+
+  dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+    NSMutableDictionary *result = [NSMutableDictionary dictionary];
+    __block NSURL *current = url;
+    __block BOOL done = NO;
+    NSInteger redirects = 0;
+    while (!done) {
+      NSMutableURLRequest *req = [NSMutableURLRequest requestWithURL:current];
+      req.timeoutInterval = 10;
+      // Descriptive User-Agent — LRCLIB and iTunes both ask clients to
+      // identify themselves so abuse is attributable instead of IP-banned.
+      [req setValue:ua forHTTPHeaderField:@"User-Agent"];
+      dispatch_semaphore_t sem = dispatch_semaphore_create(0);
+      __block BOOL loopAgain = NO;
+      NSURLSessionDataTask *task = [fpSharedSession() dataTaskWithRequest:req
+        completionHandler:^(NSData *data, NSURLResponse *resp, NSError *err) {
+          NSHTTPURLResponse *http = (NSHTTPURLResponse *)resp;
+          if (err) {
+            result[@"ok"] = @NO;
+            result[@"error"] = err.localizedDescription ?: @"network error";
+            done = YES;
+          } else if (http.statusCode >= 300 && http.statusCode < 400) {
+            // Redirect: re-validate the target, then loop (manual follow so
+            // every hop passes fpUrlAllowed — the session would follow
+            // redirects implicitly otherwise)
+            NSString *loc = http.allHeaderFields[@"Location"];
+            NSURL *next = loc.length > 0
+                ? [NSURL URLWithString:loc relativeToURL:current].absoluteURL : nil;
+            if (next && fpUrlAllowed(next)) {
+              current = next;
+              loopAgain = YES;
+            } else {
+              result[@"ok"] = @NO;
+              result[@"error"] = loc.length ? @"redirect target not allowed" : @"redirect without location";
+              done = YES;
+            }
+          } else if (http.statusCode >= 400) {
+            result[@"ok"] = @NO;
+            result[@"status"] = @(http.statusCode);
+            result[@"error"] = @"http error";
+            NSString *ra = http.allHeaderFields[@"Retry-After"];
+            if (ra.length > 0) result[@"retryAfter"] = ra;
+            done = YES;
+          } else if (data.length > kMaxHttpBytes) {
+            result[@"ok"] = @NO;
+            result[@"error"] = @"response too large";
+            done = YES;
+          } else {
+            result[@"ok"] = @YES;
+            result[@"status"] = @(http.statusCode);
+            fill(result, data);
+            done = YES;
+          }
+          dispatch_semaphore_signal(sem);
+        }];
+      [task resume];
+      dispatch_semaphore_wait(sem, DISPATCH_TIME_FOREVER);
+      if (loopAgain) {
+        redirects++;
+        if (redirects > 5) {
+          result[@"ok"] = @NO;
+          result[@"error"] = @"too many redirects";
+          break;
+        }
       }
-      dispatch_async(dispatch_get_main_queue(), ^{ replyBlock(mid, result); });
-    }];
-  [task resume];
+    }
+    dispatch_async(dispatch_get_main_queue(), ^{ replyBlock(mid, result); });
+  });
 }
 
 // ── Equalizer state: settings table + cross-window broadcast ──
@@ -367,6 +475,8 @@ static void fpBroadcastEq(void) {
 // Native file drop (ShellWebView) -> renderer import flow
 void fpHandleDropPaths(NSArray<NSString *> *paths) {
   if (paths.count == 0) return;
+  // S7: dropped paths are user-picked natively — trust them as scan roots
+  for (NSString *p in paths) fpAddTrustedScanRoot(p);
   dispatch_async(dispatch_get_main_queue(), ^{
     if (!gWebView) return;
     NSError *err = nil;
@@ -384,13 +494,39 @@ void fpHandleDropPaths(NSArray<NSString *> *paths) {
 
 @implementation BridgeHandler
 
-static NSWindow *shellWindow(void) {
-  return NSApp.windows.count ? NSApp.windows[0] : nil;
+// S16: page console output goes to the system log — truncate and redact
+// common secret patterns (Bearer tokens, api keys, passwords, auth headers).
+static NSString *fpRedactConsole(NSString *msg) {
+  if (msg.length > 300) msg = [msg substringToIndex:300];
+  static NSArray<NSRegularExpression *> *res = nil;
+  static dispatch_once_t once;
+  dispatch_once(&once, ^{
+    NSMutableArray *arr = [NSMutableArray array];
+    for (NSString *pat in @[
+      @"(?i)(Bearer\\s+)[A-Za-z0-9._~+/=-]+",
+      @"(?i)(api[_-]?key\\s*[:=]\\s*)[^\\s,;]+",
+      @"(?i)(password\\s*[:=]\\s*)[^\\s,;]+",
+      @"(?i)(authorization\\s*[:=]\\s*)[^\\s,;]+",
+    ]) {
+      NSRegularExpression *re = [NSRegularExpression regularExpressionWithPattern:pat options:0 error:nil];
+      if (re) [arr addObject:re];
+    }
+    res = arr;
+  });
+  for (NSRegularExpression *re in res) {
+    msg = [re stringByReplacingMatchesInString:msg options:0
+                                         range:NSMakeRange(0, msg.length)
+                                  withTemplate:@"$1***"];
+  }
+  return msg;
 }
 
 - (void)userContentController:(WKUserContentController *)userContentController
       didReceiveScriptMessage:(WKScriptMessage *)message {
   if (![message.name isEqualToString:@"freeplayer"]) return;
+  // S2: only main-frame messages from a webview this app owns — a subframe
+  // (or a stray page in another webview) must never reach the bridge.
+  if (!message.frameInfo.isMainFrame || !fpIsAppWebView(message.webView)) return;
   if (![message.body isKindOfClass:NSDictionary.class]) return;
   NSDictionary *body = (NSDictionary *)message.body;
   NSNumber *idNum = body[@"id"];
@@ -407,16 +543,21 @@ static NSWindow *shellWindow(void) {
   }
   if ([method isEqualToString:@"__console"]) {
     NSArray *a = body[@"args"];
-    NSLog(@"[page %@] %@", a.firstObject ?: @"log", a.count > 1 ? a[1] : @"");
+    NSLog(@"[page %@] %@", a.firstObject ?: @"log",
+          fpRedactConsole(a.count > 1 && [a[1] isKindOfClass:NSString.class] ? a[1] : @""));
     return;
   }
   if ([method isEqualToString:@"__dragStart"]) {
     // Kick off AppKit's modal window drag with a synthetic mouse event.
-    NSWindow *win = shellWindow();
+    // Q3: JS screenX/screenY are CSS pixels — scale by the backing scale
+    // factor, and use the screen that contains the window (multi-screen).
+    NSWindow *win = message.webView.window;
     if (!win) return;
-    CGFloat sx = [args.firstObject doubleValue];
-    CGFloat sy = args.count > 1 ? [args[1] doubleValue] : 0;
-    CGFloat screenH = NSScreen.screens.firstObject.frame.size.height;
+    CGFloat scale = win.backingScaleFactor ?: 1.0;
+    CGFloat sx = [args.firstObject doubleValue] * scale;
+    CGFloat sy = (args.count > 1 ? [args[1] doubleValue] : 0) * scale;
+    NSScreen *screen = win.screen ?: NSScreen.mainScreen;
+    CGFloat screenH = screen.frame.size.height;
     NSPoint p = NSMakePoint(sx, screenH - sy);
     p = [win convertPointFromScreen:p];
     NSEvent *evt = [NSEvent mouseEventWithType:NSEventTypeLeftMouseDown
@@ -475,7 +616,9 @@ static NSWindow *shellWindow(void) {
       reply(idNum, fpdb::getSetting(args.firstObject, nil) ?: NSNull.null);
     } else if ([method isEqualToString:@"setSetting"]) {
       NSDictionary *d = args.firstObject;
+      if (![d isKindOfClass:NSDictionary.class]) { reply(idNum, @NO); return; }
       NSString *key = d[@"key"];
+      if (![key isKindOfClass:NSString.class] || key.length == 0) { reply(idNum, @NO); return; }
       // NEW-2: library_dir is the trust anchor for the file-read boundary —
       // only the native NSOpenPanel flows (importDialog/selectLibraryDir) may
       // set it; a renderer-writable anchor would let XSS widen the boundary
@@ -484,7 +627,33 @@ static NSWindow *shellWindow(void) {
         reply(idNum, @NO);
         return;
       }
-      reply(idNum, @(fpdb::setSetting(key, d[@"value"])));
+      // S3c/Q11: renderer-writable keys are allowlisted — everything else
+      // (incl. import_mode with an unvalidated value) is rejected.
+      if ([key isEqualToString:@"import_mode"]) {
+        NSString *mode = [d[@"value"] description];
+        if (![mode isEqualToString:@"copy"] && ![mode isEqualToString:@"symlink"]) {
+          reply(idNum, @NO);
+          return;
+        }
+        reply(idNum, @(fpdb::setSetting(key, mode)));
+        return;
+      }
+      static NSSet<NSString *> *plain = nil;
+      static dispatch_once_t once;
+      dispatch_once(&once, ^{
+        plain = [NSSet setWithArray:@[
+          @"volume", @"tray_enabled", @"tray_notify", @"start_hidden",
+          @"start_on_boot", @"default_volume", @"default_visualizer",
+        ]];
+      });
+      if ([plain containsObject:key]
+          || [key hasPrefix:@"plugin."]
+          || [key hasPrefix:@"plugin_perms_"]
+          || [key hasPrefix:@"meta."]) {
+        reply(idNum, @(fpdb::setSetting(key, d[@"value"])));
+      } else {
+        reply(idNum, @NO);
+      }
     } else if ([method isEqualToString:@"getEqState"]) {
       reply(idNum, fpEqStateDict());
     } else if ([method isEqualToString:@"setEq"]) {
@@ -496,7 +665,16 @@ static NSWindow *shellWindow(void) {
       fpOpenEqWindow();
       reply(idNum, @YES);
     } else if ([method isEqualToString:@"resetDatabase"]) {
-      reply(idNum, @(fpdb::resetDatabase()));
+      // S8: the renderer's own confirm dialog is not enough — one IPC call
+      // wipes every track/playlist/history entry AND all settings, so gate
+      // it behind a native confirmation dialog too.
+      NSAlert *alert = [[NSAlert alloc] init];
+      alert.alertStyle = NSAlertStyleWarning;
+      alert.messageText = @"Reset Database";
+      alert.informativeText = @"This will permanently delete all tracks, playlists, listening history, and settings. This cannot be undone.";
+      [alert addButtonWithTitle:@"Reset Everything"];
+      [alert addButtonWithTitle:@"Cancel"];
+      reply(idNum, @([alert runModal] == NSAlertFirstButtonReturn && fpdb::resetDatabase()));
     }
     // ── Tracks (H2: read-heavy queries + reply JSON off the main thread) ──
     else if ([method isEqualToString:@"getTracks"]) {
@@ -520,7 +698,22 @@ static NSWindow *shellWindow(void) {
       NSDictionary *d = args.firstObject;
       reply(idNum, @(fpdb::updateTrack([d[@"id"] longLongValue], d)));
     } else if ([method isEqualToString:@"deleteTrack"]) {
-      reply(idNum, @(fpdb::deleteTrack([args.firstObject longLongValue])));
+      int64_t tid = [args.firstObject longLongValue];
+      id track = fpdb::getTrackById(tid);
+      BOOL ok = fpdb::deleteTrack(tid);
+      // S9: remove the track's cover file (and the .covers dir when it
+      // empties) — no orphaned payloads outside the DB
+      if (ok && [track isKindOfClass:NSDictionary.class]) {
+        NSString *cover = track[@"cover_path"];
+        if ([cover isKindOfClass:NSString.class] && cover.length) {
+          NSFileManager *fm = NSFileManager.defaultManager;
+          if (fpIsPathInLibrary(cover)) {
+            [fm removeItemAtPath:cover error:nil];
+            [fm removeItemAtPath:cover.stringByDeletingLastPathComponent error:nil];
+          }
+        }
+      }
+      reply(idNum, @(ok));
     } else if ([method isEqualToString:@"getTrackCount"]) {
       NSNumber *mid = idNum;
       dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
@@ -552,7 +745,10 @@ static NSWindow *shellWindow(void) {
     }
     // ── Stats (H2: off main thread) ──
     else if ([method isEqualToString:@"getPlayHistory"]) {
-      long limit = [args.firstObject longValue] ?: 50;
+      // S14: clamp the limit — a renderer-supplied unbounded LIMIT would
+      // serialize the whole history table into one reply
+      long limit = [args.firstObject longValue];
+      if (limit < 1 || limit > 1000) limit = 50;
       NSNumber *mid = idNum;
       dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
         NSArray *rows = fpdb::getPlayHistory(limit);
@@ -570,23 +766,26 @@ static NSWindow *shellWindow(void) {
     // file read otherwise) ──
     else if ([method isEqualToString:@"getCover"]) {
       NSString *coverPath = args.firstObject;
-      if (!fpPathInLibrary(coverPath)) {
+      if (![coverPath isKindOfClass:NSString.class] || !fpIsPathInLibrary(coverPath)) {
         reply(idNum, NSNull.null);
         return;
       }
       NSNumber *mid = idNum;
+      // Q7: base64-encode on the background queue — only the small reply
+      // string hops to the main thread
       dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
         NSData *data = [NSData dataWithContentsOfFile:coverPath];
+        NSString *encoded = nil;
+        if (data) {
+          NSString *ext = coverPath.pathExtension.lowercaseString;
+          NSString *mime = [ext isEqualToString:@"png"] ? @"image/png"
+                          : [ext isEqualToString:@"webp"] ? @"image/webp"
+                          : @"image/jpeg";
+          encoded = [NSString stringWithFormat:@"data:%@;base64,%@", mime,
+                     [data base64EncodedStringWithOptions:0]];
+        }
         dispatch_async(dispatch_get_main_queue(), ^{
-          if (data) {
-            NSString *ext = coverPath.pathExtension.lowercaseString;
-            NSString *mime = [ext isEqualToString:@"png"] ? @"image/png"
-                            : [ext isEqualToString:@"webp"] ? @"image/webp"
-                            : @"image/jpeg";
-            reply(mid, [NSString stringWithFormat:@"data:%@;base64,%@", mime, [data base64EncodedStringWithOptions:0]]);
-          } else {
-            reply(mid, NSNull.null);
-          }
+          reply(mid, encoded ?: NSNull.null);
         });
       });
     }
@@ -654,7 +853,7 @@ static NSWindow *shellWindow(void) {
       } else {
         // NEW-1: lrc_path is stored verbatim from setLrc — never read a file
         // outside the library (arbitrary local-file read via getLrc)
-        if (!fpPathInLibrary(lrcPath)) {
+        if (!fpIsPathInLibrary(lrcPath)) {
           reply(idNum, NSNull.null);
           return;
         }
@@ -670,7 +869,7 @@ static NSWindow *shellWindow(void) {
       NSDictionary *d = args.firstObject;
       NSString *lrcPath = d[@"lrcPath"];
       // NEW-1: reject out-of-library lrc paths (getLrc would read them back)
-      if (!fpPathInLibrary(lrcPath)) {
+      if (!fpIsPathInLibrary(lrcPath)) {
         reply(idNum, @NO);
         return;
       }
@@ -678,6 +877,7 @@ static NSWindow *shellWindow(void) {
     } else if ([method isEqualToString:@"saveLrcContent"]) {
       int64_t tid = [args.firstObject longLongValue];
       NSString *content = args.count > 1 ? args[1] : nil;
+      if (![content isKindOfClass:NSString.class]) { reply(idNum, @{ @"success": @NO }); return; }
       NSDictionary *track = fpdb::getTrackById(tid);
       if (![track isKindOfClass:NSDictionary.class] || content.length == 0) {
         reply(idNum, @{ @"success": @NO });
@@ -694,6 +894,12 @@ static NSWindow *shellWindow(void) {
       NSString *target = [[audioPath.stringByDeletingLastPathComponent
                            stringByAppendingPathComponent:[NSString stringWithFormat:@"%@.%lld", audioStem, tid]]
                           stringByAppendingPathExtension:@"lrc"];
+      // S4: belt-and-braces — the target derives from a DB row, but never
+      // write outside the library
+      if (!fpIsPathInLibrary(target)) {
+        reply(idNum, @{ @"success": @NO });
+        return;
+      }
       NSError *err = nil;
       BOOL ok = [content writeToFile:target atomically:YES encoding:NSUTF8StringEncoding error:&err];
       if (ok) ok = fpdb::setTrackLrc(tid, target);
@@ -707,10 +913,54 @@ static NSWindow *shellWindow(void) {
         return;
       }
       NSData *img = [[NSData alloc] initWithBase64EncodedString:b64 options:0];
-      if (!img) { reply(idNum, @{ @"success": @NO }); return; }
+      // S9: unbounded payloads are capped (~5 MB decoded ≈ 7M base64 chars)
+      if (b64.length > 7 * 1024 * 1024 || !img || img.length > 5 * 1024 * 1024) {
+        reply(idNum, @{ @"success": @NO });
+        return;
+      }
       CGImageSourceRef src = CGImageSourceCreateWithData((__bridge CFDataRef)img, NULL);
       if (!src) { reply(idNum, @{ @"success": @NO }); return; }
+      // S9: only JPEG/PNG/WebP/HEIC are accepted; anything else is rejected
+      // instead of being written verbatim (format spoofing)
+      UTType *imgType = nil;
+      CFStringRef srcType = CGImageSourceGetType(src);
+      if (srcType) imgType = [UTType typeWithIdentifier:(__bridge NSString *)srcType];
+      BOOL knownFormat = imgType != nil
+          && ([imgType conformsToType:UTTypeJPEG] || [imgType conformsToType:UTTypePNG]
+              || [imgType conformsToType:UTTypeWebP] || [imgType conformsToType:UTTypeHEIC]);
+      if (!knownFormat) {
+        CFRelease(src);
+        reply(idNum, @{ @"success": @NO });
+        return;
+      }
+      // S9: non-JPEG input is re-encoded to JPEG so the .jpg name is honest
+      BOOL isJpeg = [imgType conformsToType:UTTypeJPEG];
+      NSData *outImg = img;
+      BOOL reencodeOk = YES;
+      if (!isJpeg) {
+        reencodeOk = NO;
+        CGImageRef image = CGImageSourceCreateImageAtIndex(src, 0, NULL);
+        if (image) {
+          NSMutableData *jpegData = [NSMutableData data];
+          CGImageDestinationRef dst = CGImageDestinationCreateWithData(
+              (__bridge CFMutableDataRef)jpegData, (__bridge CFStringRef)UTTypeJPEG.identifier, 1, NULL);
+          if (dst) {
+            NSDictionary *props = @{ (id)kCGImageDestinationLossyCompressionQuality: @0.85 };
+            CGImageDestinationAddImage(dst, image, (__bridge CFDictionaryRef)props);
+            if (CGImageDestinationFinalize(dst)) {
+              outImg = jpegData;
+              reencodeOk = YES;
+            }
+            CFRelease(dst);
+          }
+          CGImageRelease(image);
+        }
+      }
       CFRelease(src);
+      if (!reencodeOk) {
+        reply(idNum, @{ @"success": @NO });
+        return;
+      }
       NSString *audioPath = track[@"file_path"];
       NSString *coverDir = [audioPath.stringByDeletingLastPathComponent stringByAppendingPathComponent:@".covers"];
       NSFileManager *fm = NSFileManager.defaultManager;
@@ -724,7 +974,14 @@ static NSWindow *shellWindow(void) {
       }
       NSString *coverPath = [coverDir stringByAppendingPathComponent:
                              [NSString stringWithFormat:@"cover-%lld.jpg", tid]];
-      BOOL ok = [img writeToFile:coverPath atomically:YES];
+      // S4: belt-and-braces — never write outside the library
+      if (!fpIsPathInLibrary(coverPath)) {
+        reply(idNum, @{ @"success": @NO });
+        return;
+      }
+      NSError *writeErr = nil;
+      BOOL ok = [outImg writeToFile:coverPath options:NSDataWritingAtomic error:&writeErr];
+      if (!ok) NSLog(@"[bridge] cover write failed: %@", writeErr);
       if (ok) ok = fpdb::setTrackCover(tid, coverPath);
       reply(idNum, ok ? @{ @"success": @YES, @"coverPath": coverPath } : @{ @"success": @NO });
     } else if ([method isEqualToString:@"removeLrc"]) {
@@ -732,7 +989,7 @@ static NSWindow *shellWindow(void) {
     } else if ([method isEqualToString:@"uploadLrc"]) {
       int64_t tid = [args.firstObject longLongValue];
       NSDictionary *track = fpdb::getTrackById(tid);
-      if ([track isKindOfClass:NSNull.class]) { reply(idNum, @{ @"error": @"Track not found" }); return; }
+      if (![track isKindOfClass:NSDictionary.class]) { reply(idNum, @{ @"error": @"Track not found" }); return; }
       NSOpenPanel *panel = [NSOpenPanel openPanel];
       panel.title = @"Select LRC Lyrics File";
       panel.allowedContentTypes = @[ UTTypePlainText ];
@@ -745,9 +1002,23 @@ static NSWindow *shellWindow(void) {
         NSString *audioPath = track[@"file_path"];
         NSString *target = [audioPath.stringByDeletingLastPathComponent
                             stringByAppendingPathComponent:chosen.lastPathComponent];
+        // S13: never silently overwrite an existing sidecar, and surface
+        // write failures instead of pretending the copy succeeded
+        if ([NSFileManager.defaultManager fileExistsAtPath:target]) {
+          reply(idNum, @{ @"success": @NO, @"error": @"A lyrics file with that name already exists" });
+          return;
+        }
+        if (!fpIsPathInLibrary(target)) {
+          reply(idNum, @{ @"success": @NO, @"error": @"target outside library" });
+          return;
+        }
         NSData *raw = [NSData dataWithContentsOfFile:chosen];
         if (raw) {
-          [raw writeToFile:target atomically:YES];
+          NSError *wErr = nil;
+          if (![raw writeToFile:target options:NSDataWritingAtomic error:&wErr]) {
+            reply(idNum, @{ @"success": @NO, @"error": wErr.localizedDescription ?: @"write failed" });
+            return;
+          }
           chosen = target;
           // Minor-2: only persist lrc_path when the copy actually succeeded —
           // otherwise the DB entry points outside the library (dead entry)
@@ -775,19 +1046,45 @@ static NSWindow *shellWindow(void) {
         return;
       }
       NSString *sourceDir = panel.URL.path;
+      // S7: the panel-selected directory becomes a trusted scan root
+      fpAddTrustedScanRoot(sourceDir);
       NSString *libraryDir = fpdb::getSetting(@"library_dir", nil);
       reply(idNum, @{ @"canceled": @NO, @"sourceDir": sourceDir, @"libraryDir": libraryDir ?: NSNull.null });
     } else if ([method isEqualToString:@"scanDirectory"]) {
-      // M3: directory walk off the main thread
+      // S7: only roots the user picked natively may be enumerated — a
+      // renderer-supplied root is an arbitrary filesystem scan otherwise
       NSString *dir = args.firstObject;
+      if (![dir isKindOfClass:NSString.class] || !fpIsTrustedScanRoot(dir)) {
+        reply(idNum, @[]);
+        return;
+      }
+      // M3: directory walk off the main thread; S5: the walk itself can
+      // throw (enumerator quirks) — never let it crash the app
       NSNumber *mid = idNum;
       dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
-        NSArray *files = scanAudioFiles(dir);
-        dispatch_async(dispatch_get_main_queue(), ^{ reply(mid, files); });
+        @try {
+          NSArray *files = scanAudioFiles(dir);
+          dispatch_async(dispatch_get_main_queue(), ^{ reply(mid, files); });
+        } @catch (NSException *e) {
+          NSLog(@"[bridge] scanDirectory exception: %@", e);
+          dispatch_async(dispatch_get_main_queue(), ^{ reject(mid, e.reason ?: @"scan failed"); });
+        }
       });
     } else if ([method isEqualToString:@"importFiles"]) {
+      // S5: validate the payload shape BEFORE touching a background queue —
+      // malformed args must never reach the importer
       NSDictionary *data = args.firstObject;
       NSArray *files = data[@"files"];
+      if (![data isKindOfClass:NSDictionary.class] || ![files isKindOfClass:NSArray.class]) {
+        reply(idNum, @{ @"imported": @0, @"errors": @[], @"error": @"bad import payload" });
+        return;
+      }
+      for (id f in files) {
+        if (![f isKindOfClass:NSString.class]) {
+          reply(idNum, @{ @"imported": @0, @"errors": @[], @"error": @"bad import payload" });
+          return;
+        }
+      }
       // Library dir is native-set only (onboarding / Settings); the renderer
       // never supplies it — crafted metadata can no longer redirect writes.
       NSString *storedLib = fpdb::getSetting(@"library_dir", nil);
@@ -800,16 +1097,27 @@ static NSWindow *shellWindow(void) {
       __block NSInteger imported = 0, skipped = 0;
       NSNumber *mid = idNum;
 
-      // M12: count in-flight imports so app termination can wait for them
+      // M12: count in-flight imports so app termination can wait for them.
+      // Q1: the dispatch group is the completion signal the termination path
+      // waits on — the old poll loop could race sqlite3_close.
       gImportTasks.fetch_add(1);
+      dispatch_group_enter(fpImportGroup());
 
       dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+        @try {
         // H4: extract metadata concurrently (bounded), keep order-insensitive
         dispatch_queue_t extractQ = dispatch_queue_create("fp.extract", DISPATCH_QUEUE_CONCURRENT);
         dispatch_queue_t collectQ = dispatch_queue_create("fp.collect", DISPATCH_QUEUE_SERIAL);
         dispatch_group_t group = dispatch_group_create();
         NSMutableArray *prepared = [NSMutableArray array];
         for (NSString *filePath in files) {
+          // S3b: only audio files may enter the library — everything else is
+          // skipped with a recorded error (defense in depth on the source
+          // paths, which the renderer controls)
+          if (!fpIsAudioFile(filePath)) {
+            [errors addObject:@{ @"file": filePath, @"error": @"not an audio file" }];
+            continue;
+          }
           dispatch_group_async(group, extractQ, ^{
             NSDictionary *meta = fpmeta::extractAtPath(filePath);
             // Track the nested append inside the group: dispatch_group_async
@@ -823,6 +1131,7 @@ static NSWindow *shellWindow(void) {
           });
         }
         dispatch_group_notify(group, dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+          @try {
           NSFileManager *fm = NSFileManager.defaultManager;
           // Phase 2: copy/symlink + build track rows WITHOUT holding the DB
           // write lock (file IO is the slow part — see #3). No transaction
@@ -837,23 +1146,50 @@ static NSWindow *shellWindow(void) {
                 continue;
               }
               NSString *baseName = filePath.lastPathComponent;
-              // Replace path separators with underscores to match the electron app
+              // S4: replace path separators AND "."/".." components with
+              // underscores — ".." in artist/album tags must never escape
+              // the library (pathWithComponents + createDirectoryAtPath
+              // would happily create dirs outside storedLib)
               auto safe = ^NSString *(NSString *s) {
-                return [s stringByReplacingOccurrencesOfString:@"/" withString:@"_"];
+                if (![s isKindOfClass:NSString.class]) return @"";
+                NSMutableArray *parts = [NSMutableArray array];
+                for (NSString *c in [s componentsSeparatedByString:@"/"]) {
+                  [parts addObject:([c isEqualToString:@"."] || [c isEqualToString:@".."]) ? @"_" : c];
+                }
+                return [parts componentsJoinedByString:@"_"];
               };
               NSString *artist = safe(meta[@"artist"]);
               NSString *album = safe(meta[@"album"]);
               NSString *albumDir = [NSString pathWithComponents:@[ storedLib, artist, album ]];
-              if (![fm fileExistsAtPath:albumDir]) {
-                [fm createDirectoryAtPath:albumDir withIntermediateDirectories:YES attributes:nil error:nil];
+              // S4: belt-and-braces — the sanitized dir must still be inside
+              // the (standardized) library
+              if (!fpIsPathInLibrary(albumDir)) {
+                [errors addObject:@{ @"file": filePath, @"error": @"unsafe album path" }];
+                continue;
+              }
+              // Q5: every file op records its failure into `errors` instead
+              // of being silently dropped (UNIQUE collisions etc.)
+              NSError *err = nil;
+              if (![fm fileExistsAtPath:albumDir]
+                  && ![fm createDirectoryAtPath:albumDir withIntermediateDirectories:YES attributes:nil error:&err]) {
+                [errors addObject:@{ @"file": filePath, @"error": err.localizedDescription ?: @"directory creation failed" }];
+                continue;
               }
               NSString *targetPath = [albumDir stringByAppendingPathComponent:baseName];
               BOOL exists = [fm fileExistsAtPath:targetPath];
               if (!exists) {
                 if ([importMode isEqualToString:@"symlink"]) {
-                  [fm createSymbolicLinkAtPath:targetPath withDestinationPath:filePath error:nil];
+                  NSError *lErr = nil;
+                  if (![fm createSymbolicLinkAtPath:targetPath withDestinationPath:filePath error:&lErr]) {
+                    [errors addObject:@{ @"file": filePath, @"error": lErr.localizedDescription ?: @"symlink failed" }];
+                    continue;
+                  }
                 } else {
-                  [fm copyItemAtPath:filePath toPath:targetPath error:nil];
+                  NSError *cErr = nil;
+                  if (![fm copyItemAtPath:filePath toPath:targetPath error:&cErr]) {
+                    [errors addObject:@{ @"file": filePath, @"error": cErr.localizedDescription ?: @"copy failed" }];
+                    continue;
+                  }
                 }
               }
 
@@ -863,11 +1199,18 @@ static NSWindow *shellWindow(void) {
               if (artwork) {
                 NSString *coverDir = [albumDir stringByAppendingPathComponent:@".covers"];
                 if (![fm fileExistsAtPath:coverDir]) {
-                  [fm createDirectoryAtPath:coverDir withIntermediateDirectories:YES attributes:nil error:nil];
+                  NSError *dErr = nil;
+                  if (![fm createDirectoryAtPath:coverDir withIntermediateDirectories:YES attributes:nil error:&dErr]) {
+                    NSLog(@"[bridge] cover dir create failed: %@", dErr);
+                  }
                 }
                 coverPath = [coverDir stringByAppendingPathComponent:@"cover.jpg"];
                 if (![fm fileExistsAtPath:coverPath]) {
-                  [artwork writeToFile:coverPath atomically:YES];
+                  NSError *wErr = nil;
+                  if (![artwork writeToFile:coverPath options:NSDataWritingAtomic error:&wErr]) {
+                    NSLog(@"[bridge] cover write failed: %@", wErr);
+                    coverPath = nil; // keep the track, drop only the cover
+                  }
                 }
               }
 
@@ -884,13 +1227,18 @@ static NSWindow *shellWindow(void) {
           }
           // Phase 3: batched inserts — short transactions so the write lock
           // is never held for the whole import (main-thread writers stall
-          // on busy_timeout while it is).
+          // on busy_timeout while it is). Q5: failed inserts are counted and
+          // reported instead of being ignored.
           const NSUInteger insertBatch = 50;
           for (NSUInteger i = 0; i < tracksToInsert.count; i += insertBatch) {
             BOOL tx = fpdb::beginTransaction();
             NSUInteger end = MIN(i + insertBatch, tracksToInsert.count);
             for (NSUInteger j = i; j < end; j++) {
-              fpdb::insertTrack(tracksToInsert[j]);
+              NSDictionary *td = tracksToInsert[j];
+              if (!fpdb::insertTrack(td)) {
+                [errors addObject:@{ @"file": td[@"file_path"] ?: @"?", @"error": @"database insert failed" }];
+                imported--;
+              }
             }
             if (tx) fpdb::commitTransaction();
           }
@@ -900,10 +1248,27 @@ static NSWindow *shellWindow(void) {
             @"errors": errors,
           };
           gImportTasks.fetch_sub(1);
+          dispatch_group_leave(fpImportGroup());
           dispatch_async(dispatch_get_main_queue(), ^{
             reply(mid, result);
           });
+          } @catch (NSException *e) {
+            NSLog(@"[bridge] import exception: %@\n%@", e, [e callStackSymbols]);
+            gImportTasks.fetch_sub(1);
+            dispatch_group_leave(fpImportGroup());
+            dispatch_async(dispatch_get_main_queue(), ^{
+              reject(mid, e.reason ?: @"import failed");
+            });
+          }
         });
+        } @catch (NSException *e) {
+          NSLog(@"[bridge] import exception: %@\n%@", e, [e callStackSymbols]);
+          gImportTasks.fetch_sub(1);
+          dispatch_group_leave(fpImportGroup());
+          dispatch_async(dispatch_get_main_queue(), ^{
+            reject(mid, e.reason ?: @"import failed");
+          });
+        }
       });
     }
     // ── Tray (M5) ──

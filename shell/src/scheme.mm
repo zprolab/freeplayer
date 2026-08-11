@@ -6,20 +6,19 @@
 #import <WebKit/WebKit.h>
 #include <atomic>
 #include "db.h"
+#include "paths.h"
 
 static NSString *gWebRoot = nil;
 void fpSetWebRoot(NSString *root) { gWebRoot = [root copy]; }
 
-// L2: media:// must only stream files inside the library directory — an
-// unrestricted path here is an arbitrary local-file read primitive.
-static BOOL pathInsideLibrary(NSString *path) {
-  NSString *lib = fpdb::getSetting(@"library_dir", nil);
-  if (lib.length == 0) return NO;
-  NSString *libNorm = [lib stringByStandardizingPath];
-  NSString *pathNorm = [path stringByStandardizingPath];
-  return [pathNorm hasPrefix:[libNorm stringByAppendingString:@"/"]]
-      || [pathNorm isEqualToString:libNorm];
-}
+// S11: mirror the page's own CSP meta tag (index.html — including the
+// `blob:` script allowance the plugin worker sandbox needs) — the app://
+// response must not change what the bundled page is allowed to do — plus
+// nosniff. Keep in sync with index.html's meta.
+static NSString *const kAppCSP = @"default-src 'self'; script-src 'self' blob: 'unsafe-inline';"
+  @" style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;"
+  @" media-src 'self' media:; img-src 'self' data: media:;"
+  @" font-src 'self' https://fonts.gstatic.com; connect-src 'self' ws://localhost:*";
 
 // Per-task cancellation flags (main-thread dictionary of atomics; the
 // streaming loop reads the atomic from a background queue).
@@ -100,6 +99,10 @@ static NSString *mimeForPath(NSString *path) {
       @"Content-Type": mimeForPath(file),
       @"Content-Length": [NSString stringWithFormat:@"%lu", (unsigned long)data.length],
       @"Cache-Control": @"no-cache",
+      // S11: no CSP/nosniff on app:// responses meant a compromised page
+      // could load/execute attacker content under the app origin
+      @"Content-Security-Policy": kAppCSP,
+      @"X-Content-Type-Options": @"nosniff",
     }];
     [task didReceiveResponse:response];
     [task didReceiveData:data];
@@ -120,8 +123,11 @@ static NSString *mimeForPath(NSString *path) {
     return;
   }
 
-  // L2: only library-owned files may stream
-  if (!pathInsideLibrary(path)) {
+  // L2: only library-owned files may stream — fpIsPathInLibrary (paths.mm)
+  // standardizes AND resolves symlinks, so a symlink-imported track that
+  // points outside the library is rejected (S3d). Q9: media:// serves audio
+  // only, so an extension allowlist is cheap defense in depth on top.
+  if (!fpIsPathInLibrary(path) || !fpIsAudioFile(path)) {
     [task didFailWithError:[NSError errorWithDomain:@"FreePlayerShell" code:403
                                            userInfo:@{ NSLocalizedDescriptionKey : @"outside library" }]];
     return;
