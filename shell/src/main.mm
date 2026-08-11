@@ -284,6 +284,15 @@ void fpSetWebRoot(NSString *root);
 
   ShellWebView *webView = [[ShellWebView alloc] initWithFrame:frame configuration:config];
   webView.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
+  // Web Inspector (Safari > Develop > FreePlayer): on by default for dev
+  // binaries (no .app bundle); bundled builds opt in via FP_INSPECT=1
+  // (env or `defaults write`).
+  if (@available(macOS 13.3, *)) {
+    BOOL dev = ![[[NSBundle mainBundle] bundlePath] hasSuffix:@".app"];
+    webView.inspectable = dev
+        || [NSUserDefaults.standardUserDefaults boolForKey:@"FP_INSPECT"]
+        || (getenv("FP_INSPECT") != NULL);
+  }
   // S1: every webview shares the navigation gate (main frame: app:// or the
   // configured dev origin only)
   if (!gNavGate) gNavGate = [[FpNavGate alloc] init];
