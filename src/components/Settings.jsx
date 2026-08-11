@@ -3,7 +3,7 @@ import ToggleSwitch from './ToggleSwitch';
 import SegmentedControl from './SegmentedControl';
 import { useTraySettings } from '../hooks/useTraySettings';
 import { applyMonoFont } from '../utils/fonts';
-import logoUrl from '../assets/logo.svg';
+import logoUrl from '../assets/logo-dark.svg';
 import { version } from '../../package.json';
 
 const MONO_FONTS = [
@@ -291,7 +291,7 @@ const Settings = memo(function Settings({
         </div>
 
         <div className="about-info">
-          <div className="about-brand"><img src={logoUrl} width={56} height={56} alt="" style={{ borderRadius: 14 }} /></div>
+          <div className="about-brand"><img src={logoUrl} width={56} height={56} alt="" /></div>
           <div className="about-row"><span className="about-label">FreePlayer</span><span className="about-value">v{version}</span></div>
           <div className="about-row"><span className="about-label">License</span><span className="about-value">GPL-3.0-or-later</span></div>
           <p className="about-statement">
