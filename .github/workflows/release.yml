@@ -1,0 +1,42 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Package and publish
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Bundle FreePlayer.app
+        run: make -C shell bundle
+      - name: Package zip + dmg
+        run: |
+          VER=$(node -p "require('./package.json').version")
+          APP=shell/build/FreePlayer.app
+          mkdir -p release
+          ditto -c -k --keepParent "$APP" "release/FreePlayer-$VER-mac-arm64.zip"
+          hdiutil create -volname FreePlayer -srcfolder "$APP" -ov -format UDZO \
+            "release/FreePlayer-$VER-mac-arm64.dmg" >/dev/null
+          ls -lh release/
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VER=$(node -p "require('./package.json').version")
+          gh release create "$GITHUB_REF_NAME" \
+            --title "FreePlayer $GITHUB_REF_NAME" \
+            --notes "Ad-hoc signed (not notarized): first launch requires right-click → Open, or \`xattr -d com.apple.quarantine <path>\`. macOS 13+ / Apple Silicon only." \
+            release/FreePlayer-$VER-mac-arm64.zip release/FreePlayer-$VER-mac-arm64.dmg
