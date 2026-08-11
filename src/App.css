@@ -4231,4 +4231,18 @@ input[type="range"]::-webkit-slider-thumb {
   .mobile-tabbar-label {
     white-space: nowrap;
   }
+
+  /* 侧栏隐藏 → 底部标签栏替代 */
+  .sidebar { display: none; }
+
+  /* PlayerBar 改为贴底（侧栏消失）+ 让出标签栏高度 */
+  .player-bar {
+    left: 0;
+    bottom: 56px;
+  }
+
+  /* 主内容让出底部两段（player + tabbar） */
+  .main-content {
+    padding-bottom: calc(var(--player-height) + 56px);
+  }
 }
