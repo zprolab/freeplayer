@@ -136,6 +136,13 @@ body {
   animation: spin 0.7s linear infinite;
 }
 
+.loading-logo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 8px;
+}
+
 .loading-text {
   font-size: 13px;
   color: var(--gl-text-tertiary);
@@ -2498,6 +2505,11 @@ input[type="range"]::-webkit-slider-thumb {
   flex-direction: column;
   gap: 6px;
   margin-bottom: 14px;
+}
+.about-brand {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 8px;
 }
 .about-row {
   display: flex;

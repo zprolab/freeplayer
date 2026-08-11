@@ -3,6 +3,7 @@
 #
 #   make            build the dev binary (build/FreePlayerShell)
 #   make oz         build the size-optimized -Oz binary (build/FreePlayerShell-oz)
+#   make logo       regenerate FreePlayer.icns from logo.svg
 #   make bundle     build FreePlayer.app (needs ../dist from `vite build`)
 #   make run        run the dev binary
 #   make run-app    open the bundled app
@@ -57,7 +58,13 @@ $(OZAPP): $(SRCS)
 # A file-target bundle (the old `bundle: build/FreePlayer.app`) silently
 # skipped after vite builds (H7) and poisoned the next run after a failure
 # (#4) — an unconditional rebuild can't go stale or get stuck.
-bundle: $(BIN)
+# App icon: generated from the source SVG — bundle always ships a fresh icon
+FreePlayer.icns: logo.svg scripts/logo.sh
+	bash scripts/logo.sh
+
+logo: FreePlayer.icns
+
+bundle: $(BIN) FreePlayer.icns
 	@test -d $(DIST) || (echo "==> missing $(DIST) — run 'npm run build' first" && exit 2)
 	rm -rf $(BUNDLE)
 	mkdir -p $(BUNDLE)/Contents/MacOS $(BUNDLE)/Contents/Resources/web
@@ -83,4 +90,4 @@ run-app: bundle
 clean:
 	rm -rf build
 
-.PHONY: run bundle asan oz run-app clean
+.PHONY: run bundle asan oz logo run-app clean

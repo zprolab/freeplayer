@@ -3,6 +3,7 @@ import ToggleSwitch from './ToggleSwitch';
 import SegmentedControl from './SegmentedControl';
 import { useTraySettings } from '../hooks/useTraySettings';
 import { applyMonoFont } from '../utils/fonts';
+import BrandMark from './BrandMark';
 import { version } from '../../package.json';
 
 const MONO_FONTS = [
@@ -290,6 +291,7 @@ const Settings = memo(function Settings({
         </div>
 
         <div className="about-info">
+          <div className="about-brand"><BrandMark size={44} light /></div>
           <div className="about-row"><span className="about-label">FreePlayer</span><span className="about-value">v{version}</span></div>
           <div className="about-row"><span className="about-label">License</span><span className="about-value">GPL-3.0-or-later</span></div>
           <p className="about-statement">

@@ -3,6 +3,7 @@ import {
   IconMusicNote, IconPlayCircle, IconPuzzle, IconGear,
   IconImport, IconList, IconPlus, IconEdit, IconTrash,
 } from './icons';
+import BrandMark from './BrandMark';
 
 export default function Sidebar({
   currentView, onNavigate, trackCount, onImport,
@@ -50,13 +51,7 @@ export default function Sidebar({
     <aside className="sidebar">
       <div className="sidebar-header">
         <div className="sidebar-logo">
-          <svg width="22" height="22" viewBox="0 0 128 128" fill="none">
-            <rect x="22" y="24" width="11" height="80" fill="#e24329"/>
-            <rect x="37" y="28" width="36" height="11" fill="#ffffff"/>
-            <rect x="37" y="51" width="36" height="11" fill="#ffffff"/>
-            <rect x="81" y="24" width="11" height="80" fill="#ffffff"/>
-            <polygon points="98,46 98,82 124,64" fill="#e24329"/>
-          </svg>
+          <BrandMark size={22} />
           <span className="sidebar-title">FreePlayer</span>
         </div>
       </div>

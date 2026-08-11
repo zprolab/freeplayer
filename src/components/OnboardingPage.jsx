@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import licenseText from '../../LICENSE?raw';
+import BrandMark from './BrandMark';
 import { canAdvance, nextStep, prevStep, ONBOARDING_STEPS } from '../onboardingSteps';
 
 const STEP_LABELS = {
@@ -59,11 +60,7 @@ export default function OnboardingPage({ onDone }) {
         {step === 'welcome' && (
           <>
             <div className="ob-welcome-logo">
-              <svg width="40" height="40" viewBox="0 0 24 24" fill="none">
-                <circle cx="12" cy="12" r="11" stroke="var(--gl-orange)" strokeWidth="1.5"/>
-                <circle cx="12" cy="12" r="4" fill="var(--gl-orange)"/>
-                <path d="M12 1v8M12 15v8M1 12h8M15 12h8" stroke="var(--gl-orange)" strokeWidth="1" opacity="0.4"/>
-              </svg>
+              <BrandMark size={40} light />
             </div>
             <h1 className="ob-title">Welcome to FreePlayer</h1>
             <p className="ob-subtitle">Your music stays on your disk. No account, no tracking.</p>
