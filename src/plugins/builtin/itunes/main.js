@@ -37,7 +37,11 @@ export function activate(api) {
   };
 }
 
+// Retry-After is an attacker-controlled header: clamp to a sane window so a
+// malicious response cannot set the cooldown years into the future (or a
+// negative value that disables throttling entirely).
 function retryAfter(res) {
   const secs = res && res.retryAfter ? parseInt(res.retryAfter, 10) : NaN;
-  return (Number.isFinite(secs) ? secs : COOLDOWN_MS / 1000) * 1000;
+  if (!Number.isFinite(secs)) return COOLDOWN_MS / 1000 * 1000;
+  return Math.min(Math.max(secs, 1), 3600) * 1000;
 }

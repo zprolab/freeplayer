@@ -1,10 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
 import ToggleSwitch from './ToggleSwitch';
+import { sanitizeSvgIcon } from '../plugins/svgIcon';
 import { backfillMissing, isBackfillRunning, needsMetadataFill } from '../services/backfill';
 
 
 const PERM_DESC = {
-  http: 'Make network requests (GET)',
+  http: 'Make network requests (GET) — review carefully: the plugin can reach any address, including localhost/LAN devices',
   'player:read': 'Read playback state and current track',
   'player:write': 'Control playback, volume, queue',
   'audio:read': 'Access the current audio file (media:// URL)',
@@ -15,6 +16,16 @@ const PERM_DESC = {
   'settings:write': 'Write global settings',
   'settings:admin': 'Reset the database (not exposed in v1)',
 };
+
+// Icon string is only ever injected as HTML through the SVG sanitizer —
+// never raw. Error/incompatible plugins keep their raw (unvalidated)
+// manifest, so this second gate matters even though the registry sanitizes.
+function renderableIcon(icon) {
+  if (typeof icon !== 'string' || !icon) return { svg: null, img: null };
+  if (icon.includes('<')) return { svg: sanitizeSvgIcon(icon), img: null };
+  if (/^(https?:|data:image\/)/.test(icon)) return { svg: null, img: icon };
+  return { svg: null, img: null };
+}
 
 function permDesc(perm) {
   return PERM_DESC[perm] || 'Access requested by this plugin';
@@ -160,10 +171,13 @@ export default function PluginPage({ registry, meta, tracks }) {
   async function handleToggle(p, enabled) {
     if (enabled) {
       if (isNew(p)) {
-        // Default: read-level grants; providers additionally need
-        // metadata:write — the host persists their hook results on their
-        // behalf, so the write grant is required for them to function.
-        const defaults = (p.manifest.permissions || []).filter((x) => x.endsWith(':read') || x === 'http');
+        // Default: read-level grants only. http is deliberately NOT
+        // pre-checked — an http grant can reach localhost/LAN services, so
+        // the user should opt in explicitly after reviewing what the plugin
+        // is for. Providers additionally need metadata:write — the host
+        // persists their hook results on their behalf, so the write grant
+        // is required for them to function.
+        const defaults = (p.manifest.permissions || []).filter((x) => x.endsWith(':read'));
         if ((p.manifest.provides?.lyrics || p.manifest.provides?.cover)
             && (p.manifest.permissions || []).includes('metadata:write')
             && !defaults.includes('metadata:write')) {
@@ -214,11 +228,12 @@ export default function PluginPage({ registry, meta, tracks }) {
         {plugins.map((p) => (
           <div key={p.id} className={`plugin-card${isNew(p) ? ' plugin-card--new' : ''}`} onClick={() => { setOpenDetail(p.id); setDetailTab('settings'); }}>
             <div className="plugin-card-avatar">
-              {p.manifest.icon ? (
-                <span className="plugin-card-icon" dangerouslySetInnerHTML={{ __html: p.manifest.icon }} />
-              ) : (
-                (p.manifest.provides?.lyrics ? '♪' : p.manifest.provides?.cover ? '◫' : '▦')
-              )}
+              {(() => {
+                const { svg, img } = renderableIcon(p.manifest.icon);
+                if (svg) return <span className="plugin-card-icon" dangerouslySetInnerHTML={{ __html: svg }} />;
+                if (img) return <img className="plugin-card-icon" src={img} alt="" />;
+                return (p.manifest.provides?.lyrics ? '♪' : p.manifest.provides?.cover ? '◫' : '▦');
+              })()}
             </div>
             <div className="plugin-card-body">
               <div className="plugin-card-name">
@@ -248,7 +263,7 @@ export default function PluginPage({ registry, meta, tracks }) {
         <div className="confirm-overlay" onClick={() => setPendingPlugin(null)}>
           <div className="confirm-dialog" onClick={(e) => e.stopPropagation()}>
             <h3 className="confirm-title">Enable “{pendingPlugin.manifest.name}”?</h3>
-            <p className="confirm-message">{pendingPlugin.id} v{pendingPlugin.manifest.version} requests the following permissions — read-only is pre-checked by default</p>
+            <p className="confirm-message">{pendingPlugin.id} v{pendingPlugin.manifest.version} requests the following permissions — read-only grants are pre-checked by default (http is off by default: it can reach localhost/LAN)</p>
             <div className="perm-list">
               {(pendingPlugin.manifest.permissions || []).map((perm) => (
                 <label key={perm} className="perm-item">

@@ -119,6 +119,20 @@ describe('createMetadataRegistry', () => {
     expect(registry.logOp).toHaveBeenCalledWith('lrclib-lyrics', 'fetchLyrics', 7, false);
     expect(registry.logOp).toHaveBeenCalledWith('itunes-cover', 'fetchCover', 7, false);
   });
+  it('rejects oversized lyrics and covers as too-large without saving', async () => {
+    const registry = makeRegistry([plugin('lrclib-lyrics', { lyrics: true }), plugin('itunes-cover', { cover: true })]);
+    const saveLyrics = vi.fn();
+    const saveCover = vi.fn();
+    const reg = createMetadataRegistry({ registry, getSetting: vi.fn(async () => null), saveLyrics, saveCover });
+    // 600KB of lyrics (cap is 512KB)
+    registry.invokeHook.mockResolvedValue('[00:01.00]' + 'x'.repeat(600 * 1024));
+    expect(await reg.fetchLyrics({ id: 1, title: 'S' })).toEqual({ saved: false, reason: 'too-large' });
+    expect(saveLyrics).not.toHaveBeenCalled();
+    // ~7M chars of base64 (cap is ~6.7M)
+    registry.invokeHook.mockResolvedValue('A'.repeat(6_700_001));
+    expect(await reg.fetchCover({ id: 2, title: 'S' })).toEqual({ saved: false, reason: 'too-large' });
+    expect(saveCover).not.toHaveBeenCalled();
+  });
   it('audits a failed save as failed', async () => {
     const registry = makeRegistry([plugin('lrclib-lyrics', { lyrics: true })]);
     const saveLyrics = vi.fn(async () => ({ success: false }));

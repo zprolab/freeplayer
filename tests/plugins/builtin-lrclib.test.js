@@ -76,4 +76,18 @@ describe('lrclib builtin plugin', () => {
     const waits = timer.mock.calls.map((c) => c[1]).filter((ms) => ms > 0);
     expect(waits).toContain(100);
   });
+  it('429 on /api/get suppresses the search fallback and clamps the cooldown', async () => {
+    const { api } = makeApi();
+    api.http.getJson.mockResolvedValue({ ok: false, status: 429, retryAfter: '999999999' });
+    const { fetchLyrics } = lrclibMain.activate(api);
+    expect(await fetchLyrics({ title: 'Sun', artist: 'A' })).toBeNull();
+    expect(api.http.getJson).toHaveBeenCalledTimes(1); // search not attempted
+    // still inside the (clamped) cooldown: no network calls at all
+    expect(await fetchLyrics({ title: 'Sun', artist: 'A' })).toBeNull();
+    expect(api.http.getJson).toHaveBeenCalledTimes(1);
+    now += 3601 * 1000; // 1h + 1s — clamped cooldown expired
+    api.http.getJson.mockResolvedValue({ ok: true, status: 200, body: { syncedLyrics: '[00:01.00]hi' } });
+    expect(await fetchLyrics({ title: 'Sun', artist: 'A' })).toBe('[00:01.00]hi');
+    expect(api.http.getJson).toHaveBeenCalledTimes(2);
+  });
 });

@@ -64,6 +64,33 @@ describe('createPluginApi', () => {
     const api = createPluginApi('p1', [], makeDeps());
     expect(api.meta.info).toEqual({ id: 'p1', name: '', version: '' });
   });
+  it('api.settings is scoped to the plugin namespace, never the global table', async () => {
+    const deps = makeDeps();
+    const api = createPluginApi('p1', ['settings:read', 'settings:write'], deps);
+    // a plugin with settings:read cannot read another plugin's keyspace
+    await api.settings.get('musicbrainz-meta.apiToken');
+    expect(deps.settings.get).toHaveBeenCalledWith('plugin.p1.musicbrainz-meta.apiToken');
+    // nor the permission blobs
+    await api.settings.get('plugin_perms_musicbrainz-meta');
+    expect(deps.settings.get).toHaveBeenLastCalledWith('plugin.p1.plugin_perms_musicbrainz-meta');
+    // writes land in the plugin's own namespace
+    await api.settings.set('apiToken', 's3cret');
+    expect(deps.settings.set).toHaveBeenCalledWith({ key: 'plugin.p1.apiToken', value: 's3cret' });
+    // already-namespaced own keys are not double-prefixed
+    await api.settings.get('plugin.p1.apiToken');
+    expect(deps.settings.get).toHaveBeenLastCalledWith('plugin.p1.apiToken');
+  });
+  it('events.on registers the plugin as owner so removeOwner drops its listeners', () => {
+    const deps = makeDeps();
+    const api = createPluginApi('p1', ['player:read'], deps);
+    const cb = vi.fn();
+    api.events.on('trackChanged', cb);
+    deps.events.emit('trackChanged', { id: 5 });
+    expect(cb).toHaveBeenCalledWith({ id: 5 });
+    api.events.removeOwner('p1');
+    deps.events.emit('trackChanged', { id: 6 });
+    expect(cb).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe('wrapApi', () => {

@@ -73,6 +73,37 @@ describe('validateManifest', () => {
     ] });
     expect(r.ok).toBe(true);
   });
+  it('rejects number settings without finite min/max', () => {
+    const r = validateManifest({ ...base, settings: [{ key: 'x', type: 'number', default: 1 }] });
+    expect(r.ok).toBe(false);
+    expect(r.errors.join()).toContain('min/max');
+  });
+  it('rejects number settings whose default falls outside [min, max]', () => {
+    const r = validateManifest({ ...base, settings: [{ key: 'x', type: 'number', default: 99, min: 0, max: 5 }] });
+    expect(r.ok).toBe(false);
+    expect(r.errors.join()).toContain('[min, max]');
+  });
+  it('rejects number settings with non-finite bounds', () => {
+    const r = validateManifest({ ...base, settings: [{ key: 'x', type: 'number', default: 1, min: Infinity, max: 5 }] });
+    expect(r.ok).toBe(false);
+  });
+  it('rejects select settings with empty options or non-string options', () => {
+    const empty = validateManifest({ ...base, settings: [{ key: 'x', type: 'select', default: 'a' }] });
+    expect(empty.ok).toBe(false);
+    const nonString = validateManifest({ ...base, settings: [{ key: 'x', type: 'select', default: 'a', options: [42] }] });
+    expect(nonString.ok).toBe(false);
+    expect(nonString.errors.join()).toContain('strings');
+  });
+  it('rejects select settings whose default is not among the options', () => {
+    const r = validateManifest({ ...base, settings: [{ key: 'x', type: 'select', default: 'zzz', options: ['x', 'y'] }] });
+    expect(r.ok).toBe(false);
+    expect(r.errors.join()).toContain('default');
+  });
+  it('rejects boolean/string settings that declare min/max', () => {
+    const r = validateManifest({ ...base, settings: [{ key: 'x', type: 'boolean', default: true, min: 0 }] });
+    expect(r.ok).toBe(false);
+    expect(r.errors.join()).toContain('cannot declare min/max');
+  });
   it('rejects provides.lyrics without lyrics:fetch activation', () => {
     const r = validateManifest({ ...base, provides: { lyrics: true } });
     expect(r.ok).toBe(false);

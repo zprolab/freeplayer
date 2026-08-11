@@ -3,9 +3,20 @@ import { pickBestMatch } from './match.js';
 const COOLDOWN_MS = 5000;
 const PACING_MS = 1000; // MusicBrainz hard limit: 1 req/s
 const INC_PARAMS = 'inc=releases+release-groups+artist-credits';
+const MBID_CACHE_MAX = 500;
 let cooldownUntil = 0;
 let lastRequestAt = 0;
 const mbidCache = new Map();
+
+// Bounded cache: cap at MBID_CACHE_MAX entries, evicting oldest (Map
+// insertion order — delete + re-set moves an entry to the newest slot).
+function cacheMbid(id, value) {
+  if (mbidCache.has(id)) mbidCache.delete(id);
+  mbidCache.set(id, value);
+  while (mbidCache.size > MBID_CACHE_MAX) {
+    mbidCache.delete(mbidCache.keys().next().value);
+  }
+}
 
 export function activate(api) {
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -65,11 +76,13 @@ export function activate(api) {
         const rec = await searchRecording(track);
         if (!rec) return null;
         if (track.id != null) {
-          mbidCache.set(track.id, { recId: rec.id, rgId: rec.releases?.[0]?.['release-group']?.id });
+          cacheMbid(track.id, { recId: rec.id, rgId: rec.releases?.[0]?.['release-group']?.id });
         }
         const fields = { title: rec.title };
         const artistCredit = rec['artist-credit'] || [];
-        if (artistCredit.length) fields.artist = artistCredit.map((c) => c.name).join('');
+        // join(' / ') preserves multi-artist names — join('') would merge
+        // them into one unparseable string ("A B" + "C" -> "ABC").
+        if (artistCredit.length) fields.artist = artistCredit.map((c) => c.name).join(' / ');
         const rg = rec.releases?.[0]?.['release-group'];
         if (rg) {
           if (rg['first-release-date']) {

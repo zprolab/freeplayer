@@ -23,6 +23,17 @@ function runtimeBridge() {
   return (typeof window !== 'undefined' && window.__fpRuntimeState) || {};
 }
 
+// api.settings.* must never reach the global settings table: a plugin with
+// settings:read could otherwise read other plugins' secrets
+// (plugin.<id>.apiToken) and the plugin_perms_* blobs, and settings:write
+// could rewrite other plugins' permissions. Every read/write is forced into
+// the plugin's own namespace `plugin.<pluginId>.<key>` (keys already under
+// that exact namespace are not double-prefixed).
+function scopedSettingKey(pluginId, key) {
+  const prefix = `plugin.${pluginId}.`;
+  return key.startsWith(prefix) ? key : prefix + key;
+}
+
 export function createPluginApi(pluginId, granted, deps) {
   const rate = makeRateLimit();
   const gateWrite = (method) => (...args) => {
@@ -36,7 +47,7 @@ export function createPluginApi(pluginId, granted, deps) {
     getTrack: () => null,
     play: noop, pause: noop, seek: noop, next: noop, previous: noop, setVolume: noop,
   };
-  const events = deps.events || rt.events || { on: noop, off: noop };
+  const events = deps.events || rt.events || { on: noop, off: noop, removeOwner: noop };
   const audio = (deps.bridge && deps.bridge.audio) || rt.audio || { getSource: () => null };
   return {
     http: {
@@ -70,16 +81,22 @@ export function createPluginApi(pluginId, granted, deps) {
       removeLyrics: gateWrite((id) => deps.bridge.metadata.removeLyrics(id)),
     },
     settings: {
-      get: (key) => deps.settings.get(key),
-      set: (key, value) => deps.settings.set({ key, value }),
+      get: (key) => deps.settings.get(scopedSettingKey(pluginId, key)),
+      set: (key, value) => deps.settings.set({ key: scopedSettingKey(pluginId, key), value }),
     },
     pluginSettings: {
       get: (key) => deps.pluginSettings.get(`${pluginId}.${key}`),
       set: (key, value) => deps.pluginSettings.set(`${pluginId}.${key}`, value),
     },
     events: {
-      on: (channel, cb) => events.on(channel, cb),
+      // Listener registrations are owner-tagged so the host can drop every
+      // listener of a plugin on deactivate (hooks.js createEventBus is
+      // owner-aware). removeOwner is intentionally not reachable through the
+      // permission proxy for plugins — the loader calls it on the ungated
+      // executor api at deactivate time.
+      on: (channel, cb) => events.on(channel, cb, pluginId),
       off: (channel, cb) => events.off(channel, cb),
+      removeOwner: (ownerId) => events.removeOwner(ownerId),
     },
     log: (level, msg) => deps.log(pluginId, level, msg),
     meta: { info: { id: pluginId, name: '', version: '' } },

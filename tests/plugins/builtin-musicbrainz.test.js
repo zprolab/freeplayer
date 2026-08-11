@@ -44,6 +44,15 @@ describe('musicbrainz builtin plugin', () => {
     expect(out.track_number).toBe('3');
     expect(String(api.http.getJson.mock.calls[0][0])).toContain('inc=');
   });
+  it('fetchMetadata: joins multi-artist credits with a separator', async () => {
+    const { api, routes } = makeApi();
+    routes.set('musicbrainz.org/ws/2/recording?query=', {
+      recordings: [{ id: 'rec-1', title: 'Sun', 'artist-credit': [{ name: 'A' }, { name: 'B' }], releases: [] }],
+    });
+    const { fetchMetadata } = mbMain.activate(api);
+    const out = await fetchMetadata({ id: 7, title: 'Sun', artist: 'A' });
+    expect(out.artist).toBe('A / B');
+  });
   it('fetchMetadata: returns null when nothing matches', async () => {
     const { api, routes } = makeApi();
     routes.set('musicbrainz.org', { recordings: [] });

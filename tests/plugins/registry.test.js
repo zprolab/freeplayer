@@ -2,11 +2,25 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createRegistry } from '../../src/plugins/registry';
 import { wrapApi } from '../../src/plugins/api';
 
-const MANIFEST = (id, extra = {}) => ({
-  id, name: id, version: '1.0.0', main: 'main.js',
-  apiVersion: 1, permissions: ['http'],
-  activationEvents: [], provides: {}, ...extra,
-});
+// Helper builds manifests that actually pass validateManifest: provides.*
+// implies the matching activation event and the metadata:write permission
+// (the real validator enforces both).
+const MANIFEST = (id, extra = {}) => {
+  const provides = extra.provides || {};
+  const perms = extra.permissions || ['http'];
+  const needsWrite = provides.lyrics || provides.cover || provides.metadata;
+  const permissions = needsWrite && !perms.includes('metadata:write') ? [...perms, 'metadata:write'] : perms;
+  const events = [];
+  if (provides.lyrics) events.push('lyrics:fetch');
+  if (provides.cover) events.push('cover:fetch');
+  if (provides.metadata) events.push('metadata:fetch');
+  return {
+    id, name: id, version: '1.0.0', main: 'main.js',
+    apiVersion: 1, permissions,
+    activationEvents: [...events, ...(extra.activationEvents || [])],
+    provides, ...extra,
+  };
+};
 
 function makeRegistry(over = {}) {
   const state = {};
@@ -51,34 +65,34 @@ describe('createRegistry', () => {
     const { registry, deps } = makeRegistry();
     const module = { activate: vi.fn(() => ({})) };
     deps.listPlugins.mockResolvedValue([]);
-    registry.registerBuiltin({ id: 'b', manifestRaw: MANIFEST('b'), builtin: true, module });
+    registry.registerBuiltin({ id: 'bb', manifestRaw: MANIFEST('bb'), builtin: true, module });
     await registry.discover();
-    await registry.enable('b', ['http']);
+    await registry.enable('bb', ['http']);
     deps.loader.activate.mockResolvedValue({ hooks: {}, deactivate: vi.fn() });
-    await registry.ensureActive('b');
-    expect(deps.loader.activate).toHaveBeenCalledWith('b', expect.objectContaining({ builtin: true, module }));
+    await registry.ensureActive('bb');
+    expect(deps.loader.activate).toHaveBeenCalledWith('bb', expect.objectContaining({ builtin: true, module }));
   });
   it('enable persists permissions and does not activate', async () => {
     const { registry, deps } = makeRegistry();
-    deps.listPlugins.mockResolvedValue([{ id: 'p', manifestRaw: MANIFEST('p'), builtin: true }]);
+    deps.listPlugins.mockResolvedValue([{ id: 'pp', manifestRaw: MANIFEST('pp'), builtin: true }]);
     await registry.discover();
-    await registry.enable('p', ['http']);
+    await registry.enable('pp', ['http']);
     expect(deps.loader.activate).not.toHaveBeenCalled();
-    expect(registry.getPlugin('p').status).toBe('enabled');
-    expect(registry.getPlugin('p').perms.granted).toContain('http');
+    expect(registry.getPlugin('pp').status).toBe('enabled');
+    expect(registry.getPlugin('pp').perms.granted).toContain('http');
   });
   it('passes the user-granted permission list to the loader at activation', async () => {
     const { registry, deps } = makeRegistry();
     // manifest requests metadata:write, but the user only granted http
-    deps.listPlugins.mockResolvedValue([{ id: 'p', manifestRaw: MANIFEST('p', { permissions: ['http', 'metadata:write'] }), builtin: true }]);
+    deps.listPlugins.mockResolvedValue([{ id: 'pp', manifestRaw: MANIFEST('pp', { permissions: ['http', 'metadata:write'] }), builtin: true }]);
     await registry.discover();
-    await registry.enable('p', ['http']);
-    await registry.ensureActive('p');
-    expect(deps.loader.activate).toHaveBeenCalledWith('p', expect.objectContaining({ granted: ['http'] }));
+    await registry.enable('pp', ['http']);
+    await registry.ensureActive('pp');
+    expect(deps.loader.activate).toHaveBeenCalledWith('pp', expect.objectContaining({ granted: ['http'] }));
   });
   it('invokeHook gates the plugin api on granted permissions, not the manifest', async () => {
     const { registry, deps } = makeRegistry();
-    deps.listPlugins.mockResolvedValue([{ id: 'p', manifestRaw: MANIFEST('p', { permissions: ['http', 'metadata:write'], provides: { lyrics: true } }), builtin: true }]);
+    deps.listPlugins.mockResolvedValue([{ id: 'pp', manifestRaw: MANIFEST('pp', { permissions: ['http', 'metadata:write'], provides: { lyrics: true } }), builtin: true }]);
     let capturedApi;
     // loader mock mirrors the real loader contract: wrap the api with entry.granted
     deps.loader.activate.mockImplementation(async (id, entry) => {
@@ -89,58 +103,124 @@ describe('createRegistry', () => {
       return { hooks: { fetchLyrics: async () => 'lrc' }, deactivate: vi.fn() };
     });
     await registry.discover();
-    await registry.enable('p', ['http']); // user grants only http despite the manifest request
-    const res = await registry.invokeHook('p', 'fetchLyrics', {});
+    await registry.enable('pp', ['http']); // user grants only http despite the manifest request
+    const res = await registry.invokeHook('pp', 'fetchLyrics', {});
     expect(res).toBe('lrc');
     expect(capturedApi.http.getJson()).toBe('json-ok');
     expect(() => capturedApi.metadata.saveLyrics(1, 'x')).toThrow(/Permission denied/);
   });
   it('invokeHook success writes an ok audit entry', async () => {
     const { registry, deps } = makeRegistry();
-    deps.listPlugins.mockResolvedValue([{ id: 'p', manifestRaw: MANIFEST('p', { provides: { lyrics: true } }), builtin: true }]);
+    deps.listPlugins.mockResolvedValue([{ id: 'pp', manifestRaw: MANIFEST('pp', { provides: { lyrics: true } }), builtin: true }]);
     deps.loader.activate.mockResolvedValue({ hooks: { fetchLyrics: vi.fn(async () => 'lrc') }, deactivate: vi.fn() });
     await registry.discover();
-    await registry.enable('p', ['http']);
-    await registry.invokeHook('p', 'fetchLyrics', {});
-    const log = registry.getAuditLog('p');
+    await registry.enable('pp', ['http']);
+    await registry.invokeHook('pp', 'fetchLyrics', {});
+    const log = registry.getAuditLog('pp');
     expect(log).toHaveLength(1);
     expect(log[0]).toMatchObject({ op: 'hook:fetchLyrics', detail: 'ok', ok: true });
   });
   it('invokeHook lazily activates then calls the hook', async () => {
     const { registry, deps } = makeRegistry();
-    deps.listPlugins.mockResolvedValue([{ id: 'p', manifestRaw: MANIFEST('p', { provides: { lyrics: true } }), builtin: true }]);
+    deps.listPlugins.mockResolvedValue([{ id: 'pp', manifestRaw: MANIFEST('pp', { provides: { lyrics: true } }), builtin: true }]);
     deps.loader.activate.mockResolvedValue({ hooks: { fetchLyrics: vi.fn(async () => ({ content: 'lrc' })) }, deactivate: vi.fn() });
     await registry.discover();
-    await registry.enable('p', ['http']);
-    const res = await registry.invokeHook('p', 'fetchLyrics', { title: 'Sun' });
+    await registry.enable('pp', ['http']);
+    const res = await registry.invokeHook('pp', 'fetchLyrics', { title: 'Sun' });
     expect(res).toEqual({ content: 'lrc' });
-    expect(registry.getPlugin('p').status).toBe('active');
+    expect(registry.getPlugin('pp').status).toBe('active');
   });
   it('disable calls deactivate and returns to disabled', async () => {
     const { registry, deps } = makeRegistry();
     const deactivate = vi.fn();
-    deps.listPlugins.mockResolvedValue([{ id: 'p', manifestRaw: MANIFEST('p', { provides: { lyrics: true } }), builtin: true }]);
+    deps.listPlugins.mockResolvedValue([{ id: 'pp', manifestRaw: MANIFEST('pp', { provides: { lyrics: true } }), builtin: true }]);
     deps.loader.activate.mockResolvedValue({ hooks: { fetchLyrics: vi.fn() }, deactivate });
     await registry.discover();
-    await registry.enable('p', ['http']);
-    await registry.invokeHook('p', 'fetchLyrics', {});
-    await registry.disable('p');
+    await registry.enable('pp', ['http']);
+    await registry.invokeHook('pp', 'fetchLyrics', {});
+    await registry.disable('pp');
     expect(deactivate).toHaveBeenCalled();
-    expect(registry.getPlugin('p').status).toBe('disabled');
+    expect(registry.getPlugin('pp').status).toBe('disabled');
   });
-  it('invokeHook failures set lastError, audit the failure and return null', async () => {
+  it('invokeHook failures set lastError, audit the failure and reject', async () => {
     const { registry, deps } = makeRegistry();
-    deps.listPlugins.mockResolvedValue([{ id: 'p', manifestRaw: MANIFEST('p', { provides: { lyrics: true } }), builtin: true }]);
+    deps.listPlugins.mockResolvedValue([{ id: 'pp', manifestRaw: MANIFEST('pp', { provides: { lyrics: true } }), builtin: true }]);
     deps.loader.activate.mockResolvedValue({ hooks: { fetchLyrics: vi.fn(async () => { throw new Error('boom'); }) }, deactivate: vi.fn() });
     await registry.discover();
-    await registry.enable('p', ['http']);
-    const res = await registry.invokeHook('p', 'fetchLyrics', {});
-    expect(res).toBeNull();
-    expect(registry.getPlugin('p').lastError).toContain('boom');
-    const log = registry.getAuditLog('p');
+    await registry.enable('pp', ['http']);
+    // invokeHook rejects on hook errors so metadataRegistry can distinguish
+    // 'plugin-error' (timeout/missing) from 'not-found' (empty result).
+    await expect(registry.invokeHook('pp', 'fetchLyrics', {})).rejects.toThrow('boom');
+    expect(registry.getPlugin('pp').lastError).toContain('boom');
+    const log = registry.getAuditLog('pp');
     expect(log).toHaveLength(1);
     expect(log[0]).toMatchObject({ op: 'hook:fetchLyrics', ok: false });
     expect(log[0].detail).toContain('boom');
+  });
+  it('concurrent invokeHooks activate exactly once', async () => {
+    const { registry, deps } = makeRegistry();
+    deps.listPlugins.mockResolvedValue([{ id: 'pp', manifestRaw: MANIFEST('pp', { provides: { lyrics: true } }), builtin: true }]);
+    deps.loader.activate.mockResolvedValue({
+      hooks: { fetchLyrics: vi.fn(async () => 'lrc') }, deactivate: vi.fn(),
+    });
+    await registry.discover();
+    await registry.enable('pp', ['http']);
+    const [a, b] = await Promise.all([
+      registry.invokeHook('pp', 'fetchLyrics', { title: 'Sun' }),
+      registry.invokeHook('pp', 'fetchLyrics', { title: 'Sun' }),
+    ]);
+    expect(deps.loader.activate).toHaveBeenCalledTimes(1);
+    expect(a).toBe('lrc');
+    expect(b).toBe('lrc');
+  });
+  it('enable rejects for error-status plugins (no force-enable)', async () => {
+    const { registry, deps } = makeRegistry();
+    deps.listPlugins.mockResolvedValue([
+      { id: 'bad', manifestRaw: MANIFEST('bad', { permissions: ['not-a-permission'] }), builtin: false },
+    ]);
+    await registry.discover();
+    expect(registry.getPlugin('bad').status).toBe('error');
+    await expect(registry.enable('bad', [])).rejects.toThrow(/cannot enable/);
+    expect(registry.getPlugin('bad').status).toBe('error');
+    // and it can never be activated through the back door
+    await expect(registry.ensureActive('bad')).rejects.toThrow(/not enabled/);
+    expect(deps.loader.activate).not.toHaveBeenCalled();
+  });
+  it('ensureActive re-validates the manifest before activation', async () => {
+    const { registry, deps } = makeRegistry();
+    deps.listPlugins.mockResolvedValue([{ id: 'pp', manifestRaw: MANIFEST('pp', { provides: { lyrics: true } }), builtin: true }]);
+    await registry.discover();
+    await registry.enable('pp', ['http']);
+    // simulate a record whose manifest went bad between enable and activate
+    const p = registry.getPlugin('pp');
+    p.manifest = { ...MANIFEST('pp', { provides: { lyrics: true } }), main: '../../evil.js' };
+    await expect(registry.invokeHook('pp', 'fetchLyrics', {})).rejects.toThrow(/manifest invalid/);
+    expect(deps.loader.activate).not.toHaveBeenCalled();
+    expect(registry.getPlugin('pp').status).toBe('error');
+  });
+  it('enable intersects grants with the known permission set', async () => {
+    const { registry, deps } = makeRegistry();
+    deps.listPlugins.mockResolvedValue([{ id: 'pp', manifestRaw: MANIFEST('pp'), builtin: true }]);
+    await registry.discover();
+    await registry.enable('pp', ['http', 'metadata:write', 'root:all', 'nope']);
+    const granted = registry.getPlugin('pp').perms.granted;
+    expect(granted).toContain('http');
+    expect(granted).toContain('metadata:write');
+    expect(granted).not.toContain('root:all');
+    expect(granted).not.toContain('nope');
+  });
+  it('discover deactivates the previous active instance before replacing it', async () => {
+    const { registry, deps } = makeRegistry();
+    const deactivate = vi.fn();
+    deps.listPlugins.mockResolvedValue([{ id: 'pp', manifestRaw: MANIFEST('pp'), builtin: true }]);
+    deps.loader.activate.mockResolvedValue({ hooks: {}, deactivate });
+    await registry.discover();
+    await registry.enable('pp', ['http']);
+    await registry.invokeHook('pp', 'fetchLyrics', {});
+    expect(registry.getPlugin('pp').status).toBe('active');
+    await registry.discover();
+    expect(deactivate).toHaveBeenCalledTimes(1);
+    expect(registry.getPlugin('pp').status).toBe('disabled');
   });
   it('emit only activates plugins that subscribe to the channel', async () => {
     const { registry, deps } = makeRegistry();
@@ -163,10 +243,10 @@ describe('createRegistry', () => {
   });
   it('audit log is per-plugin and bounded', async () => {
     const { registry, deps } = makeRegistry();
-    deps.listPlugins.mockResolvedValue([{ id: 'p', manifestRaw: MANIFEST('p'), builtin: true }]);
+    deps.listPlugins.mockResolvedValue([{ id: 'pp', manifestRaw: MANIFEST('pp'), builtin: true }]);
     await registry.discover();
-    for (let i = 0; i < 210; i++) registry.logOp('p', 'op', i, true);
-    const log = registry.getAuditLog('p');
+    for (let i = 0; i < 210; i++) registry.logOp('pp', 'op', i, true);
+    const log = registry.getAuditLog('pp');
     expect(log.length).toBeLessThanOrEqual(200);
     expect(log[0].detail).toBe(210 - 200); // newest first
   });

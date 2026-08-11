@@ -56,3 +56,26 @@ global.window = {
     openPluginsDir: async () => {},
   },
 };
+
+// Worker mock for the plugin sandbox: the loader creates a module Worker per
+// user plugin; tests drive the activation handshake by emitting messages on
+// the captured instance. See tests/plugins/loader.test.js.
+class MockWorker {
+  static instances = [];
+  static reset() { MockWorker.instances.length = 0; }
+  constructor(url, options) {
+    this.url = url;
+    this.options = options || {};
+    this.onmessage = null;
+    this.onerror = null;
+    this.terminated = false;
+    this.sent = [];
+    MockWorker.instances.push(this);
+  }
+  postMessage(data) { this.sent.push(data); }
+  terminate() { this.terminated = true; }
+  // Test helpers: simulate worker -> host messages.
+  emit(data) { if (this.onmessage) this.onmessage({ data }); }
+  fail(error) { if (this.onerror) this.onerror({ message: error }); }
+}
+globalThis.Worker = MockWorker;

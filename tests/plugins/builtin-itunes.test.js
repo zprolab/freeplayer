@@ -83,4 +83,18 @@ describe('itunes builtin plugin', () => {
     expect(await fetchCover({ title: 'Sun', artist: 'A' })).toBeNull();
     expect(api.http.getJson.mock.calls.length).toBe(calls);
   });
+  it('clamps Retry-After to at most 1 hour', async () => {
+    const { api } = makeApi();
+    api.http.getJson.mockResolvedValue({ ok: false, status: 429, retryAfter: '999999999' });
+    const { fetchCover } = itunesMain.activate(api);
+    expect(await fetchCover({ title: 'Sun', artist: 'A' })).toBeNull();
+    const calls = api.http.getJson.mock.calls.length;
+    // still inside the (clamped) cooldown
+    expect(await fetchCover({ title: 'Sun', artist: 'A' })).toBeNull();
+    expect(api.http.getJson.mock.calls.length).toBe(calls);
+    now += 3601 * 1000; // 1h + 1s — clamped cooldown expired
+    api.http.getJson.mockResolvedValue({ ok: false, status: 403, error: 'region' });
+    expect(await fetchCover({ title: 'Sun', artist: 'A' })).toBeNull();
+    expect(api.http.getJson.mock.calls.length).toBe(calls + 1);
+  });
 });

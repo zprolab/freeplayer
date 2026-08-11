@@ -81,7 +81,29 @@ export function validateManifest(raw) {
         if (!s || typeof s !== 'object') { errors.push('settings: invalid entry'); continue; }
         if (typeof s.key !== 'string' || !s.key) errors.push('settings: key required');
         if (!SETTING_TYPES.includes(s.type)) errors.push(`settings: "${s?.key}" has unknown type "${s?.type}"`);
-        if (s.type === 'select' && !Array.isArray(s.options)) errors.push(`settings: "${s?.key}" select needs options`);
+        if (s.type === 'select') {
+          if (!Array.isArray(s.options) || s.options.length === 0) {
+            errors.push(`settings: "${s?.key}" select needs a non-empty options array`);
+          } else if (!s.options.every((o) => typeof o === 'string')) {
+            errors.push(`settings: "${s?.key}" select options must be strings`);
+          } else if (s.default !== undefined && !s.options.includes(s.default)) {
+            errors.push(`settings: "${s?.key}" default must be one of its options`);
+          }
+        }
+        if (s.type === 'number') {
+          if (!Number.isFinite(s.min) || !Number.isFinite(s.max)) {
+            errors.push(`settings: "${s?.key}" number needs finite min/max`);
+          } else if (s.min > s.max) {
+            errors.push(`settings: "${s?.key}" min must not exceed max`);
+          } else if (s.default !== undefined
+            && (typeof s.default !== 'number' || !Number.isFinite(s.default) || s.default < s.min || s.default > s.max)) {
+            errors.push(`settings: "${s?.key}" default must be a number within [min, max]`);
+          }
+        }
+        if ((s.type === 'boolean' || s.type === 'string')
+          && (s.min !== undefined || s.max !== undefined)) {
+          errors.push(`settings: "${s?.key}" ${s.type} cannot declare min/max`);
+        }
       }
     }
   }

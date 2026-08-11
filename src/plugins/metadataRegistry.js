@@ -1,6 +1,10 @@
 const BASE64_RE = /^[A-Za-z0-9+/]+={0,2}$/;
 const METADATA_FIELDS = ['title', 'artist', 'album', 'genre', 'year', 'track_number'];
 const DEFAULTS = { lyrics: 'lrclib-lyrics', cover: 'itunes-cover', metadata: 'musicbrainz-meta' };
+// Hook outputs are attacker-controlled (remote APIs): bound them so a
+// plugin cannot push arbitrarily large payloads into the host.
+const MAX_COVER_B64_CHARS = 6700000; // ~5 MB of binary
+const MAX_LYRICS_CHARS = 512 * 1024;
 
 export function createMetadataRegistry(deps) {
   const { registry, getSetting, saveLyrics, saveCover, updateTrack } = deps;
@@ -44,6 +48,10 @@ export function createMetadataRegistry(deps) {
       registry.logOp(backend, 'fetchLyrics', track.id, false);
       return { saved: false, reason: 'plugin-error' };
     }
+    if (typeof content === 'string' && content.length > MAX_LYRICS_CHARS) {
+      registry.logOp(backend, 'fetchLyrics', track.id, false);
+      return { saved: false, reason: 'too-large' };
+    }
     if (!validLyrics(content)) {
       registry.logOp(backend, 'fetchLyrics', track.id, false);
       return { saved: false, reason: 'not-found' };
@@ -68,6 +76,10 @@ export function createMetadataRegistry(deps) {
     } catch (err) {
       registry.logOp(backend, 'fetchCover', track.id, false);
       return { saved: false, reason: 'plugin-error' };
+    }
+    if (typeof base64 === 'string' && base64.length > MAX_COVER_B64_CHARS) {
+      registry.logOp(backend, 'fetchCover', track.id, false);
+      return { saved: false, reason: 'too-large' };
     }
     if (!validBase64(base64)) {
       registry.logOp(backend, 'fetchCover', track.id, false);
