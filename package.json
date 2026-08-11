@@ -12,7 +12,7 @@
     "test:watch": "vitest",
     "shell:bundle": "vite build && make -C shell bundle",
     "shell:dist": "bash shell/scripts/package.sh",
-    "install": "bash shell/scripts/install.sh",
+    "install:app": "bash shell/scripts/install.sh",
     "clean": "bash shell/scripts/clean.sh"
   },
   "devDependencies": {

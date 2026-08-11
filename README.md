@@ -51,7 +51,8 @@ macOS 上的本地音乐播放器。没有登录、没有账号、没有遥测�
 git clone https://github.com/zprolab/FreePlayer
 cd FreePlayer
 npm install
-npm run dev   # 起 Vite 开发服务器并编译运行原生外壳
+npm run install:app   # 可选：构建并安装到 /Applications
+npm run dev           # 起 Vite 开发服务器并编译运行原生外壳
 ```
 
 测试：`npm test`（vitest，覆盖音频引擎、均衡器、metadata 持久化、播放状态机等）。
