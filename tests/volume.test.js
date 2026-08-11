@@ -54,4 +54,20 @@ describe('AudioEngine volume authority (graph connected)', () => {
     engine.setVolume(-0.3);
     expect(spy).toHaveBeenLastCalledWith(0, expect.any(Number), expect.any(Number));
   });
+
+  it('setVolume rejects non-finite values (NaN/Infinity never reach the gain)', () => {
+    engine.connect({});
+    const spy = vi.spyOn(engine.gainNode.gain, 'setTargetAtTime');
+    engine.setVolume(NaN);
+    engine.setVolume(Infinity);
+    engine.setVolume(-Infinity);
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it('setVolume and setGain are safe no-ops after dispose (singleton HMR path)', () => {
+    engine.connect({});
+    engine.dispose();
+    expect(() => engine.setVolume(0.3)).not.toThrow();
+    expect(() => engine.setGain(-6)).not.toThrow();
+  });
 });

@@ -1,48 +1,67 @@
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { usePlayer } from '../context/PlayerContext';
 import { audioEngine } from '../audioEngine';
-
-function shuffleArray(array) {
-  const a = [...array];
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]];
-  }
-  return a;
-}
+import { computeNextIndex, computePrevIndex, shuffleArray } from './playQueue';
 
 export function usePlayback() {
   const { state, dispatch, audioRef, playSessionIdRef, playStartTimeRef } = usePlayer();
 
-  const startPlaySession = useCallback(async (trackId) => {
+  // Close the session currently open. Refs are cleared BEFORE the playEnd
+  // round-trip so a concurrent transition can never read the same session
+  // twice — that would skip one playEnd and leak an ended_at NULL row into
+  // the stats table.
+  const endPlaySession = useCallback(async () => {
     const prevSid = playSessionIdRef.current;
-    if (prevSid && playStartTimeRef.current) {
-      const elapsed = (Date.now() - playStartTimeRef.current) / 1000;
-      const trackDuration = audioRef.current.duration || 0;
-      const percentage = trackDuration > 0 ? Math.min((elapsed / trackDuration) * 100, 100) : 0;
+    const prevStart = playStartTimeRef.current;
+    if (!prevSid || !prevStart) return;
+    playSessionIdRef.current = null;
+    playStartTimeRef.current = null;
+    const elapsed = (Date.now() - prevStart) / 1000;
+    const trackDuration = audioRef.current.duration || 0;
+    const percentage = trackDuration > 0 ? Math.min((elapsed / trackDuration) * 100, 100) : 0;
+    try {
       await window.freeplayer.playEnd({
         sessionId: prevSid,
         durationSeconds: Math.round(elapsed),
         playPercentage: Math.round(percentage),
       });
+    } catch (err) {
+      console.error('Failed to end play session:', err);
     }
-    const sessionId = await window.freeplayer.playStart(trackId);
-    playSessionIdRef.current = sessionId;
-    playStartTimeRef.current = Date.now();
   }, [audioRef, playSessionIdRef, playStartTimeRef]);
 
+  // Serializes session transitions: every playTrack queues behind the one
+  // before it, so rapid calls each end the session the previous one left
+  // (a rejected chain is reset by the .catch below, never shared onward).
+  const sessionTransitionRef = useRef(Promise.resolve());
+
   const playTrack = useCallback(async (track) => {
-    dispatch({ type: 'SET_CURRENT_TRACK', payload: track });
-    audioRef.current.src = `media://${encodeURI(track.file_path)}`;
-    const gainDb = track.replaygain_gain || 0;
-    audioEngine.setGain(gainDb);
+    const transition = sessionTransitionRef.current
+      .catch(() => {})
+      .then(async () => {
+        // End the previous session BEFORE attempting playback: a play()
+        // rejection must never leave the old session unclosed.
+        await endPlaySession();
+        dispatch({ type: 'SET_CURRENT_TRACK', payload: track });
+        audioRef.current.src = `media://${encodeURI(track.file_path)}`;
+        const gainDb = track.replaygain_gain || 0;
+        audioEngine.setGain(gainDb);
+        try {
+          await audioRef.current.play();
+          const sessionId = await window.freeplayer.playStart(track.id);
+          playSessionIdRef.current = sessionId;
+          playStartTimeRef.current = Date.now();
+        } catch (err) {
+          console.error('Playback failed:', err);
+        }
+      });
+    sessionTransitionRef.current = transition;
     try {
-      await audioRef.current.play();
-      await startPlaySession(track.id);
+      await transition;
     } catch (err) {
-      console.error('Playback failed:', err);
+      console.error('Playback transition failed:', err);
     }
-  }, [dispatch, audioRef, startPlaySession]);
+  }, [dispatch, audioRef, endPlaySession]);
 
   const togglePlayPause = useCallback(() => {
     const audio = audioRef.current;
@@ -67,21 +86,9 @@ export function usePlayback() {
       return;
     }
 
-    let nextIdx;
-    if (playMode === 'shuffle') {
-      const shuffled = shuffledQueue.length > 0 ? shuffledQueue : queue;
-      const currentShuffledIdx = shuffled.findIndex(t => t.id === queue[queueIndex]?.id);
-      if (currentShuffledIdx < shuffled.length - 1) {
-        nextIdx = queue.findIndex(t => t.id === shuffled[currentShuffledIdx + 1].id);
-      } else {
-        const reshuffled = shuffleArray(queue);
-        dispatch({ type: 'SET_SHUFFLED_QUEUE', payload: reshuffled });
-        nextIdx = queue.findIndex(t => t.id === reshuffled[0].id);
-      }
-    } else {
-      nextIdx = queueIndex < queue.length - 1 ? queueIndex + 1 : 0;
-    }
-
+    const { nextIdx, reshuffled } = computeNextIndex({ queue, queueIndex, playMode, shuffledQueue });
+    if (nextIdx < 0) return; // queue no longer contains the target — skip
+    if (reshuffled) dispatch({ type: 'SET_SHUFFLED_QUEUE', payload: reshuffled });
     dispatch({ type: 'SET_QUEUE_INDEX', payload: nextIdx });
     playTrack(queue[nextIdx]);
   }, [state, audioRef, dispatch, playTrack]);
@@ -90,24 +97,15 @@ export function usePlayback() {
     const { queue, queueIndex, playMode, shuffledQueue } = state;
     if (!queue.length) return;
 
-    if (audioRef.current.currentTime > 3) {
+    const { prevIdx } = computePrevIndex({
+      queue, queueIndex, currentTime: audioRef.current.currentTime, playMode, shuffledQueue,
+    });
+    if (prevIdx === queueIndex) {
+      // More than 3s in — restart the current track instead of stepping back
       audioRef.current.currentTime = 0;
       return;
     }
-
-    let prevIdx;
-    if (playMode === 'shuffle') {
-      const shuffled = shuffledQueue.length > 0 ? shuffledQueue : queue;
-      const currentShuffledIdx = shuffled.findIndex(t => t.id === queue[queueIndex]?.id);
-      if (currentShuffledIdx > 0) {
-        prevIdx = queue.findIndex(t => t.id === shuffled[currentShuffledIdx - 1].id);
-      } else {
-        prevIdx = queue.findIndex(t => t.id === shuffled[shuffled.length - 1].id);
-      }
-    } else {
-      prevIdx = queueIndex > 0 ? queueIndex - 1 : queue.length - 1;
-    }
-
+    if (prevIdx < 0) return;
     dispatch({ type: 'SET_QUEUE_INDEX', payload: prevIdx });
     playTrack(queue[prevIdx]);
   }, [state, audioRef, dispatch, playTrack]);
@@ -118,14 +116,18 @@ export function usePlayback() {
   }, [audioRef, dispatch]);
 
   const handleVolumeChange = useCallback((vol) => {
-    audioRef.current.volume = vol;
+    // Reject junk input before it reaches the engine gain node or the DB
+    // (NaN would persist String(NaN) and poison the graph gain).
+    if (!Number.isFinite(vol)) return;
+    const v = Math.min(Math.max(vol, 0), 1);
+    audioRef.current.volume = v;
     // Element volume is the fallback; once the Web Audio graph is connected
     // (Now Playing visualizer) WebKit ignores it, so the engine's gain node
     // carries the user volume from then on.
-    audioEngine.setVolume(vol);
-    dispatch({ type: 'SET_VOLUME', payload: vol });
+    audioEngine.setVolume(v);
+    dispatch({ type: 'SET_VOLUME', payload: v });
     // Persist globally so volume survives restarts (shared by all views)
-    window.freeplayer.setSetting({ key: 'volume', value: String(vol) })
+    window.freeplayer.setSetting({ key: 'volume', value: String(v) })
       .catch(() => {});
   }, [audioRef, dispatch]);
 
@@ -146,6 +148,13 @@ export function usePlayback() {
     await playTrack(track);
   }, [dispatch, state.playMode, playTrack]);
 
+  // Latest playback handlers behind a ref so the listeners below register
+  // once with stable deps — handleNext/handlePrev/togglePlayPause are rebuilt
+  // on every state change, and depending on them directly would tear down and
+  // re-add the audio listeners every second during playback.
+  const playHandlersRef = useRef({ togglePlayPause, handleNext, handlePrev });
+  playHandlersRef.current = { togglePlayPause, handleNext, handlePrev };
+
   // Audio element event listeners (no longer tied to volume changes)
   useEffect(() => {
     const audio = audioRef.current;
@@ -163,7 +172,7 @@ export function usePlayback() {
       }
     };
     const onDurationChange = () => dispatch({ type: 'SET', payload: { duration: audio.duration || 0 } });
-    const onEnded = () => handleNext();
+    const onEnded = () => playHandlersRef.current.handleNext();
     const onPlay = () => dispatch({ type: 'SET_IS_PLAYING', payload: true });
     const onPause = () => dispatch({ type: 'SET_IS_PLAYING', payload: false });
     const onError = () => {
@@ -187,7 +196,7 @@ export function usePlayback() {
       audio.removeEventListener('pause', onPause);
       audio.removeEventListener('error', onError);
     };
-  }, [audioRef, dispatch, handleNext]);
+  }, [audioRef, dispatch]);
 
   // Separate volume effect — no longer tears down event listeners
   useEffect(() => {
@@ -195,42 +204,60 @@ export function usePlayback() {
     audioEngine.setVolume(state.volume);
   }, [state.volume, audioRef]);
 
-  // End play session on unmount
+  // End play session on unmount. Waits for any in-flight transition first so
+  // the session it just opened is closed too; playEnd is awaited/caught so a
+  // rejection can't leave the row unclosed. audioEngine.dispose() is
+  // idempotent, so StrictMode/HMR remounts leave the singleton usable.
   useEffect(() => {
     return () => {
-      const sid = playSessionIdRef.current;
-      if (sid && playStartTimeRef.current) {
+      (async () => {
+        const chain = sessionTransitionRef.current;
+        try { await chain; } catch {}
+        const sid = playSessionIdRef.current;
+        if (!sid || !playStartTimeRef.current) return;
         const elapsed = (Date.now() - playStartTimeRef.current) / 1000;
         const trackDuration = audioRef.current.duration || 0;
         const percentage = trackDuration > 0 ? Math.min((elapsed / trackDuration) * 100, 100) : 0;
-        window.freeplayer.playEnd({
-          sessionId: sid,
-          durationSeconds: Math.round(elapsed),
-          playPercentage: Math.round(percentage),
-        });
-      }
+        try {
+          await window.freeplayer.playEnd({
+            sessionId: sid,
+            durationSeconds: Math.round(elapsed),
+            playPercentage: Math.round(percentage),
+          });
+        } catch (err) {
+          console.error('Failed to end play session on unmount:', err);
+        }
+      })();
       audioEngine.dispose();
     };
-  }, [audioRef, playSessionIdRef, playStartTimeRef]);
+  }, [audioRef, playSessionIdRef, playStartTimeRef, sessionTransitionRef]);
 
-  // Push playback state to main process for tray menu
-  // (fires on play/pause AND track change so the tray stays in sync)
+  // Push playback state to main process for tray menu. The native side only
+  // reads isPlaying (shell/src/bridge.mm sendPlaybackState), so re-sending on
+  // track change carries no information — fire on isPlaying only.
   useEffect(() => {
     window.freeplayer?.sendPlaybackState(state.isPlaying);
-  }, [state.isPlaying, state.currentTrack]);
+  }, [state.isPlaying]);
 
-  // System media key support
+  // System media key support — registered once, dispatching through the ref
+  // so the latest handlers are always used. onMediaKey stores a single global
+  // handler (bridge.mm), so unmount re-registers a no-op instead of leaving a
+  // stale handler dispatching into unmounted state.
   useEffect(() => {
     if (!window.freeplayer.onMediaKey) return;
     const handler = (action) => {
+      const h = playHandlersRef.current;
       switch (action) {
-        case 'playpause': togglePlayPause(); break;
-        case 'next': handleNext(); break;
-        case 'previous': handlePrev(); break;
+        case 'playpause': h.togglePlayPause(); break;
+        case 'next': h.handleNext(); break;
+        case 'previous': h.handlePrev(); break;
       }
     };
     window.freeplayer.onMediaKey(handler);
-  }, [togglePlayPause, handleNext, handlePrev]);
+    return () => {
+      window.freeplayer.onMediaKey(() => {});
+    };
+  }, []);
 
   return {
     playTrack,

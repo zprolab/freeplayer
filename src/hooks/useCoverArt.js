@@ -12,12 +12,16 @@ export function useCoverArt(track) {
         setCoverUrl(cached);
         return;
       }
-      window.freeplayer.getCover(track.cover_path).then((url) => {
-        if (!stale && url) {
-          setCachedCover(track.cover_path, url);
-          setCoverUrl(url);
-        }
-      });
+      window.freeplayer.getCover(track.cover_path)
+        .then((url) => {
+          if (!stale && url) {
+            setCachedCover(track.cover_path, url);
+            setCoverUrl(url);
+          }
+        })
+        // File-read errors must not surface as unhandled rejections; the
+        // stale flag still blocks late resolutions from setting state.
+        .catch(() => null);
     } else {
       setCoverUrl(null);
     }

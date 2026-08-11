@@ -4,48 +4,56 @@ import { usePlayer } from '../context/PlayerContext';
 export function useLibrary() {
   const { state, dispatch } = usePlayer();
 
+  // Monotonic id per loadTracks call: a slow stale response must never
+  // overwrite a newer one (debounced search racing a sort change).
+  const loadSeqRef = useRef(0);
+
   const loadTracks = useCallback(async () => {
+    const seq = ++loadSeqRef.current;
     try {
       const data = await window.freeplayer.getTracks({
         search: state.searchQuery,
         sortBy: state.sortBy,
         sortDir: state.sortDir,
       });
+      if (seq !== loadSeqRef.current) return; // stale response — drop it
       dispatch({ type: 'SET_TRACKS', payload: data });
     } catch (err) {
       console.error('Failed to load tracks:', err);
     }
   }, [state.searchQuery, state.sortBy, state.sortDir, dispatch]);
 
-  const checkSetup = useCallback(async () => {
+  const checkSetup = useCallback(async (isCancelled) => {
+    const cancelled = isCancelled || (() => false);
     try {
       const result = await window.freeplayer.isSetup();
+      if (cancelled()) return;
       dispatch({ type: 'SET', payload: { isSetup: result.setup, libraryDir: result.libraryDir || '' } });
       const impMode = await window.freeplayer.getSetting('import_mode');
-      if (impMode) dispatch({ type: 'SET', payload: { importMode: impMode } });
+      if (impMode && !cancelled()) dispatch({ type: 'SET', payload: { importMode: impMode } });
       // Global persistent volume: restore last-used value; fall back to
       // default_volume (first run), then 0.8 — no jumps on restart.
       const savedVol = await window.freeplayer.getSetting('volume');
       const defVol = savedVol != null
         ? savedVol
         : await window.freeplayer.getSetting('default_volume');
-      if (defVol != null) {
+      if (defVol != null && !cancelled()) {
         const vol = parseFloat(defVol);
         if (isFinite(vol)) {
           dispatch({ type: 'SET', payload: { defaultVolume: vol, volume: vol } });
         }
       }
       const defVis = await window.freeplayer.getSetting('default_visualizer');
-      if (defVis) {
+      if (defVis && !cancelled()) {
         dispatch({ type: 'SET', payload: { defaultVisualizer: defVis, visualizerMode: defVis } });
       }
-      if (result.setup) {
+      if (result.setup && !cancelled()) {
         await loadTracks();
       }
     } catch (err) {
       console.error('Setup check failed:', err);
     } finally {
-      dispatch({ type: 'SET', payload: { isLoading: false } });
+      if (!cancelled()) dispatch({ type: 'SET', payload: { isLoading: false } });
     }
   }, [dispatch, loadTracks]);
 
@@ -63,7 +71,9 @@ export function useLibrary() {
 
   // Initial load and sort changes fire immediately (no debounce)
   useEffect(() => {
-    checkSetup();
+    let cancelled = false;
+    checkSetup(() => cancelled);
+    return () => { cancelled = true; };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
@@ -97,8 +107,10 @@ export function useLibrary() {
   const handleResetDatabase = useCallback(async () => {
     dispatch({ type: 'SET', payload: {
       tracks: [], currentTrack: null, isPlaying: false, queue: [], queueIndex: -1,
+      shuffledQueue: [], playMode: 'sequential', volume: 0.8, currentTime: 0, duration: 0,
+      eqEnabled: false, visualizerMode: 'waveform',
       libraryDir: '', isSetup: false, importMode: 'copy', defaultVolume: 0.8,
-      defaultVisualizer: 'waveform', visualizerMode: 'waveform', autoFetchMeta: false,
+      defaultVisualizer: 'waveform', autoFetchMeta: false,
       playlists: [], activePlaylistId: null, playlistTracks: [],
     }});
   }, [dispatch]);
