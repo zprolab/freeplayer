@@ -4353,3 +4353,28 @@ input[type="range"]::-webkit-slider-thumb {
   /* 手机下隐藏 EQ/播放模式/音量，进 Now Playing 页控制 */
   .player-extras { display: none; }
 }
+
+/* Now Playing：手机纵向堆叠（cover 置顶居中，歌词面板下方可滚动） */
+@media (max-width: 767px) {
+  .now-playing { padding: 12px; }
+  .np-overview {
+    grid-template-columns: 1fr;
+    gap: 16px;
+    margin: 0;
+  }
+  .np-left {
+    align-items: center;
+    text-align: center;
+    width: 100%;
+  }
+  .np-cover { width: min(70vw, 320px); height: min(70vw, 320px); }
+  .np-info {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
+  }
+  .np-lyrics-pane { width: 100%; max-height: 45vh; }
+  .np-lyrics-pane .lyrics-container { min-height: 0; max-height: 45vh; }
+  .np-scope { min-height: 60vh; }
+}
