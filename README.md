@@ -1,93 +1,71 @@
 # FreePlayer
 
-桌面端本地音乐播放器，无登录、无账号、无遥测，你的音乐留在你自己的硬盘上。**默认完全离线**；仅当你手动开启设置里的"Auto-Fetch Lyrics & Covers"后，播放缺歌词/封面的歌曲时才会上传曲目标题、艺人、专辑到 LRCLIB（歌词）与 iTunes Search API（封面），且默认关闭、可随时关闭。
+macOS 上的本地音乐播放器。没有登录、没有账号、没有遥测，你的音乐文件留在你自己的硬盘上。
 
-仅支持 **macOS 13.0+（Apple Silicon，arm64）**。
+- 需要 macOS 13.0+（Apple Silicon）
+- 默认完全离线。只有在设置里手动打开 "Auto-Fetch Lyrics & Covers" 之后，遇到缺歌词或封面的歌曲，才会把曲目标题、艺人、专辑发到 LRCLIB（歌词）和 iTunes Search API（封面）去查。开关默认关闭，随时可以关。
 
 ## 技术栈
 
-- 前端：React 19 + Vite
-- 原生外壳：Objective-C++（Cocoa + WebKit + AVFoundation + CoreMedia + AudioToolbox + MediaPlayer）
-- 数据库：SQLite（系统自带 `libsqlite3`，无第三方依赖）
-- 元数据解析：原生实现（`shell/src/metadata.mm`），不依赖 music-metadata
-- 构建：`make`（shell）+ Vite（web），无 Electron、无运行时 npm 依赖
+前端 React 19 + Vite，原生外壳 Objective-C++（Cocoa + WebKit + AVFoundation 等系统框架），数据库用系统自带的 SQLite，元数据解析也是原生实现的。没有 Electron，没有运行时 npm 依赖。
 
-## 支持格式
+支持格式：MP3、FLAC、WAV、OGG、M4A、AAC、WMA、Opus、AIFF、APE。
 
-MP3, FLAC, WAV, OGG, M4A, AAC, WMA, Opus, AIFF, APE
+## 功能
 
-## 主要功能
-
-- **导入和管理本地音乐库** — 导入时自动读取每首歌的 metadata（标题、艺人、专辑、年份、流派、音轨号、比特率、采样率、声道数等），并按 艺人/专辑 的目录结构复制或软链接到库文件夹。导入模式（复制/软链接）可在设置里选。
-- **播放统计** — 每次播放记录到 SQLite（开始时间、结束时间、播放时长、播放进度百分比），汇总出总播放时长、播放次数、常听曲目 Top 10、常听艺人 Top 10、最近 30 天每日统计。数据全部留在本地数据库，可随时清库重置。
-- **播放列表** — 创建、重命名、删除播放列表，支持单首加入、批量加入、拖拽排序。
-- **LRC 歌词** — 为每首歌手动关联 .lrc 文件。自动检测编码：UTF-8 解码失败后依次尝试 GBK、GB18030、GB2312、Shift_JIS、EUC-KR、Big5，中英日韩歌词均不乱码。
-- **ReplayGain** — 读取音频文件里的 ReplayGain 标签并存储，播放时自动调整音量。
-- **封面** — 导入时自动提取内嵌封面，存到专辑目录下的 `.covers` 子目录。
-- **全局媒体键** — 注册系统播放/暂停、上一首、下一首快捷键，窗口在后台也能响应。
-- **波形可视化** — 播放时实时显示音频波形（Web Audio Analyser）。
-- **均衡器** — 10 段图形均衡器（31Hz~16kHz），内置 6 个预设（平坦/低音增强/人声清晰/古典/摇滚/流行），独立小窗调节，设置全局持久化。
-- **沉浸模式** — 全屏无干扰播放界面。
-- **自定义 `media://` 协议** — 加载本地音频文件，支持 Range 请求（拖动进度条），并做路径穿越保护，只能访问库目录内的文件。
-- **深色主题** — 背景色 #1f1f23，暗色设计。
-- **标题栏隐藏** — macOS 下使用 hiddenInset 标题栏，红绿灯按钮嵌入窗口角落。
+- **导入音乐库**：自动读取每首歌的 metadata（标题、艺人、专辑、年份、流派、音轨号、比特率、采样率等），按 艺人/专辑 建好目录结构，再复制或软链接进库，模式可以在设置里选。
+- **播放统计**：每次播放记到本地 SQLite（开始/结束时间、播放时长、播放进度），汇总出总播放时长、播放次数、常听曲目/艺人 Top 10、近 30 天每日统计。数据全在本地，随时可以清库重置。
+- **播放列表**：创建、重命名、删除，支持单曲加入、批量加入、拖拽排序。
+- **LRC 歌词**：手动关联 .lrc 文件，自动识别编码（UTF-8 失败后依次尝试 GBK、GB18030、GB2312、Shift_JIS、EUC-KR、Big5），中英日韩歌词都不会乱码。
+- **ReplayGain**：读取音频文件里的 ReplayGain 标签，播放时自动调整音量。
+- **封面**：导入时自动提取内嵌封面，存到专辑目录下的 `.covers` 子目录。
+- **全局媒体键**：播放/暂停、上一首、下一首，窗口在后台也能响应。
+- **波形可视化**：播放时实时画波形（Web Audio Analyser），自带频谱图。
+- **均衡器**：10 段（31Hz~16kHz），内置几个预设，独立小窗调节，设置全局持久化。
+- **沉浸模式**：全屏无干扰播放界面。
+- 深色主题，标题栏隐藏，界面字体只用本机已装字体（设置里可以选等宽字体）。
 
 ## 插件
 
-### MusicBrainz 插件
+内置 MusicBrainz 插件可以补全曲目元数据（标题/艺人/专辑/流派/年份/音轨号，数据 CC0）和封面（Cover Art Archive）。
 
-内置 MusicBrainz Metadata 插件可补全曲目元数据（标题/艺人/专辑/流派/年份/音轨号，数据 CC0）与封面（Cover Art Archive）。
+用之前先看版权：
 
-**版权提醒**：
+- 请使用**自己的** API 凭证。MusicBrainz 公共 API 不需要 key；自建实例或更高级的用法自己申请/配置，不要共用别人的凭证。
+- MusicBrainz 核心数据是 CC0，可以自由使用；**Cover Art Archive 的图片是 CC BY-NC-SA，只能个人使用，不能商用分发**。商用需要和 MetaBrainz 签支持者协议。
+- 默认完全离线，Auto-Fetch 相关开关默认关闭。
 
-- 请使用**自己的** API 凭证（官方 MusicBrainz 公共 API 无需 key；自建实例或高级用途请自行申请/配置，勿共用他人凭证）
-- MusicBrainz 核心数据为 CC0（可自由使用）；**Cover Art Archive 图片为 CC BY-NC-SA——仅限个人使用，不可商用分发**；商用需与 MetaBrainz 签署支持者协议
-- 默认设置完全离线；Auto-Fetch 相关开关默认关闭
-
-## 数据库结构
+## 数据库
 
 | 表 | 内容 |
 | --- | --- |
-| `tracks` | 曲目信息（标题、艺人、专辑、时长、路径、格式、比特率、ReplayGain 等，`lrc_path` 字段存歌词文件路径） |
-| `play_history` | 播放记录（曲目 ID、开始时间、结束时间、时长、播放比例） |
+| `tracks` | 曲目信息（标题、艺人、专辑、时长、路径、格式、比特率、ReplayGain 等） |
+| `play_history` | 播放记录（曲目 ID、开始/结束时间、时长、播放比例） |
 | `playlists` | 播放列表 |
-| `playlist_tracks` | 播放列表内曲目（支持排序位置） |
-| `settings` | 键值对设置项 |
+| `playlist_tracks` | 播放列表内的曲目（含排序位置） |
+| `settings` | 键值对设置 |
 
-## 安装
+## 安装与开发
 
 ```sh
 git clone https://github.com/zprolab/FreePlayer
 cd FreePlayer
 npm install
+npm run dev   # 起 Vite 开发服务器并编译运行原生外壳
 ```
 
-## 开发
+测试：`npm test`（vitest，覆盖音频引擎、均衡器、metadata 持久化、播放状态机等）。
 
-```sh
-npm run dev
-```
-
-自动启动 Vite 开发服务器（localhost:5173）并编译运行原生外壳 `shell/build/FreePlayerShell`。
-
-## 测试
-
-```sh
-npm test
-```
-
-用 vitest 跑前端逻辑单测（音频引擎、均衡器、metadata 持久化、播放状态机等）。
-
-## 打包
+打包：
 
 ```sh
 npm run build        # vite build → dist/
 npm run shell:bundle # 打包 FreePlayer.app
-npm run shell:dist   # vite build + app bundle → zip + dmg，输出到 shell/release/
+npm run shell:dist   # build + bundle → zip + dmg，输出到 shell/release/
 ```
 
-产物命名：`FreePlayer-<version>-mac-arm64-<timestamp>.{zip,dmg}`
+产物命名：`FreePlayer-<version>-mac-arm64-<timestamp>.{zip,dmg}`。
 
 ## 许可证
 
-GPL-3.0-or-later，版权所有 © 2026 zprolab。详见 [LICENSE](LICENSE) 文件。
+GPL-3.0-or-later，© 2026 zprolab。详见 [LICENSE](LICENSE)。
