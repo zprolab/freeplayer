@@ -1,5 +1,6 @@
 import { useRef, useEffect, useCallback } from 'react';
 import { audioEngine } from '../audioEngine';
+import { monoFontStack } from '../utils/fonts';
 
 // ── Constants ──
 const WAVEFORM_COLOR = '#e24329';
@@ -403,7 +404,7 @@ function drawSpectrogramMode(ctx, freqData, bufferLen, W, H) {
 
   // Frequency labels
   const freqY = H - 14;
-  ctx.font = '9px "JetBrains Mono", monospace';
+  ctx.font = '9px ' + monoFontStack();
   ctx.fillStyle = LABEL_COLOR;
   ctx.textBaseline = 'bottom';
   ctx.textAlign = 'center';
@@ -421,7 +422,7 @@ function drawSpectrogramMode(ctx, freqData, bufferLen, W, H) {
 
   // Time labels on right edge
   ctx.textAlign = 'left';
-  ctx.font = '7px "JetBrains Mono", monospace';
+  ctx.font = '7px ' + monoFontStack();
   ctx.fillStyle = LABEL_DIM;
   ctx.fillText('now', W - marginRight + 4, marginTop + 8);
   ctx.fillText('←', W - marginRight + 4, marginTop + plotH);
@@ -444,7 +445,7 @@ function drawNoSignal(ctx, W, H) {
   ctx.fillStyle = BG_COLOR;
   ctx.fillRect(0, 0, W, H);
   ctx.fillStyle = LABEL_DIM;
-  ctx.font = '11px "JetBrains Mono", monospace';
+  ctx.font = '11px ' + monoFontStack();
   ctx.textAlign = 'center';
   ctx.fillText('NO SIGNAL', W / 2, H / 2);
 }
@@ -545,7 +546,7 @@ function drawSpectrum(ctx, dataArray, W, spTop, spH) {
 }
 
 function drawLabels(ctx, W, H, wfTop, wfH, spBaseline) {
-  ctx.font = '10px "JetBrains Mono", monospace';
+  ctx.font = '10px ' + monoFontStack();
   ctx.textBaseline = 'middle';
 
   const wfMid = wfTop + wfH / 2;
@@ -561,7 +562,7 @@ function drawLabels(ctx, W, H, wfTop, wfH, spBaseline) {
   ctx.lineWidth = 0.5;
   ctx.beginPath(); ctx.moveTo(8, ampTop); ctx.lineTo(16, ampTop); ctx.stroke();
   ctx.beginPath(); ctx.moveTo(8, ampBot); ctx.lineTo(16, ampBot); ctx.stroke();
-  ctx.font = '7px "JetBrains Mono", monospace';
+  ctx.font = '7px ' + monoFontStack();
   ctx.textAlign = 'left';
   ctx.fillText('+1', 18, ampTop);
   ctx.fillText('−1', 18, ampBot);
@@ -575,7 +576,7 @@ function drawLabels(ctx, W, H, wfTop, wfH, spBaseline) {
   ctx.stroke();
 
   const freqY = spBaseline + 14;
-  ctx.font = '9px "JetBrains Mono", monospace';
+  ctx.font = '9px ' + monoFontStack();
   ctx.fillStyle = LABEL_COLOR;
   ctx.textBaseline = 'top';
   ctx.textAlign = 'center';

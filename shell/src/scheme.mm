@@ -16,9 +16,9 @@ void fpSetWebRoot(NSString *root) { gWebRoot = [root copy]; }
 // response must not change what the bundled page is allowed to do — plus
 // nosniff. Keep in sync with index.html's meta.
 static NSString *const kAppCSP = @"default-src 'self'; script-src 'self' blob:;"
-  @" style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;"
+  @" style-src 'self' 'unsafe-inline';"
   @" media-src 'self' media:; img-src 'self' data: media:;"
-  @" font-src 'self' https://fonts.gstatic.com; connect-src 'self' ws://localhost:*";
+  @" font-src 'self'; connect-src 'self' app: ws://localhost:*";
 
 // Per-task cancellation flags (main-thread dictionary of atomics; the
 // streaming loop reads the atomic from a background queue).
@@ -69,6 +69,7 @@ static NSString *mimeForPath(NSString *path) {
   if ([ext isEqualToString:@"webp"]) return @"image/webp";
   if ([ext isEqualToString:@"gif"]) return @"image/gif";
   if ([ext isEqualToString:@"lrc"]) return @"text/plain; charset=utf-8";
+  if ([ext isEqualToString:@"txt"]) return @"text/plain; charset=utf-8";
   if ([ext isEqualToString:@"ape"]) return @"audio/x-ape";
   if ([ext isEqualToString:@"wv"]) return @"audio/x-wavpack";
   if ([ext isEqualToString:@"tak"]) return @"audio/x-tak";

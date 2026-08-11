@@ -644,6 +644,7 @@ static NSString *fpRedactConsole(NSString *msg) {
         plain = [NSSet setWithArray:@[
           @"volume", @"tray_enabled", @"tray_notify", @"start_hidden",
           @"start_on_boot", @"default_volume", @"default_visualizer",
+          @"mono_font",
         ]];
       });
       if ([plain containsObject:key]

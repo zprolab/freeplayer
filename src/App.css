@@ -2492,6 +2492,54 @@ input[type="range"]::-webkit-slider-thumb {
   margin: 4px 0 10px;
 }
 
+/* About / legal */
+.about-info {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+.about-row {
+  display: flex;
+  gap: 10px;
+  font-size: 13px;
+}
+.about-label {
+  color: var(--gl-text-tertiary);
+  width: 70px;
+  flex-shrink: 0;
+}
+.about-value {
+  color: var(--gl-text-primary);
+}
+.about-statement {
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--gl-text-secondary);
+  margin: 4px 0 0;
+}
+.about-actions {
+  display: flex;
+  gap: 8px;
+}
+.legal-dialog {
+  width: min(640px, 90vw);
+}
+.legal-text {
+  max-height: 55vh;
+  overflow: auto;
+  font-size: 11px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+  background: var(--gl-bg-elevated, rgba(255,255,255,0.04));
+  border: 1px solid var(--gl-border-light);
+  border-radius: 6px;
+  padding: 12px;
+  margin: 0 0 14px;
+  color: var(--gl-text-secondary);
+}
+
 .playback-label-group {
   display: flex;
   flex-direction: column;

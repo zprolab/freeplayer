@@ -8,11 +8,10 @@
          blob: must stay allowed. If a bundled WKWebView page ever rejects
          blob: workers, revert to 'unsafe-inline' for script-src and re-open
          the sandbox question instead of re-enabling inline execution. -->
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; media-src 'self' media:; img-src 'self' data: media:; font-src 'self' https://fonts.gstatic.com; connect-src 'self' ws://localhost:*">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' blob:; style-src 'self' 'unsafe-inline'; media-src 'self' media:; img-src 'self' data: media:; font-src 'self'; connect-src 'self' app: ws://localhost:*">
     <title>FreePlayer</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+    <!-- No webfont CDN: UI fonts resolve against fonts installed locally
+         (Settings > Appearance > Mono Font picks the family). Fully offline. -->
   </head>
   <body>
     <div id="root"></div>

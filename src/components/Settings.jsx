@@ -1,7 +1,20 @@
-import { useState, memo } from 'react';
+import { useState, useEffect, memo } from 'react';
 import ToggleSwitch from './ToggleSwitch';
 import SegmentedControl from './SegmentedControl';
 import { useTraySettings } from '../hooks/useTraySettings';
+import { applyMonoFont } from '../utils/fonts';
+import { version } from '../../package.json';
+
+const MONO_FONTS = [
+  { value: '', label: 'System default' },
+  { value: 'JetBrains Mono', label: 'JetBrains Mono' },
+  { value: 'Fira Code', label: 'Fira Code' },
+  { value: 'SF Mono', label: 'SF Mono' },
+  { value: 'Menlo', label: 'Menlo' },
+  { value: 'Monaco', label: 'Monaco' },
+  { value: 'Cascadia Code', label: 'Cascadia Code' },
+  { value: 'Consolas', label: 'Consolas' },
+];
 
 const Settings = memo(function Settings({
   importMode,
@@ -15,6 +28,10 @@ const Settings = memo(function Settings({
   onResetDatabase,
 }) {
   const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [monoFont, setMonoFont] = useState('');
+  const [legalModal, setLegalModal] = useState(null); // 'license' | 'notices' | null
+  const [legalText, setLegalText] = useState('');
+  const [legalError, setLegalError] = useState('');
   const {
     settingsLoaded,
     trayEnabled,
@@ -27,6 +44,37 @@ const Settings = memo(function Settings({
     changeStartOnBoot,
     changeStartHidden,
   } = useTraySettings();
+
+  useEffect(() => {
+    let cancelled = false;
+    window.freeplayer.getSetting('mono_font')
+      .then((v) => {
+        if (cancelled) return;
+        setMonoFont(typeof v === 'string' ? v : '');
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+
+  const handleMonoFontChange = async (value) => {
+    setMonoFont(value);
+    applyMonoFont(value);
+    await window.freeplayer.setSetting({ key: 'mono_font', value });
+  };
+
+  const openLegal = async (which) => {
+    setLegalModal(which);
+    setLegalText('');
+    setLegalError('');
+    try {
+      const file = which === 'license' ? 'LICENSE.txt' : 'THIRD-PARTY-NOTICES.txt';
+      const res = await fetch(file);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      setLegalText(await res.text());
+    } catch (err) {
+      setLegalError(`Could not load ${which === 'license' ? 'LICENSE.txt' : 'THIRD-PARTY-NOTICES.txt'} (${err.message || err}). It ships inside the app bundle at Resources/web/.`);
+    }
+  };
 
   const handleChangeLibraryDir = async () => {
     const result = await window.freeplayer.selectLibraryDir();
@@ -210,6 +258,61 @@ const Settings = memo(function Settings({
         )}
       </div>
 
+      {/* Appearance */}
+      <div className="settings-section">
+        <div className="section-header">
+          <h3 className="section-title">Appearance</h3>
+          <p className="section-desc">UI fonts are resolved from fonts installed on this Mac — nothing is downloaded.</p>
+        </div>
+
+        <div className="playback-row">
+          <div className="playback-label-group">
+            <span className="playback-label">Mono Font</span>
+            <span className="playback-hint">Font used for durations, timestamps, and the spectrogram labels</span>
+          </div>
+          <select
+            className="plugin-select"
+            value={monoFont}
+            onChange={(e) => handleMonoFontChange(e.target.value)}
+          >
+            {MONO_FONTS.map((f) => (
+              <option key={f.value || 'default'} value={f.value}>{f.label}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      {/* About / Legal — GPL §0 requires an interactive interface to display
+          the copyright, no-warranty statement and how to view the license. */}
+      <div className="settings-section">
+        <div className="section-header">
+          <h3 className="section-title">About</h3>
+        </div>
+
+        <div className="about-info">
+          <div className="about-row"><span className="about-label">FreePlayer</span><span className="about-value">v{version}</span></div>
+          <div className="about-row"><span className="about-label">License</span><span className="about-value">GPL-3.0-or-later</span></div>
+          <p className="about-statement">
+            Copyright (C) 2026 zprolab.
+            FreePlayer is free software: you can redistribute it and/or modify it under
+            the terms of the GNU General Public License as published by the Free Software
+            Foundation, either version 3 of the License, or (at your option) any later version.
+            This program is distributed in the hope that it will be useful, but
+            <strong> WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
+            or FITNESS FOR A PARTICULAR PURPOSE</strong>.
+          </p>
+        </div>
+
+        <div className="about-actions">
+          <button className="btn btn-secondary" onClick={() => openLegal('license')}>
+            View License
+          </button>
+          <button className="btn btn-secondary" onClick={() => openLegal('notices')}>
+            Third-Party Notices
+          </button>
+        </div>
+      </div>
+
       {/* Danger Zone */}
       <div className="settings-section settings-section--danger">
         <div className="section-header">
@@ -229,6 +332,29 @@ const Settings = memo(function Settings({
           </button>
         </div>
       </div>
+
+      {/* Legal text dialog */}
+      {legalModal && (
+        <div className="confirm-overlay" onClick={() => setLegalModal(null)}>
+          <div className="confirm-dialog legal-dialog" onClick={(e) => e.stopPropagation()}>
+            <h3 className="confirm-title">
+              {legalModal === 'license' ? 'GNU General Public License v3' : 'Third-Party Notices'}
+            </h3>
+            {legalError ? (
+              <p className="confirm-message">{legalError}</p>
+            ) : legalText ? (
+              <pre className="legal-text">{legalText}</pre>
+            ) : (
+              <p className="confirm-message">Loading…</p>
+            )}
+            <div className="confirm-actions">
+              <button className="btn btn-secondary" onClick={() => setLegalModal(null)}>
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Reset Confirmation Dialog */}
       {showResetConfirm && (

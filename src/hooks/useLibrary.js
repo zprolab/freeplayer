@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { usePlayer } from '../context/PlayerContext';
+import { applyMonoFont } from '../utils/fonts';
 
 export function useLibrary() {
   const { state, dispatch } = usePlayer();
@@ -47,6 +48,9 @@ export function useLibrary() {
       if (defVis && !cancelled()) {
         dispatch({ type: 'SET', payload: { defaultVisualizer: defVis, visualizerMode: defVis } });
       }
+      // Mono font preference (local fonts only — never fetched from a CDN)
+      const monoFont = await window.freeplayer.getSetting('mono_font');
+      if (monoFont && !cancelled()) applyMonoFont(monoFont);
       if (result.setup && !cancelled()) {
         await loadTracks();
       }
