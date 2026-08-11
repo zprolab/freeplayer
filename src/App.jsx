@@ -332,7 +332,10 @@ export default function App() {
     return state.playlistTracks
       .slice()
       .sort((a, b) => compareTracks(a, b, state.sortBy, state.sortDir));
-  }, [state.activePlaylistId, state.playlistTracks, state.sortBy, state.sortDir]);
+    // state.tracks is a deps prerequisite: loadTracks replaces it on startup
+    // while the other deps stay identical, and without it the memo would
+    // freeze at the initial [] and show an empty library forever.
+  }, [state.tracks, state.activePlaylistId, state.playlistTracks, state.sortBy, state.sortDir]);
 
   if (state.isLoading) {
     return (
