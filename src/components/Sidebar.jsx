@@ -50,10 +50,12 @@ export default function Sidebar({
     <aside className="sidebar">
       <div className="sidebar-header">
         <div className="sidebar-logo">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-            <circle cx="12" cy="12" r="11" stroke="currentColor" strokeWidth="1.5"/>
-            <circle cx="12" cy="12" r="4" fill="currentColor"/>
-            <path d="M12 1v8M12 15v8M1 12h8M15 12h8" stroke="currentColor" strokeWidth="1" opacity="0.4"/>
+          <svg width="22" height="22" viewBox="0 0 128 128" fill="none">
+            <rect x="22" y="24" width="11" height="80" fill="#e24329"/>
+            <rect x="37" y="28" width="36" height="11" fill="#ffffff"/>
+            <rect x="37" y="51" width="36" height="11" fill="#ffffff"/>
+            <rect x="81" y="24" width="11" height="80" fill="#ffffff"/>
+            <polygon points="98,46 98,82 124,64" fill="#e24329"/>
           </svg>
           <span className="sidebar-title">FreePlayer</span>
         </div>

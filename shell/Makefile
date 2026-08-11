@@ -63,6 +63,7 @@ bundle: $(BIN)
 	mkdir -p $(BUNDLE)/Contents/MacOS $(BUNDLE)/Contents/Resources/web
 	cp $(BIN) $(BUNDLE)/Contents/MacOS/FreePlayer
 	cp -R $(DIST)/. $(BUNDLE)/Contents/Resources/web/
+	cp FreePlayer.icns $(BUNDLE)/Contents/Resources/FreePlayer.icns
 	cp ../LICENSE $(BUNDLE)/Contents/Resources/LICENSE
 	cp Info.plist $(BUNDLE)/Contents/Info.plist
 	# Q12: hardened runtime for release bundles (ad-hoc identity)
