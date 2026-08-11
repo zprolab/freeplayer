@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Sidebar from './components/Sidebar';
-import BrandMark from './components/BrandMark';
+import logoUrl from './assets/logo.svg';
 import Library from './components/Library';
 import NowPlaying from './components/NowPlaying';
 import Stats from './components/Stats';
@@ -342,7 +342,7 @@ export default function App() {
   if (state.isLoading) {
     return (
       <div className="app-loading">
-        <div className="loading-logo"><BrandMark size={56} /></div>
+        <div className="loading-logo"><img src={logoUrl} width={56} height={56} alt="" style={{ borderRadius: 14 }} /></div>
         <div className="loading-spinner" />
         <span className="loading-text">Loading FreePlayer...</span>
       </div>

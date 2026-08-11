@@ -3,7 +3,7 @@ import {
   IconMusicNote, IconPlayCircle, IconPuzzle, IconGear,
   IconImport, IconList, IconPlus, IconEdit, IconTrash,
 } from './icons';
-import BrandMark from './BrandMark';
+import logoUrl from '../assets/logo.svg';
 
 export default function Sidebar({
   currentView, onNavigate, trackCount, onImport,
@@ -51,7 +51,7 @@ export default function Sidebar({
     <aside className="sidebar">
       <div className="sidebar-header">
         <div className="sidebar-logo">
-          <BrandMark size={22} />
+          <img className="sidebar-logo-img" src={logoUrl} width={22} height={22} alt="" />
           <span className="sidebar-title">FreePlayer</span>
         </div>
       </div>
