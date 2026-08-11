@@ -2,12 +2,12 @@
 
 macOS 上的本地音乐播放器。没有登录、没有账号、没有遥测，你的音乐文件留在你自己的硬盘上。
 
-- 需要 macOS 13.0+（Apple Silicon）
-- 默认完全离线。只有在设置里手动打开 "Auto-Fetch Lyrics & Covers" 之后，遇到缺歌词或封面的歌曲，才会把曲目标题、艺人、专辑发到 LRCLIB（歌词）和 iTunes Search API（封面）去查。开关默认关闭，随时可以关。
+- 需要 macOS 13+（Apple Silicon，M-系列芯片；）
+- 默认完全离线。只有在设置里手动打开 "Auto-Fetch Lyrics & Covers" 之后，遇到缺歌词或封面的歌曲，才会把曲目标题、艺人、专辑发到 LRCLIB（歌词）和 iTunes Search API（封面）去查。开关默认关闭。字体从写下这句话开始都是离线加载。
 
 ## 技术栈
 
-前端 React 19 + Vite，原生外壳 Objective-C++（Cocoa + WebKit + AVFoundation 等系统框架），数据库用系统自带的 SQLite，元数据解析也是原生实现的。没有 Electron，没有运行时 npm 依赖。
+前端 React 19 + Vite，原生外壳 Objective-C++（Cocoa + WebKit + AVFoundation 等系统框架），数据库用系统自带的 SQLite，元数据解析也是原生实现的。无需 Electron，没有运行时 npm 依赖。非常精简的安装包。
 
 支持格式：MP3、FLAC、WAV、OGG、M4A、AAC、WMA、Opus、AIFF、APE。
 

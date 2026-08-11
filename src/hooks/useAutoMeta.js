@@ -22,9 +22,7 @@ function autoSettingOn(value) {
 
 export function useAutoMeta(currentTrack, meta, dispatch) {
   const attempted = useRef(new Set());
-  const currentIdRef = useRef(currentTrack?.id ?? null);
   const [auto, setAuto] = useState({ lyrics: false, cover: false, metadata: false });
-  currentIdRef.current = currentTrack?.id ?? null;
 
   // Resolve per-backend auto-fetch switches; re-runs when the plugin runtime
   // (meta) appears so toggling a switch in the Plugins page takes effect on
@@ -68,6 +66,7 @@ export function useAutoMeta(currentTrack, meta, dispatch) {
         let coverPath = track.cover_path;
         let lyricsSaved = false;
         let metaSaved = false;
+        let updated = null;
         if (auto.cover) {
           // cover_path set but file deleted (getCover -> null) still counts
           // as missing, per the "only fetch when missing" rule.
@@ -89,20 +88,26 @@ export function useAutoMeta(currentTrack, meta, dispatch) {
           // Shared with the batch backfill (PluginPage) so both judge
           // "missing metadata" identically.
           if (needsMetadataFill(track)) {
-            const { saved, updated } = await meta.fetchMetadata(track);
+            const { saved, updated: fetched } = await meta.fetchMetadata(track);
             // Merge fetched fields into out so a later cover/lyrics dispatch
             // can never clobber them (reducer replaces the whole track).
-            if (saved && updated) {
-              out = { ...out, ...updated };
+            if (saved && fetched) {
+              out = { ...out, ...fetched };
+              updated = fetched;
               metaSaved = true;
             }
           }
         }
         const changed = coverPath !== track.cover_path || lyricsSaved || metaSaved;
-        if (changed && currentIdRef.current === track.id) {
-          // Fresh object identity re-triggers NowPlaying's getLrc/cover
-          // effects; cover_path merged so the fetched art actually shows.
-          dispatch({ type: 'SET_CURRENT_TRACK', payload: { ...out, cover_path: coverPath } });
+        if (changed) {
+          const fields = {};
+          if (coverPath !== track.cover_path) fields.cover_path = coverPath;
+          if (updated) Object.assign(fields, updated);
+          // Id-matched patch (SET_TRACK_FIELDS): refreshes the current track
+          // AND the lists (tracks/queue/playlistTracks), so a cover or
+          // metadata fetch that finishes after the user switched tracks is
+          // never lost — the DB row is updated, the UI must follow.
+          dispatch({ type: 'SET_TRACK_FIELDS', payload: { id: track.id, fields } });
         }
       } catch (err) {
         console.warn('Auto meta fetch failed:', err.message || err);
