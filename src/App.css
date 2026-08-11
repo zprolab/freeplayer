@@ -4288,3 +4288,51 @@ input[type="range"]::-webkit-slider-thumb {
   .search-input { width: 100%; }
   .top-bar-right { gap: 8px; }
 }
+
+/* 曲目列表：表 → 卡片行（方案 B 紧凑行） */
+@media (max-width: 767px) {
+  .data-table {
+    border-collapse: separate;
+    border-spacing: 0 8px;
+  }
+  .data-table thead { display: none; }
+  .data-table tbody { display: block; }
+  .data-table tr {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    background: var(--gl-bg-elevated, #f0f0f3);
+    border-radius: 10px;
+    margin: 0 12px 8px;
+    padding: 8px 12px;
+  }
+  .data-table tr.track-row--active {
+    background: var(--gl-blue-light) !important;
+  }
+  .data-table tr.track-row:hover {
+    background: #e7e7eb;
+  }
+  .data-table td { border: none; padding: 2px 0; }
+
+  /* 隐藏专辑/日期列 */
+  .data-table td.cell-album,
+  .data-table td.cell-date { display: none; }
+
+  /* 两行布局：行1 = 序号+标题+时长/操作；行2 = 艺人 */
+  .data-table td.cell-index { order: 1; width: 24px; min-width: 24px; flex: 0 0 auto; }
+  .data-table td.cell-title { order: 2; flex: 1; min-width: 0; }
+  .data-table td.cell-duration { order: 3; flex: 0 0 auto; margin-left: 8px; }
+  .data-table td.cell-action { order: 4; flex: 0 0 auto; margin-left: 4px; }
+  .data-table td.cell-artist {
+    order: 5;
+    flex-basis: 100%;
+    padding-left: 32px; /* 对齐标题缩进 */
+    font-size: 12px;
+    color: var(--gl-text-tertiary);
+  }
+
+  /* 触控行高 + 标题字号 */
+  .data-table tr { min-height: 56px; }
+  .data-table .track-title { font-size: 14px; }
+  .data-table .cell-action .btn-icon { width: 36px; height: 36px; }
+}
