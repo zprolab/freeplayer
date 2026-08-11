@@ -1,13 +1,7 @@
 import { useState, useRef, useEffect, memo } from 'react';
 import EditModal from './EditModal';
 import PlaylistMenu from './PlaylistMenu';
-
-function formatDuration(seconds) {
-  if (!seconds || !isFinite(seconds)) return '--:--';
-  const m = Math.floor(seconds / 60);
-  const s = Math.floor(seconds % 60);
-  return `${m}:${s.toString().padStart(2, '0')}`;
-}
+import { formatTime } from '../utils/format';
 
 const SORT_COLUMNS = [
   { key: 'title', label: 'Title', width: 'auto' },
@@ -45,7 +39,7 @@ const Library = memo(function Library({
     }, { rootMargin: '400px' });
     obs.observe(sentinel);
     return () => obs.disconnect();
-  }, [tracks.length]);
+  }, [tracks]);
 
   const visibleTracks = tracks.slice(0, visibleCount);
 
@@ -171,7 +165,7 @@ const Library = memo(function Library({
                   </td>
                   <td className="cell-artist">{track.artist}</td>
                   <td className="cell-album">{track.album}</td>
-                  <td className="cell-duration mono">{formatDuration(track.duration)}</td>
+                  <td className="cell-duration mono">{formatTime(track.duration)}</td>
                   <td className="cell-date mono">
                     {track.imported_at ? new Date(track.imported_at + 'Z').toLocaleDateString() : '--'}
                   </td>

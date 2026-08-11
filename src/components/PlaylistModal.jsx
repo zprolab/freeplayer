@@ -27,15 +27,18 @@ export default function PlaylistModal({ mode, playlist, allTracks, onClose, onSu
 
   // Load existing playlist tracks in edit mode
   useEffect(() => {
+    let stale = false;
     if (mode === 'edit' && playlist) {
       setIsLoadingTracks(true);
       window.freeplayer.getPlaylistTracks(playlist.id).then(tracks => {
+        if (stale) return;
         setSelectedIds(new Set(tracks.map(t => t.id)));
         setIsLoadingTracks(false);
       }).catch(() => {
-        setIsLoadingTracks(false);
+        if (!stale) setIsLoadingTracks(false);
       });
     }
+    return () => { stale = true; };
   }, [mode, playlist]);
 
   // Pre-select pendingAddTrack in create mode

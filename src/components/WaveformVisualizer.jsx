@@ -46,6 +46,22 @@ function spectrogramColor(t) {
   return [255, Math.round(115 - 30 * ((t - 0.85) / 0.15)), 0];
 }
 
+// Precomputed 256-entry color LUT (r,g,b,a per entry). The spectrogram inner
+// loop runs once per pixel per frame (~800k pixels at full width) — indexing
+// the LUT avoids a function call plus a per-pixel array allocation.
+const SPECTRO_LUT = (() => {
+  const lut = new Uint8ClampedArray(256 * 4);
+  for (let i = 0; i < 256; i++) {
+    const [r, g, b] = spectrogramColor(i / 255);
+    const o = i * 4;
+    lut[o] = r;
+    lut[o + 1] = g;
+    lut[o + 2] = b;
+    lut[o + 3] = 255;
+  }
+  return lut;
+})();
+
 // ── Spectrogram history buffer (module-level, survives remount) ──
 let spectrogramBuffer = null;
 
@@ -315,10 +331,10 @@ function drawSpectrogramMode(ctx, freqData, bufferLen, W, H) {
   spectrogramBuffer.copyWithin(0, 1);
   spectrogramBuffer[numRows - 1].set(freqData);
 
-  // DIAGNOSTIC (FP_SPECTRO_TEST=1): overwrite the newest row with a known
-  // 4-quadrant brightness pattern to verify frequency mapping:
+  // DIAGNOSTIC (FP_SPECTRO_TEST=1, dev builds only): overwrite the newest row
+  // with a known 4-quadrant brightness pattern to verify frequency mapping:
   //   left 1/4 = 255 (loudest) -> right 1/4 = 0 (silent)
-  if (window.__FP_SPECTRO_TEST) {
+  if (import.meta.env.DEV && window.__FP_SPECTRO_TEST) {
     const testRow = spectrogramBuffer[numRows - 1];
     const q = bufferLen / 4;
     for (let i = 0; i < bufferLen; i++) {
@@ -356,8 +372,11 @@ function drawSpectrogramMode(ctx, freqData, bufferLen, W, H) {
 
     for (let px = 0; px < dplotW; px++) {
       const binIdx = Math.floor((px / dpr) * binStep);
-      const val = srcRow[Math.min(binIdx, bufferLen - 1)] / 255;
-      const [r, g, b] = spectrogramColor(val);
+      const srcVal = srcRow[Math.min(binIdx, bufferLen - 1)];
+      const lo = srcVal * 4;
+      const r = SPECTRO_LUT[lo];
+      const g = SPECTRO_LUT[lo + 1];
+      const b = SPECTRO_LUT[lo + 2];
 
       for (let dy = 0; dy < dRowH && (imgY + dy) < dplotH; dy++) {
         const base = ((imgY + dy) * dplotW + px) * 4;

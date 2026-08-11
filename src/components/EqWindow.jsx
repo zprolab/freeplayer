@@ -25,7 +25,8 @@ export default function EqWindow() {
   useEffect(() => {
     const a = api();
     if (a?.getEqState) {
-      a.getEqState().then((s) => { if (s) push(s); });
+      a.getEqState().then((s) => { if (s) push(s); })
+        .catch((err) => console.warn('Failed to load EQ state:', err));
     }
     if (a?.onEqChange) {
       a.onEqChange((s) => {

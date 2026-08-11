@@ -1,11 +1,5 @@
 import { useState, useMemo } from 'react';
-
-function formatDuration(seconds) {
-  if (!seconds || seconds <= 0) return '0:00';
-  const m = Math.floor(seconds / 60);
-  const s = Math.floor(seconds % 60);
-  return `${m}:${s.toString().padStart(2, '0')}`;
-}
+import { formatTime } from '../utils/format';
 
 export default function TrackPicker({ tracks, selectedIds, onToggle, onSelectAll, onDeselectAll }) {
   const [searchQuery, setSearchQuery] = useState('');
@@ -79,7 +73,7 @@ export default function TrackPicker({ tracks, selectedIds, onToggle, onSelectAll
               <span className="track-picker-title">{track.title}</span>
               <span className="track-picker-artist">{track.artist}</span>
               <span className="track-picker-album">{track.album}</span>
-              <span className="track-picker-duration">{formatDuration(track.duration)}</span>
+              <span className="track-picker-duration">{formatTime(track.duration)}</span>
             </label>
           ))
         )}

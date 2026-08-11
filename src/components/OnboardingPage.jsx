@@ -13,6 +13,12 @@ export default function OnboardingPage({ onDone }) {
   const [choosing, setChoosing] = useState(false);
   const [error, setError] = useState('');
 
+  // Persistence note: setSetting() rejects library_dir from the renderer
+  // (bridge.mm — it is the trust anchor for the file-read boundary), so the
+  // chosen path is persisted by selectLibraryDir itself: the native handler
+  // stores it via fpdb::setSetting(@"library_dir", dir) before resolving.
+  // handleFinish must therefore only run after a successful selection (the
+  // Finish button is disabled until then; this guard is defense in depth).
   const handleChooseLibrary = useCallback(async () => {
     if (choosing) return;
     setChoosing(true);
@@ -28,8 +34,12 @@ export default function OnboardingPage({ onDone }) {
   }, [choosing]);
 
   const handleFinish = useCallback(() => {
+    if (!libraryPath) {
+      setError('Choose a library folder to finish setup');
+      return;
+    }
     onDone?.();
-  }, [onDone]);
+  }, [libraryPath, onDone]);
 
   const state = { licenseAgreed, libraryPath };
   const stepIndex = ONBOARDING_STEPS.indexOf(step);

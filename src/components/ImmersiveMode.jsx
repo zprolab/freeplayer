@@ -53,12 +53,14 @@ export default function ImmersiveMode({
   // Extract the dominant color from the cover art for the ambient glow
   const [bgColor, setBgColor] = useState(null);
   useEffect(() => {
+    let stale = false;
     if (!coverUrl) {
       setBgColor(null);
       return;
     }
     const img = new Image();
     img.onload = () => {
+      if (stale) return;
       try {
         const canvas = document.createElement('canvas');
         canvas.width = 8;
@@ -78,8 +80,9 @@ export default function ImmersiveMode({
         setBgColor(null);
       }
     };
-    img.onerror = () => setBgColor(null);
+    img.onerror = () => { if (!stale) setBgColor(null); };
     img.src = coverUrl;
+    return () => { stale = true; };
   }, [coverUrl]);
 
   return (

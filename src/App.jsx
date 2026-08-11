@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Sidebar from './components/Sidebar';
 import Library from './components/Library';
 import NowPlaying from './components/NowPlaying';
@@ -26,6 +26,22 @@ import { createEventBus } from './plugins/hooks';
 // window.__fpRuntimeState (written below), so lazily-activated plugins always
 // see the live player bridge.
 let pluginRuntime = null;
+
+// Client-side sort for playlist views: getPlaylistTracks accepts no sort
+// params and returns tracks in playlist position order, so replicate the DB
+// sort semantics here (case-insensitive text, numeric duration/year).
+function compareTracks(a, b, sortBy, sortDir) {
+  const sign = sortDir === 'ASC' ? 1 : -1;
+  let cmp = 0;
+  if (sortBy === 'duration' || sortBy === 'year') {
+    cmp = (Number(a[sortBy]) || 0) - (Number(b[sortBy]) || 0);
+  } else {
+    const av = String(a[sortBy] ?? '').toLowerCase();
+    const bv = String(b[sortBy] ?? '').toLowerCase();
+    cmp = av < bv ? -1 : av > bv ? 1 : 0;
+  }
+  return cmp * sign;
+}
 
 async function getPluginRuntime() {
   if (pluginRuntime) return pluginRuntime;
@@ -311,7 +327,12 @@ export default function App() {
     }
   };
 
-  const displayedTracks = state.activePlaylistId === null ? state.tracks : state.playlistTracks;
+  const displayedTracks = useMemo(() => {
+    if (state.activePlaylistId === null) return state.tracks;
+    return state.playlistTracks
+      .slice()
+      .sort((a, b) => compareTracks(a, b, state.sortBy, state.sortDir));
+  }, [state.activePlaylistId, state.playlistTracks, state.sortBy, state.sortDir]);
 
   if (state.isLoading) {
     return (
@@ -454,7 +475,7 @@ export default function App() {
                   sortBy={state.sortBy}
                   sortDir={state.sortDir}
                   onTracksChanged={state.activePlaylistId === null
-                    ? undefined
+                    ? loadTracks
                     : () => handleSelectPlaylist(state.activePlaylistId)
                   }
                   onSort={(col) => {
@@ -487,7 +508,7 @@ export default function App() {
                   audioElement={audioRef.current}
                   visualizerMode={state.visualizerMode}
                   onVisualizerModeChange={(m) => dispatch({ type: 'SET', payload: { visualizerMode: m } })}
-                  onCoverSaved={(coverPath) => dispatch({ type: 'SET_CURRENT_TRACK', payload: { ...state.currentTrack, cover_path: coverPath } })}
+                  onCoverSaved={(coverPath) => dispatch({ type: 'SET_TRACK_FIELDS', payload: { id: state.currentTrack?.id, fields: { cover_path: coverPath } } })}
                   meta={meta}
                 />
               )}

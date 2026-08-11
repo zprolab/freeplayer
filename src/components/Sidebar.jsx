@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import {
-  IconMusicNote, IconPlayCircle, IconChartBar, IconPuzzle, IconGear,
+  IconMusicNote, IconPlayCircle, IconPuzzle, IconGear,
   IconImport, IconList, IconPlus, IconEdit, IconTrash,
 } from './icons';
 

@@ -35,7 +35,8 @@ export default function NowPlaying({
         if (!stale) {
           setLrcContent(result && result.content ? result.content : null);
         }
-      }).catch(() => {
+      }).catch((err) => {
+        console.warn('Failed to load lyrics:', err);
         if (!stale) {
           setLrcContent(null);
         }

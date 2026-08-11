@@ -17,24 +17,41 @@ const Stats = memo(function Stats() {
   const [stats, setStats] = useState(null);
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
+    let cancelled = false;
     async function load() {
-      const [s, h] = await Promise.all([
-        window.freeplayer.getStats(),
-        window.freeplayer.getPlayHistory(30),
-      ]);
-      setStats(s);
-      setHistory(h);
-      setLoading(false);
+      try {
+        const [s, h] = await Promise.all([
+          window.freeplayer.getStats(),
+          window.freeplayer.getPlayHistory(30),
+        ]);
+        if (cancelled) return;
+        setStats(s);
+        setHistory(h);
+      } catch (err) {
+        if (!cancelled) setError(err.message || 'Failed to load statistics');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
     }
     load();
+    return () => { cancelled = true; };
   }, []);
 
   if (loading) {
     return (
       <div className="stats-loading">
         <div className="loading-spinner" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="stats-loading">
+        <p className="ob-error">{error}</p>
       </div>
     );
   }

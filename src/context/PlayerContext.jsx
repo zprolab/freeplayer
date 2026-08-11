@@ -43,11 +43,25 @@ const initialState = {
   eqEnabled: false,
 };
 
-function reducer(state, action) {
+export function reducer(state, action) {
   switch (action.type) {
     case 'SET': return { ...state, ...action.payload };
     case 'SET_TRACKS': return { ...state, tracks: action.payload };
     case 'SET_CURRENT_TRACK': return { ...state, currentTrack: action.payload };
+    case 'SET_TRACK_FIELDS': {
+      const { id, fields } = action.payload || {};
+      if (!id || !fields) return state;
+      const patch = (t) => (t && t.id === id ? { ...t, ...fields } : t);
+      return {
+        ...state,
+        currentTrack: state.currentTrack && state.currentTrack.id === id
+          ? { ...state.currentTrack, ...fields }
+          : state.currentTrack,
+        tracks: state.tracks.map(patch),
+        queue: state.queue.map(patch),
+        playlistTracks: state.playlistTracks.map(patch),
+      };
+    }
     case 'SET_IS_PLAYING': return { ...state, isPlaying: action.payload };
     case 'SET_QUEUE': return { ...state, queue: action.payload };
     case 'SET_QUEUE_INDEX': return { ...state, queueIndex: action.payload };
@@ -63,7 +77,10 @@ function reducer(state, action) {
 
 export function PlayerProvider({ children }) {
   const [state, dispatch] = useReducer(reducer, initialState);
-  const audioRef = useRef(new Audio());
+  const audioRef = useRef(null);
+  if (!audioRef.current) {
+    audioRef.current = new Audio();
+  }
   const playSessionIdRef = useRef(null);
   const playStartTimeRef = useRef(null);
 
