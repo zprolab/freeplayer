@@ -190,9 +190,14 @@ export function createLoader(deps) {
       const p = pendingHooks.get(msg.seq);
       if (!p) return;
       pendingHooks.delete(msg.seq);
+      if (p._timer) clearTimeout(p._timer);
       if (msg.error) p.reject(new Error(msg.error));
       else p.resolve(msg.result);
     };
+
+    // Post-activation crash channel: the registry marks the plugin as
+    // error-ed so the UI stops showing a dead worker as active.
+    let crashHandler = null;
 
     worker.onmessage = (e) => {
       const msg = e && e.data;
@@ -217,9 +222,13 @@ export function createLoader(deps) {
       const message = String((e && (e.message || e.error)) || 'worker error');
       if (!reportedHooks.size && onActivateError) onActivateError(message);
       else {
-        for (const p of pendingHooks.values()) p.reject(new Error(message));
+        for (const p of pendingHooks.values()) {
+          if (p._timer) clearTimeout(p._timer);
+          p.reject(new Error(message));
+        }
         pendingHooks.clear();
         cleanup();
+        if (crashHandler) crashHandler(message);
       }
     };
 
@@ -254,8 +263,21 @@ export function createLoader(deps) {
       }
       return new Promise((resolve, reject) => {
         const id = ++seq;
-        pendingHooks.set(id, { resolve, reject });
-        send({ type: 'invokeHook', hook: name, seq: id, payload });
+        const entry = { resolve, reject };
+        pendingHooks.set(id, entry);
+        try {
+          send({ type: 'invokeHook', hook: name, seq: id, payload });
+        } catch (err) {
+          pendingHooks.delete(id);
+          reject(err);
+          return;
+        }
+        // Host-side timeout mirrors the registry's: the worker result may
+        // arrive late (contained — it is sandboxed), but the pending slot
+        // must not leak. A late result is discarded by handleHookResult.
+        entry._timer = setTimeout(() => {
+          if (pendingHooks.delete(id)) reject(new Error('hook timeout'));
+        }, hookTimeoutMs);
       });
     };
 
@@ -287,6 +309,7 @@ export function createLoader(deps) {
       },
       api: ex.wrapped,
       setGranted: (next) => { ex.setGranted(next); },
+      onCrash: (fn) => { crashHandler = fn; },
     };
   }
 

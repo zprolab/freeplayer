@@ -5,7 +5,7 @@ import { backfillMissing, isBackfillRunning, needsMetadataFill } from '../servic
 
 
 const PERM_DESC = {
-  http: 'Make network requests (GET) — review carefully: the plugin can reach any address, including localhost/LAN devices',
+  http: 'Make network requests (GET) — HTTPS only; localhost is allowed, LAN/loopback addresses are blocked',
   'player:read': 'Read playback state and current track',
   'player:write': 'Control playback, volume, queue',
   'audio:read': 'Access the current audio file (media:// URL)',
@@ -169,46 +169,58 @@ export default function PluginPage({ registry, meta, tracks }) {
   }, []);
 
   async function handleToggle(p, enabled) {
-    if (enabled) {
-      if (isNew(p)) {
-        // Default: read-level grants only. http is deliberately NOT
-        // pre-checked — an http grant can reach localhost/LAN services, so
-        // the user should opt in explicitly after reviewing what the plugin
-        // is for. Providers additionally need metadata:write — the host
-        // persists their hook results on their behalf, so the write grant
-        // is required for them to function.
-        const defaults = (p.manifest.permissions || []).filter((x) => x.endsWith(':read'));
-        if ((p.manifest.provides?.lyrics || p.manifest.provides?.cover)
-            && (p.manifest.permissions || []).includes('metadata:write')
-            && !defaults.includes('metadata:write')) {
-          defaults.push('metadata:write');
+    try {
+      if (enabled) {
+        if (isNew(p)) {
+          // Default: read-level grants only. http is deliberately NOT
+          // pre-checked — an http grant can reach localhost/LAN services, so
+          // the user should opt in explicitly after reviewing what the plugin
+          // is for. Providers additionally need metadata:write — the host
+          // persists their hook results on their behalf, so the write grant
+          // is required for them to function.
+          const defaults = (p.manifest.permissions || []).filter((x) => x.endsWith(':read'));
+          if ((p.manifest.provides?.lyrics || p.manifest.provides?.cover)
+              && (p.manifest.permissions || []).includes('metadata:write')
+              && !defaults.includes('metadata:write')) {
+            defaults.push('metadata:write');
+          }
+          setPendingPlugin(p);
+          setPendingGrants(defaults);
+          return;
         }
-        setPendingPlugin(p);
-        setPendingGrants(defaults);
-        return;
+        // 重新启用：保留既有 granted（disable 不清空），避免静默降权
+        await registry.enable(p.id, p.perms.granted);
+      } else {
+        await registry.disable(p.id);
       }
-      // 重新启用：保留既有 granted（disable 不清空），避免静默降权
-      await registry.enable(p.id, p.perms.granted);
-    } else {
-      await registry.disable(p.id);
+      await refresh();
+    } catch (err) {
+      console.warn(`[plugins] toggle ${p.id}:`, err.message || err);
     }
-    await refresh();
   }
 
   async function confirmEnable() {
-    await registry.enable(pendingPlugin.id, pendingGrants);
-    setOpenDetail(pendingPlugin.id); setDetailTab('settings');
-    setPendingPlugin(null);
-    await refresh();
+    try {
+      await registry.enable(pendingPlugin.id, pendingGrants);
+      setOpenDetail(pendingPlugin.id); setDetailTab('settings');
+      setPendingPlugin(null);
+      await refresh();
+    } catch (err) {
+      console.warn(`[plugins] enable ${pendingPlugin?.id}:`, err.message || err);
+    }
   }
 
   async function updateGrants(p, perm, on) {
-    const [domain, level] = perm.split(':');
-    let next = on ? [...p.perms.granted, perm] : p.perms.granted.filter((x) => x !== perm);
-    if (on && level === 'write' && !next.includes(`${domain}:read`)) next = [...next, `${domain}:read`];
-    if (!on && level === 'read') next = next.filter((x) => x !== `${domain}:write`);
-    await registry.enable(p.id, next);
-    await refresh();
+    try {
+      const [domain, level] = perm.split(':');
+      let next = on ? [...p.perms.granted, perm] : p.perms.granted.filter((x) => x !== perm);
+      if (on && level === 'write' && !next.includes(`${domain}:read`)) next = [...next, `${domain}:read`];
+      if (!on && level === 'read') next = next.filter((x) => x !== `${domain}:write`);
+      await registry.enable(p.id, next);
+      await refresh();
+    } catch (err) {
+      console.warn(`[plugins] grants ${p.id}:`, err.message || err);
+    }
   }
 
   const noticePlugins = plugins.filter(isNew);
@@ -248,7 +260,7 @@ export default function PluginPage({ registry, meta, tracks }) {
               <div className="plugin-card-desc">{p.manifest.description}{p.lastError ? ` — ${p.lastError}` : ''}</div>
             </div>
             <div className="plugin-card-actions" onClick={(e) => e.stopPropagation()}>
-              <ToggleSwitch checked={p.perms.enabled || p.status === 'active'} disabled={p.status === 'incompatible'} onChange={(v) => handleToggle(p, v)} label={p.manifest.name} />
+              <ToggleSwitch checked={p.perms.enabled || p.status === 'active'} disabled={p.status === 'incompatible' || p.status === 'error'} onChange={(v) => handleToggle(p, v)} label={p.manifest.name} />
             </div>
           </div>
         ))}

@@ -8,6 +8,7 @@
 #include "bridge.h"
 #include "tray.h"
 #include "webview.h"
+#include "paths.h"
 
 @interface MediaSchemeHandler : NSObject <WKURLSchemeHandler>
 @end
@@ -204,6 +205,9 @@ void fpSetWebRoot(NSString *root);
     [NSApp terminate:nil];
     return;
   }
+  // H#1: record symlinks created by pre-update imports so the S3e
+  // containment check keeps them playable (background, runs once).
+  fpSymlinkBackfill();
 
   [self buildMenu];
 

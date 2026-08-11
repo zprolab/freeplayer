@@ -701,15 +701,20 @@ static NSString *fpRedactConsole(NSString *msg) {
       int64_t tid = [args.firstObject longLongValue];
       id track = fpdb::getTrackById(tid);
       BOOL ok = fpdb::deleteTrack(tid);
-      // S9: remove the track's cover file (and the .covers dir when it
-      // empties) — no orphaned payloads outside the DB
+      // S9: remove the track's cover file — the .covers dir is SHARED by
+      // every track of the album, so only the dir's removal when empty is
+      // safe (deleting it unconditionally would wipe other tracks' covers)
       if (ok && [track isKindOfClass:NSDictionary.class]) {
         NSString *cover = track[@"cover_path"];
         if ([cover isKindOfClass:NSString.class] && cover.length) {
           NSFileManager *fm = NSFileManager.defaultManager;
           if (fpIsPathInLibrary(cover)) {
             [fm removeItemAtPath:cover error:nil];
-            [fm removeItemAtPath:cover.stringByDeletingLastPathComponent error:nil];
+            NSString *coverDir = cover.stringByDeletingLastPathComponent;
+            NSArray *leftover = [fm contentsOfDirectoryAtPath:coverDir error:NULL];
+            if (leftover.count == 0) {
+              [fm removeItemAtPath:coverDir error:nil];
+            }
           }
         }
       }

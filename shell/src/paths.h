@@ -12,3 +12,7 @@ BOOL fpIsPathInLibrary(NSString *path);
 // True for audio file extensions the import pipeline + media:// accept
 // (S3b / Q9): mp3 flac m4a mp4 aac wav ogg oga opus wma aif aiff m4b
 BOOL fpIsAudioFile(NSString *path);
+
+// H#1: one-time background backfill of import-created symlink records (see
+// paths.mm) — call once after the DB opens.
+void fpSymlinkBackfill(void);

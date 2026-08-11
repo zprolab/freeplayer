@@ -177,6 +177,16 @@ export function createRegistry(deps) {
         // worker plugins) setGranted so grant edits can re-wrap the host
         // executor while the plugin stays active.
         p.api = res;
+        // A worker crash AFTER activation must not leave a dead worker shown
+        // as active: mark the record error-ed so the UI reflects it and
+        // future invokes stop dispatching into a terminated worker.
+        res.onCrash?.((message) => {
+          if (p.status !== 'active') return;
+          p.status = 'error';
+          p.lastError = `worker crashed: ${message}`;
+          p.hooks = null; p.deactivate = null; p.api = null;
+          log(id, 'error', p.lastError);
+        });
         p.status = 'active';
         p.lastError = '';
         return p;

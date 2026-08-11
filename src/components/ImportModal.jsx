@@ -90,6 +90,7 @@ export default function ImportModal({ onClose, onComplete, importMode, initialPa
 
       // Process each path: directories get scanned, files get validated by extension
       const allFiles = [];
+      const unscannable = [];
       for (const p of paths) {
         try {
           const result = await window.freeplayer.scanDirectory(p);
@@ -99,11 +100,23 @@ export default function ImportModal({ onClose, onComplete, importMode, initialPa
           }
         } catch {
           // Not a directory or scan failed — treat as a file, validate extension
-          const ext = p.slice(p.lastIndexOf('.')).toLowerCase();
+          const dot = p.lastIndexOf('.');
+          const ext = dot >= 0 ? p.slice(dot).toLowerCase() : '';
           if (SUPPORTED_FORMATS.includes(ext)) {
             allFiles.push(p);
+          } else {
+            // A directory the native side refused to scan (not a trusted
+            // drop/panel root) — silently skipping it would import nothing
+            // with no explanation.
+            unscannable.push(p);
           }
         }
+      }
+
+      if (allFiles.length === 0 && unscannable.length > 0) {
+        setError('These items could not be scanned. Use the Import button (or drop them onto the app window) so they are picked up natively:\n' + unscannable.slice(0, 5).join('\n'));
+        setScanning(false);
+        return;
       }
 
       // Deduplicate
