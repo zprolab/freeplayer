@@ -159,7 +159,7 @@ describe('useAutoMeta with per-backend switches', () => {
     expect(meta.fetchLyrics).toHaveBeenCalledTimes(1);
   });
 
-  it('dispatches SET_CURRENT_TRACK with the new cover path when a cover was saved', async () => {
+  it('dispatches an id-matched SET_TRACK_FIELDS with the new cover path when a cover was saved', async () => {
     setAutoFetch('lrclib-lyrics', false);
     setAutoFetch('itunes-cover', true);
     const meta = { ...makeMeta(), fetchCover: vi.fn(async () => ({ saved: true, coverPath: '/new.jpg' })) };
@@ -171,9 +171,30 @@ describe('useAutoMeta with per-backend switches', () => {
     hookState.effects[1]();
     await flush();
     expect(dispatch).toHaveBeenCalledWith({
-      type: 'SET_CURRENT_TRACK',
-      payload: expect.objectContaining({ id: 1, cover_path: '/new.jpg' }),
+      type: 'SET_TRACK_FIELDS',
+      payload: { id: 1, fields: { cover_path: '/new.jpg' } },
     });
+  });
+
+  it('still syncs the saved cover when the user switched tracks mid-fetch (never looks lost)', async () => {
+    setAutoFetch('lrclib-lyrics', false);
+    setAutoFetch('itunes-cover', true);
+    const meta = { ...makeMeta(), fetchCover: vi.fn(async () => ({ saved: true, coverPath: '/new.jpg' })) };
+    const dispatch = vi.fn();
+    mount(track1, meta, dispatch);
+    hookState.effects[0](); // resolve switches
+    await flush();
+    update(track1, meta, dispatch);
+    hookState.effects[1](); // fetch pass for track1 (async, in flight)
+    update(track2, meta, dispatch); // user switches tracks before it resolves
+    await flush();
+    // The stale fetch must still patch track 1 by id — never clobber
+    // currentTrack (track 2), never drop the saved cover.
+    expect(dispatch).toHaveBeenCalledWith({
+      type: 'SET_TRACK_FIELDS',
+      payload: { id: 1, fields: { cover_path: '/new.jpg' } },
+    });
+    expect(dispatch).not.toHaveBeenCalledWith(expect.objectContaining({ type: 'SET_CURRENT_TRACK' }));
   });
 
   it('fetches metadata and dispatches the updated fields when the switch is on and fields are unknown', async () => {
@@ -191,8 +212,8 @@ describe('useAutoMeta with per-backend switches', () => {
     expect(meta.fetchMetadata).toHaveBeenCalledTimes(1);
     expect(meta.fetchMetadata).toHaveBeenCalledWith({ ...track1, artist: 'Unknown Artist' });
     expect(dispatch).toHaveBeenCalledWith({
-      type: 'SET_CURRENT_TRACK',
-      payload: { id: 1, title: 'Sun', artist: 'Real Artist' },
+      type: 'SET_TRACK_FIELDS',
+      payload: { id: 1, fields: { artist: 'Real Artist' } },
     });
   });
 
@@ -231,8 +252,8 @@ describe('useAutoMeta with per-backend switches', () => {
     await flush();
     expect(dispatch).toHaveBeenCalledTimes(1);
     expect(dispatch).toHaveBeenCalledWith({
-      type: 'SET_CURRENT_TRACK',
-      payload: { id: 1, title: 'New', artist: 'Unknown Artist', cover_path: '/new.jpg' },
+      type: 'SET_TRACK_FIELDS',
+      payload: { id: 1, fields: { title: 'New', cover_path: '/new.jpg' } },
     });
   });
 });

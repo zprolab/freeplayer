@@ -463,6 +463,12 @@ BOOL clearTrackLrc(int64_t trackId) {
   return runExec(@"UPDATE tracks SET lrc_path = NULL WHERE id = ?", @[ @(trackId) ]);
 }
 
+int64_t countTracksWithCover(NSString *coverPath) {
+  NSArray *rows = runQuery(@"SELECT COUNT(*) AS c FROM tracks WHERE cover_path = ?",
+                           @[ coverPath ?: @"" ]);
+  return rows.count ? [rows[0][@"c"] longLongValue] : 0;
+}
+
 BOOL resetDatabase() {
   if (!gDb) return NO;
   // sqlite3_exec runs ALL statements; runExec only compiles the first

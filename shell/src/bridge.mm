@@ -701,20 +701,22 @@ static NSString *fpRedactConsole(NSString *msg) {
       int64_t tid = [args.firstObject longLongValue];
       id track = fpdb::getTrackById(tid);
       BOOL ok = fpdb::deleteTrack(tid);
-      // S9: remove the track's cover file — the .covers dir is SHARED by
-      // every track of the album, so only the dir's removal when empty is
-      // safe (deleting it unconditionally would wipe other tracks' covers)
+      // S9: remove the track's cover file ONLY when no other track still
+      // references it. Album covers (import writes <album>/.covers/cover.jpg)
+      // are SHARED by every track of the album — deleting one track must not
+      // wipe the other tracks' covers. Auto-fetched covers are per-track
+      // (cover-<tid>.jpg), so this guard only fires for shared files.
       if (ok && [track isKindOfClass:NSDictionary.class]) {
         NSString *cover = track[@"cover_path"];
-        if ([cover isKindOfClass:NSString.class] && cover.length) {
+        if ([cover isKindOfClass:NSString.class] && cover.length
+            && fpIsPathInLibrary(cover)
+            && fpdb::countTracksWithCover(cover) == 0) {
           NSFileManager *fm = NSFileManager.defaultManager;
-          if (fpIsPathInLibrary(cover)) {
-            [fm removeItemAtPath:cover error:nil];
-            NSString *coverDir = cover.stringByDeletingLastPathComponent;
-            NSArray *leftover = [fm contentsOfDirectoryAtPath:coverDir error:NULL];
-            if (leftover.count == 0) {
-              [fm removeItemAtPath:coverDir error:nil];
-            }
+          [fm removeItemAtPath:cover error:nil];
+          NSString *coverDir = cover.stringByDeletingLastPathComponent;
+          NSArray *leftover = [fm contentsOfDirectoryAtPath:coverDir error:NULL];
+          if (leftover.count == 0) {
+            [fm removeItemAtPath:coverDir error:nil];
           }
         }
       }

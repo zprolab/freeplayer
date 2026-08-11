@@ -44,6 +44,10 @@ BOOL setTrackLrc(int64_t trackId, NSString *lrcPath);
 BOOL setTrackCover(int64_t trackId, NSString *coverPath);
 id getTrackLrc(int64_t trackId);
 BOOL clearTrackLrc(int64_t trackId);
+// Number of tracks still referencing a cover path — album covers
+// (<album>/.covers/cover.jpg) are SHARED by every track of the album, so
+// deleteTrack must not remove a file other tracks still point at.
+int64_t countTracksWithCover(NSString *coverPath);
 
 // ── transactions (batch writes: import, EQ save) ──
 bool beginTransaction();
