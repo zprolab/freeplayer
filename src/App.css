@@ -4350,8 +4350,15 @@ input[type="range"]::-webkit-slider-thumb {
   .player-controls .ctrl-btn--play { width: 44px; height: 44px; }
   .player-title { font-size: 13px; }
   .player-artist { font-size: 11px; }
-  /* 手机下隐藏 EQ/播放模式/音量，进 Now Playing 页控制 */
-  .player-extras { display: none; }
+  /* 手机下收窄 EQ/播放模式/时间，仅隐藏音量条 */
+  .player-extras { gap: 8px; }
+  .volume-control { display: none; }
+}
+
+/* Modal：手机下全宽适配并盖过底部 Tab Bar */
+@media (max-width: 767px) {
+  .modal { width: 100% !important; max-width: 94vw !important; }
+  .modal-overlay { padding: 12px; z-index: 300; }
 }
 
 /* Now Playing：手机纵向堆叠（cover 置顶居中，歌词面板下方可滚动） */
