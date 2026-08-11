@@ -4378,3 +4378,20 @@ input[type="range"]::-webkit-slider-thumb {
   .np-lyrics-pane .lyrics-container { min-height: 0; max-height: 45vh; }
   .np-scope { min-height: 60vh; }
 }
+
+/* Settings / Plugins / Stats：手机防溢出 */
+@media (max-width: 767px) {
+  .settings { padding: 12px; }
+  .settings-section { padding: 14px; }
+  .playback-row { flex-wrap: wrap; gap: 8px; }
+  .volume-setting { width: 100%; }
+  .import-mode-options { flex-direction: column; }
+  .plugins-page { padding: 12px; }
+  .stats-grid { grid-template-columns: 1fr; }
+  .stats-cards { grid-template-columns: 1fr; }
+}
+
+/* 平板/小窗口：侧栏收窄（768–1023px），≥1024px 保持桌面布局 */
+@media (min-width: 768px) and (max-width: 1023px) {
+  :root { --sidebar-width: 180px; }
+}
