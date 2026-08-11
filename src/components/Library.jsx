@@ -94,41 +94,48 @@ const Library = memo(function Library({
     }
   };
 
+  const playlistChips = (
+    <div className="playlist-chips">
+      <button
+        className={`playlist-chip ${activePlaylistId === null ? 'playlist-chip--active' : ''}`}
+        onClick={() => onSelectPlaylist?.(null)}
+      >
+        All Tracks
+      </button>
+      {playlists.map((pl) => (
+        <button
+          key={pl.id}
+          className={`playlist-chip ${activePlaylistId === pl.id ? 'playlist-chip--active' : ''}`}
+          onClick={() => onSelectPlaylist?.(pl.id)}
+        >
+          {pl.name}
+        </button>
+      ))}
+    </div>
+  );
+
   if (tracks.length === 0) {
     return (
-      <div className="empty-state">
-        <div className="empty-state-icon">
-          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2">
-            <path d="M9 18V5l12-2v13"/>
-            <circle cx="6" cy="18" r="3"/>
-            <circle cx="18" cy="16" r="3"/>
-          </svg>
+      <div className="library">
+        {playlistChips}
+        <div className="empty-state">
+          <div className="empty-state-icon">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2">
+              <path d="M9 18V5l12-2v13"/>
+              <circle cx="6" cy="18" r="3"/>
+              <circle cx="18" cy="16" r="3"/>
+            </svg>
+          </div>
+          <h3>No tracks yet</h3>
+          <p>Import your music to start building your library.</p>
         </div>
-        <h3>No tracks yet</h3>
-        <p>Import your music to start building your library.</p>
       </div>
     );
   }
 
   return (
     <div className="library">
-      <div className="playlist-chips">
-        <button
-          className={`playlist-chip ${activePlaylistId === null ? 'playlist-chip--active' : ''}`}
-          onClick={() => onSelectPlaylist?.(null)}
-        >
-          All Tracks
-        </button>
-        {playlists.map((pl) => (
-          <button
-            key={pl.id}
-            className={`playlist-chip ${activePlaylistId === pl.id ? 'playlist-chip--active' : ''}`}
-            onClick={() => onSelectPlaylist?.(pl.id)}
-          >
-            {pl.name}
-          </button>
-        ))}
-      </div>
+      {playlistChips}
       <div className="table-container">
         <table className="data-table">
           <thead>

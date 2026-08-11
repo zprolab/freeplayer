@@ -4285,5 +4285,6 @@ input[type="range"]::-webkit-slider-thumb {
   .top-bar .btn-label { display: none; }   /* Import 变纯图标 */
   .page-title { font-size: 16px; }
   .search-box { flex: 1; max-width: none; }
+  .search-input { width: 100%; }
   .top-bar-right { gap: 8px; }
 }
