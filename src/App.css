@@ -4278,3 +4278,12 @@ input[type="range"]::-webkit-slider-thumb {
     color: #fff;
   }
 }
+
+/* Top bar 手机适配：Import 纯图标 + 搜索框占满 */
+@media (max-width: 767px) {
+  .top-bar { padding: 0 12px; }
+  .top-bar .btn-label { display: none; }   /* Import 变纯图标 */
+  .page-title { font-size: 16px; }
+  .search-box { flex: 1; max-width: none; }
+  .top-bar-right { gap: 8px; }
+}

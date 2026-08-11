@@ -403,7 +403,7 @@ export default function App() {
                   <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
                     <path d="M8 1v14M1 8h14" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
                   </svg>
-                  Import
+                  <span className="btn-label">Import</span>
                 </button>
               </>
             )}
