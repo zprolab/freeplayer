@@ -1,6 +1,7 @@
 import { useRef, useEffect, useCallback } from 'react';
 import { audioEngine } from '../audioEngine';
 import { monoFontStack } from '../utils/fonts';
+import { pushSpectrogramFrame } from '../utils/spectrogram';
 
 // ── Constants ──
 const WAVEFORM_COLOR = '#e24329';
@@ -327,10 +328,10 @@ function drawSpectrogramMode(ctx, freqData, bufferLen, W, H) {
     spectrogramBuffer = newBuffer;
   }
 
-  // Shift history up, append new frequency data at the end (P2: reuse the
-  // row buffer instead of allocating a fresh Uint8Array every frame)
-  spectrogramBuffer.copyWithin(0, 1);
-  spectrogramBuffer[numRows - 1].set(freqData);
+  // Shift history up, append new frequency data at the end (byte copies —
+  // see pushSpectrogramFrame; reference-shifting would alias all rows onto
+  // the newest frame and wipe the scroll history).
+  spectrogramBuffer = pushSpectrogramFrame(spectrogramBuffer, numRows, freqData);
 
   // DIAGNOSTIC (FP_SPECTRO_TEST=1, dev builds only): overwrite the newest row
   // with a known 4-quadrant brightness pattern to verify frequency mapping:
