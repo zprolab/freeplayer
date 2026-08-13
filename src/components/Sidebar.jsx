@@ -124,8 +124,10 @@ export default function Sidebar({
           className="sidebar-toggle"
           onClick={onToggleCollapse}
           title={collapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
+          aria-label="Toggle sidebar"
+          aria-expanded={!collapsed}
         >
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
             <polyline points={collapsed ? '4 3 9 8 4 13' : '9 3 4 8 9 13'} />
           </svg>
         </button>

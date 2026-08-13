@@ -267,6 +267,7 @@ body {
   display: flex;
   align-items: center;
   gap: 4px;
+  padding: 8px 10px;
   border-top: 1px solid var(--gl-border-dark);
   -webkit-app-region: no-drag;
 }
@@ -286,6 +287,10 @@ body {
 .app--sidebar-collapsed .sidebar-logo {
   justify-content: center;
   padding: 8px 0;
+}
+
+.app--sidebar-collapsed .sidebar-header {
+  padding: 0 0 8px;
 }
 
 .app--sidebar-collapsed .nav-item {

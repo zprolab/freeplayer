@@ -10,7 +10,7 @@ const VIEWS = {
   SETTINGS: 'settings',
 };
 
-const initialState = {
+export const initialState = {
   view: VIEWS.LIBRARY,
   tracks: [],
   currentTrack: null,

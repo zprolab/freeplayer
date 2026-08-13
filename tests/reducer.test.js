@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { reducer } from '../src/context/PlayerContext';
+import { reducer, initialState } from '../src/context/PlayerContext';
 
 function baseState(overrides = {}) {
   return {
@@ -58,8 +58,12 @@ describe('PlayerContext reducer', () => {
     expect(reducer(state, { type: 'SET_TRACK_FIELDS', payload: null })).toBe(state);
   });
 
+  it('initialState has sidebarCollapsed defaulting to false', () => {
+    expect(initialState.sidebarCollapsed).toBe(false);
+  });
+
   it('SET merges sidebarCollapsed into state', () => {
-    const next = reducer(baseState(), { type: 'SET', payload: { sidebarCollapsed: true } });
+    const next = reducer(initialState, { type: 'SET', payload: { sidebarCollapsed: true } });
     expect(next.sidebarCollapsed).toBe(true);
   });
 
