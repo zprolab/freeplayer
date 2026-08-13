@@ -274,7 +274,9 @@ body {
 
 /* Sidebar collapsed: icon-only rail (48px via --sidebar-width cascade) */
 .app--sidebar-collapsed {
-  --sidebar-width: 48px;
+  /* 72px: wide enough to fully contain the macOS traffic lights (~12-70px
+     from the window's left edge) so they stay over the rail when collapsed */
+  --sidebar-width: 72px;
 }
 
 .app--sidebar-collapsed .sidebar-title,
