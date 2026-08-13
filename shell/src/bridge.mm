@@ -549,13 +549,14 @@ static NSString *fpRedactConsole(NSString *msg) {
   }
   if ([method isEqualToString:@"__dragStart"]) {
     // Kick off AppKit's modal window drag with a synthetic mouse event.
-    // Q3: JS screenX/screenY are CSS pixels — scale by the backing scale
-    // factor, and use the screen that contains the window (multi-screen).
+    // Q3: WKWebView reports MouseEvent.screenX/screenY in points (CSS
+    // pixels) already — do NOT scale by backingScaleFactor or the grab
+    // point lands at 2x the real cursor on Retina and the window flies.
+    // Use the screen that contains the window (multi-screen).
     NSWindow *win = message.webView.window;
     if (!win) return;
-    CGFloat scale = win.backingScaleFactor ?: 1.0;
-    CGFloat sx = [args.firstObject doubleValue] * scale;
-    CGFloat sy = (args.count > 1 ? [args[1] doubleValue] : 0) * scale;
+    CGFloat sx = [args.firstObject doubleValue];
+    CGFloat sy = (args.count > 1 ? [args[1] doubleValue] : 0);
     NSScreen *screen = win.screen ?: NSScreen.mainScreen;
     CGFloat screenH = screen.frame.size.height;
     NSPoint p = NSMakePoint(sx, screenH - sy);
