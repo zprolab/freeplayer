@@ -58,6 +58,11 @@ describe('PlayerContext reducer', () => {
     expect(reducer(state, { type: 'SET_TRACK_FIELDS', payload: null })).toBe(state);
   });
 
+  it('SET merges sidebarCollapsed into state', () => {
+    const next = reducer(baseState(), { type: 'SET', payload: { sidebarCollapsed: true } });
+    expect(next.sidebarCollapsed).toBe(true);
+  });
+
   it('existing actions keep working', () => {
     let state = baseState();
     state = reducer(state, { type: 'SET', payload: { isPlaying: true } });

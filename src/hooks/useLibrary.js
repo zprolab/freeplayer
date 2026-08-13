@@ -51,6 +51,11 @@ export function useLibrary() {
       // Mono font preference (local fonts only — never fetched from a CDN)
       const monoFont = await window.freeplayer.getSetting('mono_font');
       if (monoFont && !cancelled()) applyMonoFont(monoFont);
+      // Sidebar collapse state (1 = collapsed)
+      const collapsed = await window.freeplayer.getSetting('sidebar_collapsed');
+      if (collapsed === '1' && !cancelled()) {
+        dispatch({ type: 'SET', payload: { sidebarCollapsed: true } });
+      }
       if (result.setup && !cancelled()) {
         await loadTracks();
       }
@@ -108,6 +113,11 @@ export function useLibrary() {
     await window.freeplayer.setSetting({ key: 'default_visualizer', value: mode });
   }, [dispatch]);
 
+  const handleSidebarCollapsedChange = useCallback(async (collapsed) => {
+    dispatch({ type: 'SET', payload: { sidebarCollapsed: collapsed } });
+    await window.freeplayer.setSetting({ key: 'sidebar_collapsed', value: collapsed ? '1' : '0' });
+  }, [dispatch]);
+
   const handleResetDatabase = useCallback(async () => {
     dispatch({ type: 'SET', payload: {
       tracks: [], currentTrack: null, isPlaying: false, queue: [], queueIndex: -1,
@@ -125,6 +135,7 @@ export function useLibrary() {
     handleImportModeChange,
     handleDefaultVolumeChange,
     handleDefaultVisualizerChange,
+    handleSidebarCollapsedChange,
     handleResetDatabase,
   };
 }
