@@ -264,9 +264,69 @@ body {
 }
 
 .sidebar-footer {
-  padding: 8px 10px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
   border-top: 1px solid var(--gl-border-dark);
   -webkit-app-region: no-drag;
+}
+
+/* Sidebar collapsed: icon-only rail (48px via --sidebar-width cascade) */
+.app--sidebar-collapsed {
+  --sidebar-width: 48px;
+}
+
+.app--sidebar-collapsed .sidebar-title,
+.app--sidebar-collapsed .nav-label,
+.app--sidebar-collapsed .nav-badge,
+.app--sidebar-collapsed .sidebar-playlists {
+  display: none;
+}
+
+.app--sidebar-collapsed .sidebar-logo {
+  justify-content: center;
+  padding: 8px 0;
+}
+
+.app--sidebar-collapsed .nav-item {
+  justify-content: center;
+  padding: 8px;
+}
+
+.sidebar-footer .nav-item {
+  flex: 1;
+}
+
+.sidebar-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
+  border: none;
+  border-radius: var(--gl-radius-sm);
+  background: transparent;
+  color: #8c8c93;
+  cursor: pointer;
+  transition: color 0.12s, background 0.12s;
+}
+
+.sidebar-toggle:hover {
+  color: #d4d4d8;
+  background: var(--gl-sidebar-hover);
+}
+
+.app--sidebar-collapsed .sidebar-footer {
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 0;
+}
+
+.app--sidebar-collapsed .sidebar-footer .nav-item {
+  width: 100%;
+  padding: 8px 0;
 }
 
 /* ═══════════════════════════════════════════════════════════════════

@@ -113,7 +113,7 @@ export default function App() {
   const {
     handleImportComplete, handleImportModeChange,
     handleDefaultVolumeChange, handleDefaultVisualizerChange,
-    handleResetDatabase, loadTracks,
+    handleResetDatabase, handleSidebarCollapsedChange, loadTracks,
   } = useLibrary();
   const {
     handleSelectPlaylist, handleCreatePlaylist, handleRenamePlaylist, handleDeletePlaylist,
@@ -350,7 +350,7 @@ export default function App() {
   }
 
   return (
-    <div className="app">
+    <div className={`app${state.sidebarCollapsed ? ' app--sidebar-collapsed' : ''}`}>
       <Sidebar
         currentView={state.view}
         onNavigate={(v) => dispatch({ type: 'SET', payload: { view: v } })}
@@ -363,6 +363,8 @@ export default function App() {
         onRenamePlaylist={(playlist) => dispatch({ type: 'SET', payload: { playlistModal: { mode: 'rename', playlist } } })}
         onEditPlaylist={(playlist) => dispatch({ type: 'SET', payload: { playlistModal: { mode: 'edit', playlist } } })}
         onDeletePlaylist={handleDeletePlaylist}
+        collapsed={state.sidebarCollapsed}
+        onToggleCollapse={() => handleSidebarCollapsedChange(!state.sidebarCollapsed)}
       />
       <main className="main-content">
         <header className="top-bar">

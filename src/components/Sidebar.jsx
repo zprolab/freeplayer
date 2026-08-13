@@ -9,6 +9,7 @@ export default function Sidebar({
   currentView, onNavigate, trackCount, onImport,
   playlists, activePlaylistId, onSelectPlaylist,
   onCreatePlaylist, onRenamePlaylist, onEditPlaylist, onDeletePlaylist,
+  collapsed, onToggleCollapse,
 }) {
   const [playlistContextMenu, setPlaylistContextMenu] = useState(null);
 
@@ -62,6 +63,7 @@ export default function Sidebar({
             key={item.id}
             className={`nav-item ${currentView === item.id ? 'nav-item--active' : ''}`}
             onClick={() => onNavigate(item.id)}
+            title={item.label}
           >
             <span className="nav-icon">{item.icon}</span>
             <span className="nav-label">{item.label}</span>
@@ -88,6 +90,7 @@ export default function Sidebar({
           <button
             className={`nav-item ${activePlaylistId === null ? 'nav-item--active' : ''}`}
             onClick={() => onSelectPlaylist(null)}
+            title="All Tracks"
           >
             <span className="nav-icon"><IconList /></span>
             <span className="nav-label">All Tracks</span>
@@ -99,6 +102,7 @@ export default function Sidebar({
               key={pl.id}
               className={`nav-item ${activePlaylistId === pl.id ? 'nav-item--active' : ''}`}
               onClick={() => onSelectPlaylist(pl.id)}
+              title={pl.name}
               onContextMenu={(e) => {
                 e.preventDefault();
                 setPlaylistContextMenu({ x: e.clientX, y: e.clientY, playlist: pl });
@@ -112,9 +116,18 @@ export default function Sidebar({
       </div>
 
       <div className="sidebar-footer">
-        <button className="nav-item" onClick={onImport}>
+        <button className="nav-item" onClick={onImport} title="Import Music">
           <span className="nav-icon"><IconImport /></span>
           <span className="nav-label">Import Music</span>
+        </button>
+        <button
+          className="sidebar-toggle"
+          onClick={onToggleCollapse}
+          title={collapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
+        >
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points={collapsed ? '4 3 9 8 4 13' : '9 3 4 8 9 13'} />
+          </svg>
         </button>
       </div>
     </aside>
