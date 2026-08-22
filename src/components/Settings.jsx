@@ -32,6 +32,7 @@ const Settings = memo(function Settings({
 }) {
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [monoFont, setMonoFont] = useState('');
+  const [uiMode, setUiMode] = useState('unified');
   const [legalModal, setLegalModal] = useState(null); // 'license' | 'notices' | null
   const [legalText, setLegalText] = useState('');
   const {
@@ -49,10 +50,14 @@ const Settings = memo(function Settings({
 
   useEffect(() => {
     let cancelled = false;
-    window.freeplayer.getSetting('mono_font')
-      .then((v) => {
+    Promise.all([
+      window.freeplayer.getSetting('mono_font'),
+      window.freeplayer.getSetting('ui_mode'),
+    ])
+      .then(([font, mode]) => {
         if (cancelled) return;
-        setMonoFont(typeof v === 'string' ? v : '');
+        setMonoFont(typeof font === 'string' ? font : '');
+        setUiMode(mode === 'classic' ? 'classic' : 'unified');
       })
       .catch(() => {});
     return () => { cancelled = true; };
@@ -272,6 +277,32 @@ const Settings = memo(function Settings({
               <option key={f.value || 'default'} value={f.value}>{f.label}</option>
             ))}
           </select>
+        </div>
+      </div>
+
+      {/* Layout / Appearance — top-bar framing */}
+      <div className="settings-section">
+        <div className="section-header">
+          <h3 className="section-title">Layout</h3>
+          <p className="section-desc">How the top bar relates to the sidebar.</p>
+        </div>
+
+        <div className="playback-row">
+          <div className="playback-label-group">
+            <span className="playback-label">Unified Layout</span>
+            <span className="playback-hint">Sidebar and top bar merge into one seamless dark frame with a rounded content card</span>
+          </div>
+          <ToggleSwitch
+            checked={uiMode === 'unified'}
+            disabled={settingsLoaded === false}
+            onChange={(unified) => {
+              const v = unified ? 'unified' : 'classic';
+              setUiMode(v);
+              window.freeplayer.setSetting({ key: 'ui_mode', value: v });
+              window.dispatchEvent(new Event('fp-appearance-changed'));
+            }}
+            label="Unified Layout"
+          />
         </div>
       </div>
 

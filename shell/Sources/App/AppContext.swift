@@ -4,6 +4,7 @@
 
 import Foundation
 import WebKit
+import AppKit
 
 /// Lock-protected integer (import counter; std::atomic in the ObjC++ port).
 final class AtomicInt {
@@ -29,7 +30,11 @@ final class AppContext {
     private init() {}
 
     // ── windows / webviews (main thread) ──
-    weak var window: NSWindow?
+    // strong: the window is hidden (orderOut) rather than closed for
+    // close-to-tray, so the tray's "Show FreePlayer" must always find it —
+    // a weak reference would drop it once nothing else strongly holds it
+    // (bugfix: open-after-close did nothing, no window was recreated)
+    var window: NSWindow?
     var webView: WKWebView?
     var eqWindow: NSWindow?
     var eqWebView: WKWebView?
@@ -71,4 +76,16 @@ final class AppContext {
             || UserDefaults.standard.bool(forKey: "FP_VERBOSE")
         return v
     }()
+
+    /// Window chrome color follows the sidebar/top-bar shade (dark = #292b2f,
+    /// light = #fafafa) so the unified content card's corner gap always shows
+    /// a color that matches the L-shaped frame.
+    func applyAppearance(dark: Bool) {
+        let color = dark
+            ? NSColor(srgbRed: 0.1608, green: 0.1686, blue: 0.1843, alpha: 1.0) // #292b2f
+            : NSColor(srgbRed: 0.98, green: 0.98, blue: 0.98, alpha: 1.0)      // #fafafa
+        window?.backgroundColor = color
+        eqWindow?.backgroundColor = color
+        onboardingWindow?.backgroundColor = color
+    }
 }

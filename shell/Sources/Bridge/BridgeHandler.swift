@@ -141,7 +141,7 @@ final class BridgeHandler: NSObject, WKScriptMessageHandler {
             let plain: Set<String> = [
                 "volume", "tray_enabled", "tray_notify", "start_hidden",
                 "start_on_boot", "default_volume", "default_visualizer",
-                "mono_font",
+                "mono_font", "ui_mode",
             ]
             if plain.contains(key)
                 || key.hasPrefix("plugin.")
@@ -161,6 +161,12 @@ final class BridgeHandler: NSObject, WKScriptMessageHandler {
             reply(idNum, true)
         } else if method == "openEqWindow" {
             Windows.openEqWindow()
+            reply(idNum, true)
+        } else if method == "setAppearance" {
+            // window chrome follows the sidebar/top-bar shade (dark/light)
+            let d = args.first as? [String: Any] ?? [:]
+            let dark = (d["dark"] as? Bool) ?? true
+            AppContext.shared.applyAppearance(dark: dark)
             reply(idNum, true)
         } else if method == "resetDatabase" {
             // S8: the renderer's own confirm dialog is not enough — one IPC call

@@ -166,9 +166,14 @@ body {
   background: var(--gl-sidebar-bg);
   display: flex;
   flex-direction: column;
-  border-right: 1px solid var(--gl-border-dark);
   -webkit-app-region: drag;
   padding-top: 40px;
+  border-right: 1px solid var(--gl-border-dark);
+}
+
+/* Unified mode: sidebar + top bar melt into one seamless L-shaped frame */
+.ui-mode-unified .sidebar {
+  border-right: none;
 }
 
 .sidebar-header {
@@ -353,6 +358,13 @@ body {
   padding-bottom: var(--player-height);
 }
 
+/* Unified: the light content card carries its own background so the rounded
+   corner gap shows the dark window chrome (the L-shaped frame) instead of
+   being erased by an identical color underneath */
+.ui-mode-unified .main-content {
+  background: transparent;
+}
+
 .top-bar {
   display: flex;
   align-items: center;
@@ -361,9 +373,17 @@ body {
   height: var(--topbar-height);
   min-height: var(--topbar-height);
   background: var(--gl-white);
+  color: var(--gl-text-primary);
   border-bottom: 1px solid var(--gl-border);
   -webkit-app-region: drag;
   gap: 16px;
+}
+
+/* Unified mode: top bar joins the dark sidebar frame */
+.ui-mode-unified .top-bar {
+  background: var(--gl-sidebar-bg);
+  color: var(--gl-text-inverse);
+  border-bottom: none;
 }
 
 .top-bar-left {
@@ -379,6 +399,10 @@ body {
   letter-spacing: -0.01em;
 }
 
+.ui-mode-unified .page-title {
+  color: var(--gl-text-inverse);
+}
+
 .track-count-badge {
   font-size: 11px;
   font-weight: 500;
@@ -387,6 +411,11 @@ body {
   background: var(--gl-blue-light);
   color: var(--gl-blue);
   font-family: var(--font-mono);
+}
+
+.ui-mode-unified .track-count-badge {
+  background: rgba(31, 117, 203, 0.14);
+  color: #8ab8f0;
 }
 
 .top-bar-right {
@@ -429,6 +458,16 @@ body {
   color: var(--gl-text-tertiary);
 }
 
+.ui-mode-unified .search-input {
+  border-color: var(--gl-border-dark);
+  color: var(--gl-text-inverse);
+  background: var(--gl-bg-elevated, rgba(255, 255, 255, 0.05));
+}
+
+.ui-mode-unified .search-input::placeholder {
+  color: rgba(255, 255, 255, 0.35);
+}
+
 .search-input:focus {
   border-color: var(--gl-blue);
   box-shadow: 0 0 0 3px rgba(31, 117, 203, 0.15);
@@ -457,6 +496,12 @@ body {
   overflow-y: auto;
   overflow-x: hidden;
   position: relative;
+}
+
+.ui-mode-unified .content-area {
+  border-top-left-radius: 14px;
+  /* background stays fixed while the content scrolls */
+  background: var(--gl-content-bg);
 }
 
 /* ═══════════════════════════════════════════════════════════════════

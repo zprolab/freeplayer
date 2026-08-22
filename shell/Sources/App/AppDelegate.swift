@@ -131,7 +131,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         // Programmatic windows default to releasedWhenClosed=YES, which over-releases
         // the window (AppKit registry + our own reference) at close → SIGSEGV at exit.
         window.isReleasedWhenClosed = false
-        window.backgroundColor = NSColor(srgbRed: 0.13, green: 0.13, blue: 0.15, alpha: 1.0)
+        window.backgroundColor = NSColor(srgbRed: 0.1608, green: 0.1686, blue: 0.1843, alpha: 1.0) // #292b2f — matches the sidebar so the rounded content card reads seamlessly
         window.minSize = NSSize(width: 960, height: 600)
         window.delegate = self
         AppContext.shared.window = window

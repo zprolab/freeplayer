@@ -33,7 +33,7 @@ enum Windows {
         win.isReleasedWhenClosed = false
         win.backgroundColor = white
             ? NSColor(srgbRed: 0.98, green: 0.98, blue: 0.98, alpha: 1.0)
-            : NSColor(srgbRed: 0.13, green: 0.13, blue: 0.15, alpha: 1.0)
+            : NSColor(srgbRed: 0.1608, green: 0.1686, blue: 0.1843, alpha: 1.0) // #292b2f
         win.center()
         return win
     }

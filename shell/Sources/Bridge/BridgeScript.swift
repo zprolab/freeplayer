@@ -65,6 +65,8 @@ enum BridgeScript {
         getEqState: () => api._invoke('getEqState'),
         setEq: (data) => api._invoke('setEq', data),
         onEqChange: (callback) => { window.__freeplayerEqHandler = callback; },
+        // Appearance (window chrome shade)
+        setAppearance: (dark) => api._invoke('setAppearance', { dark }),
         // First-run onboarding
         finishOnboarding: () => api._invoke('finishOnboarding'),
         // Plugins

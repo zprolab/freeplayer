@@ -284,6 +284,23 @@ export default function App() {
     window.freeplayer.onEqChange((s) => eqHandlerRef.current(s));
   }, []);
 
+  // Appearance: Classic / Unified layout (defaults to Unified). Settings writes
+// broadcast `fp-appearance-changed` so the switch applies without a restart.
+useEffect(() => {
+    const applyAppearance = () => {
+      if (!window.freeplayer?.getSetting) return;
+      window.freeplayer.getSetting('ui_mode')
+        .then((mode) => {
+          // missing setting → Unified (the current look)
+          document.documentElement.classList.toggle('ui-mode-unified', mode !== 'classic');
+        })
+        .catch(() => {});
+    };
+    applyAppearance();
+    window.addEventListener('fp-appearance-changed', applyAppearance);
+    return () => window.removeEventListener('fp-appearance-changed', applyAppearance);
+  }, []);
+
   const displayedTracks = useMemo(() => {
     if (state.activePlaylistId === null) return state.tracks;
     return state.playlistTracks
