@@ -124,10 +124,12 @@ enum ImportPipeline {
                     }
                     let targetPath = (albumDir as NSString).appendingPathComponent(baseName)
                     let exists = fm.fileExists(atPath: targetPath)
+                    var createdLink = false
                     if !exists {
                         do {
                             if importMode == "symlink" {
                                 try fm.createSymbolicLink(atPath: targetPath, withDestinationPath: filePath)
+                                createdLink = true
                             } else {
                                 try fm.copyItem(atPath: filePath, toPath: targetPath)
                             }
@@ -141,7 +143,11 @@ enum ImportPipeline {
                     // itself a symlink — record its RESOLVED target in the DB.
                     // Paths.isPathInLibrary then allows it (target matches the
                     // record) while still rejecting renderer-planted/tampered links.
-                    if (try? fm.attributesOfItem(atPath: targetPath))?[.type] as? FileAttributeType == .typeSymbolicLink {
+                    if exists && (try? fm.attributesOfItem(atPath: targetPath))?[.type] as? FileAttributeType == .typeSymbolicLink {
+                        boxErrors.append(["file": filePath, "error": "target is an existing symlink"])
+                        continue
+                    }
+                    if createdLink {
                         let resolvedTarget = URL(fileURLWithPath: targetPath).resolvingSymlinksInPath().path
                         if !resolvedTarget.isEmpty {
                             _ = Database.recordSymlink(targetPath, resolvedTarget)

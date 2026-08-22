@@ -21,6 +21,7 @@ const WRITE_IMPLIES_READ = {
 export function normalizePermissions(perms) {
   const out = new Set();
   for (const p of perms || []) {
+    if (!PERMISSIONS.includes(p)) continue;
     out.add(p);
     const implied = WRITE_IMPLIES_READ[p];
     if (implied) out.add(implied);
@@ -31,13 +32,22 @@ export function normalizePermissions(perms) {
 const ID_RE = /^[a-z0-9][a-z0-9-]{1,63}$/;
 const SETTING_TYPES = ['string', 'number', 'boolean', 'select'];
 const MAX_MANIFEST_BYTES = 64 * 1024;
+const MAX_TEXT = 4096;
+const MAX_SETTINGS = 64;
+const MAX_OPTIONS = 128;
 
 export function validateManifest(raw) {
   const errors = [];
   if (!raw || typeof raw !== 'object') return { ok: false, errors: ['manifest is not an object'] };
+  try {
+    if (JSON.stringify(raw).length > MAX_MANIFEST_BYTES) return { ok: false, errors: ['manifest: too large'] };
+  } catch { return { ok: false, errors: ['manifest invalid: not serializable'] }; }
   if (typeof raw.id !== 'string' || !ID_RE.test(raw.id)) errors.push('id: must match [a-z0-9][a-z0-9-]{1,63}');
-  if (typeof raw.name !== 'string' || !raw.name.trim()) errors.push('name: required');
-  if (typeof raw.version !== 'string' || !raw.version) errors.push('version: required');
+  if (typeof raw.name !== 'string' || !raw.name.trim() || raw.name.length > MAX_TEXT) errors.push('name: required (max 4096 chars)');
+  if (typeof raw.version !== 'string' || !raw.version || raw.version.length > 256) errors.push('version: required (max 256 chars)');
+  for (const key of ['description', 'author', 'homepage']) {
+    if (raw[key] !== undefined && (typeof raw[key] !== 'string' || raw[key].length > MAX_TEXT)) errors.push(`${key}: max 4096 chars`);
+  }
   if (raw.apiVersion !== API_VERSION) errors.push(`apiVersion: must be ${API_VERSION}`);
   if (typeof raw.main !== 'string' || !/^[^./][^]*\.js$/.test(raw.main) || raw.main.includes('..')) {
     errors.push('main: must be a .js file inside the plugin directory');
@@ -75,17 +85,19 @@ export function validateManifest(raw) {
     }
   }
   if (raw.settings !== undefined) {
-    if (!Array.isArray(raw.settings)) errors.push('settings: must be an array');
+    if (!Array.isArray(raw.settings) || raw.settings.length > MAX_SETTINGS) errors.push(`settings: must be an array (max ${MAX_SETTINGS})`);
     else {
       for (const s of raw.settings) {
         if (!s || typeof s !== 'object') { errors.push('settings: invalid entry'); continue; }
-        if (typeof s.key !== 'string' || !s.key) errors.push('settings: key required');
+        if (typeof s.key !== 'string' || !/^[a-zA-Z0-9_.-]{1,64}$/.test(s.key)) errors.push('settings: key must match [a-zA-Z0-9_.-]{1,64}');
         if (!SETTING_TYPES.includes(s.type)) errors.push(`settings: "${s?.key}" has unknown type "${s?.type}"`);
         if (s.type === 'select') {
-          if (!Array.isArray(s.options) || s.options.length === 0) {
+          if (!Array.isArray(s.options) || s.options.length === 0 || s.options.length > MAX_OPTIONS) {
             errors.push(`settings: "${s?.key}" select needs a non-empty options array`);
           } else if (!s.options.every((o) => typeof o === 'string')) {
             errors.push(`settings: "${s?.key}" select options must be strings`);
+          } else if (s.options.some((o) => o.length > 512)) {
+            errors.push(`settings: "${s?.key}" select options max length is 512`);
           } else if (s.default !== undefined && !s.options.includes(s.default)) {
             errors.push(`settings: "${s?.key}" default must be one of its options`);
           }

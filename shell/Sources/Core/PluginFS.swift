@@ -33,7 +33,14 @@ enum PluginFS {
         if pluginId == "." || pluginId == ".." { return false }
         let root = (pluginRoot(pluginId) as NSString).standardizingPath
         if (root as NSString).lastPathComponent != pluginId { return false }
-        return root.hasPrefix(baseDir() + "/")
+        guard root.hasPrefix(baseDir() + "/") else { return false }
+        var isDir: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: root, isDirectory: &isDir), isDir.boolValue else { return false }
+        guard let type = try? FileManager.default.attributesOfItem(atPath: root)[.type] as? FileAttributeType,
+              type != .typeSymbolicLink else { return false }
+        let baseReal = URL(fileURLWithPath: baseDir()).resolvingSymlinksInPath().path
+        let rootReal = URL(fileURLWithPath: root).resolvingSymlinksInPath().path
+        return rootReal.hasPrefix(baseReal + "/")
     }
 
     static func listPlugins() -> [[String: Any]] {
@@ -42,6 +49,7 @@ enum PluginFS {
         let entries = (try? fm.contentsOfDirectory(atPath: baseDir())) ?? []
         for name in entries {
             if name.hasPrefix(".") { continue }
+            if !validPluginId(name) { continue }
             let dir = (pluginRoot(name) as NSString).standardizingPath
             var isDir: ObjCBool = false
             if !fm.fileExists(atPath: dir, isDirectory: &isDir) || !isDir.boolValue { continue }
@@ -70,11 +78,11 @@ enum PluginFS {
         // Resolve the root the same way as the candidate: resolving symlinks
         // canonicalizes to on-disk case, so comparing an un-resolved root
         // against a resolved candidate always failed on case-insensitive APFS.
-        let root = URL(fileURLWithPath: (pluginRoot(pluginId) as NSString).standardizingPath)
-            .resolvingSymlinksInPath().path
+        let root = (pluginRoot(pluginId) as NSString).standardizingPath
         let candidate = ((root as NSString).appendingPathComponent(relPath) as NSString).standardizingPath
         let resolved = URL(fileURLWithPath: candidate).resolvingSymlinksInPath().path
-        if !resolved.hasPrefix(root + "/") && resolved != root {
+        let rootReal = URL(fileURLWithPath: root).resolvingSymlinksInPath().path
+        if !resolved.hasPrefix(rootReal + "/") && resolved != rootReal {
             return nil // traversal or symlink escape
         }
         var isDir: ObjCBool = false

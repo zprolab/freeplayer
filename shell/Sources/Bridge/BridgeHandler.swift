@@ -156,6 +156,8 @@ final class BridgeHandler: NSObject, WKScriptMessageHandler {
             reply(idNum, eqStateDict())
         } else if method == "setEq" {
             guard let d = args.first as? [String: Any] else { reply(idNum, false); return }
+            guard let gains = d["gains"] as? [Any], gains.count == 10,
+                  gains.allSatisfy({ ($0 as? NSNumber).map { $0.doubleValue.isFinite && $0.doubleValue >= -24 && $0.doubleValue <= 24 } ?? false }) else { reply(idNum, false); return }
             saveEq(d)
             broadcastEq()
             reply(idNum, true)
@@ -323,8 +325,10 @@ final class BridgeHandler: NSObject, WKScriptMessageHandler {
             }
         } else if method == "createPlaylist" {
             let d = args.first as? [String: Any] ?? [:]
+            guard let name = d["name"] as? String, !name.isEmpty, name.count <= 512,
+                  (d["description"] as? String ?? "").count <= 4096 else { reply(idNum, ["lastInsertRowid": 0, "error": "invalid playlist"]); return }
             reply(idNum, ["lastInsertRowid": NSNumber(value: Database.createPlaylist(
-                d["name"] as? String ?? "", d["description"] as? String))])
+                name, d["description"] as? String))])
         } else if method == "renamePlaylist" {
             let d = args.first as? [String: Any] ?? [:]
             reply(idNum, Database.renamePlaylist((d["id"] as? NSNumber)?.int64Value ?? 0, d["name"] as? String))
@@ -344,14 +348,16 @@ final class BridgeHandler: NSObject, WKScriptMessageHandler {
                 (d["trackId"] as? NSNumber)?.int64Value ?? 0))
         } else if method == "addTracksToPlaylist" {
             let d = args.first as? [String: Any] ?? [:]
+            guard let ids = d["trackIds"] as? [Any], ids.count <= 10000 else { reply(idNum, false); return }
             reply(idNum, Database.addTracksToPlaylist(
                 (d["playlistId"] as? NSNumber)?.int64Value ?? 0,
-                d["trackIds"] as? [Any] ?? []))
+                ids))
         } else if method == "setPlaylistTracks" {
             let d = args.first as? [String: Any] ?? [:]
+            guard let ids = d["trackIds"] as? [Any], ids.count <= 10000 else { reply(idNum, false); return }
             reply(idNum, Database.setPlaylistTracks(
                 (d["playlistId"] as? NSNumber)?.int64Value ?? 0,
-                d["trackIds"] as? [Any] ?? []))
+                ids))
         } else if method == "removeFromPlaylist" {
             let d = args.first as? [String: Any] ?? [:]
             reply(idNum, Database.removeTrackFromPlaylist(
@@ -579,7 +585,8 @@ final class BridgeHandler: NSObject, WKScriptMessageHandler {
             // malformed args must never reach the importer
             guard let data = args.first as? [String: Any],
                   let files = data["files"] as? [Any],
-                  files.allSatisfy({ $0 is String }) else {
+                  files.count > 0, files.count <= 1000,
+                  files.allSatisfy({ ($0 as? String).map { AppContext.shared.isTrustedScanRoot(($0 as NSString).deletingLastPathComponent) } ?? false }) else {
                 reply(idNum, ["imported": 0, "errors": [], "error": "bad import payload"])
                 return
             }
