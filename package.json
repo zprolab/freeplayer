@@ -13,7 +13,8 @@
     "shell:bundle": "vite build && make -C shell bundle",
     "shell:dist": "bash shell/scripts/package.sh",
     "install:app": "bash shell/scripts/install.sh",
-    "clean": "bash shell/scripts/clean.sh"
+    "clean": "bash shell/scripts/clean.sh",
+    "clean:all": "bash shell/scripts/clean.sh --all"
   },
   "devDependencies": {
     "@resvg/resvg-js": "^2.6.2",
