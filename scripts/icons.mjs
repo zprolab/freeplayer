@@ -14,7 +14,7 @@ import { execFileSync } from 'node:child_process';
 import os from 'node:os';
 import { Resvg } from '@resvg/resvg-js';
 
-const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const SRC = join(ROOT, 'assets', 'logo.svg');
 const OUT_PNG = join(ROOT, 'shell', 'FreePlayer-1024.png');
 const OUT_ICNS = join(ROOT, 'shell', 'FreePlayer.icns');

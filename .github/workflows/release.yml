@@ -22,7 +22,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
       - name: Bundle FreePlayer.app
-        run: make -C shell bundle
+        run: cmake -S shell -B shell/build && cmake --build shell/build --target bundle
       - name: Package zip + dmg
         run: |
           VER=$(node -p "require('./package.json').version")

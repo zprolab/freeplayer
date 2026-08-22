@@ -3,14 +3,16 @@
 #   vite build -> .app bundle -> auto-named zip + dmg
 #   Output: shell/release/FreePlayer-<version>-mac-arm64-<timestamp>.[zip|dmg]
 set -e
-ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
 echo "[pack] vite build..."
 node_modules/.bin/vite build
 
 echo "[pack] bundling FreePlayer.app..."
-make -C shell bundle
+# configure on demand — shell/build may not exist after a clean
+[ -f "$ROOT/shell/build/build.ninja" ] || cmake -S "$ROOT/shell" -B "$ROOT/shell/build" -G Ninja
+cmake --build "$ROOT/shell/build" --target bundle
 
 APP="$ROOT/shell/build/FreePlayer.app"
 OUT="$ROOT/shell/release"

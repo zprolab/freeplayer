@@ -2,7 +2,7 @@
 # FreePlayer shell — dev pipeline
 # Starts vite (if needed) and launches the shell against the dev server.
 set -e
-ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
 if ! curl -s -o /dev/null http://localhost:5173 2>/dev/null; then
   echo "[dev] starting vite..."
@@ -13,6 +13,10 @@ if ! curl -s -o /dev/null http://localhost:5173 2>/dev/null; then
   done
 fi
 
-make -C "$ROOT/shell" -s
+if [ ! -d "$ROOT/shell/build" ] || [ ! -f "$ROOT/shell/build/FreePlayerShell" ]; then
+  echo "[dev] configuring cmake build..."
+  cmake -S "$ROOT/shell" -B "$ROOT/shell/build" -G Ninja
+fi
+cmake --build "$ROOT/shell/build"
 echo "[dev] launching FreePlayerShell..."
 exec "$ROOT/shell/build/FreePlayerShell"

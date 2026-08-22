@@ -5,7 +5,7 @@
 #   pnpm run clean:all     also removes every untracked/ignored file (node_modules, .DS_Store…),
 #                          back to fresh-clone state, keeping .superpowers/ and docs/
 set -e
-ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
 if [ "$1" = "--all" ] || [ "$1" = "all" ]; then
   echo "[clean] removing all untracked and ignored files (keeping .superpowers/ and docs/)"

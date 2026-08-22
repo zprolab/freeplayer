@@ -7,7 +7,7 @@ macOS 上的本地音乐播放器。没有登录、没有账号、没有遥测�
 
 ## 技术栈
 
-前端 React 19 + Vite，原生外壳 Objective-C++（Cocoa + WebKit + AVFoundation 等系统框架），数据库用系统自带的 SQLite，元数据解析也是原生实现的。无需 Electron，没有运行时 npm 依赖。非常精简的安装包。
+前端 React 19 + Vite，原生外壳 Swift（Cocoa + WebKit + AVFoundation 等系统框架），数据库用系统自带的 SQLite，元数据解析也是原生实现的。无需 Electron，没有运行时 npm 依赖。非常精简的安装包。
 
 支持格式：MP3、FLAC、WAV、OGG、M4A、AAC、WMA、Opus、AIFF、APE。
 

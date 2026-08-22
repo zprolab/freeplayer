@@ -5,16 +5,16 @@
   "license": "GPL-3.0-or-later",
   "author": "zprolab",
   "scripts": {
-    "dev": "bash shell/scripts/dev.sh",
+    "dev": "bash scripts/dev.sh",
     "build": "vite build",
     "vite:dev": "vite",
     "test": "vitest run",
     "test:watch": "vitest",
-    "shell:bundle": "vite build && make -C shell bundle",
-    "shell:dist": "bash shell/scripts/package.sh",
-    "install:app": "bash shell/scripts/install.sh",
-    "clean": "bash shell/scripts/clean.sh",
-    "clean:all": "bash shell/scripts/clean.sh --all"
+    "shell:bundle": "vite build && cmake -S shell -B shell/build -G Ninja && cmake --build shell/build --target bundle",
+    "shell:dist": "bash scripts/package.sh",
+    "install:app": "bash scripts/install.sh",
+    "clean": "bash scripts/clean.sh",
+    "clean:all": "bash scripts/clean.sh --all"
   },
   "devDependencies": {
     "@resvg/resvg-js": "^2.6.2",
