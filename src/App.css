@@ -141,7 +141,6 @@ body {
   align-items: center;
   justify-content: center;
   margin-bottom: 8px;
-  color: #ffffff;
 }
 
 .loading-text {
@@ -180,10 +179,6 @@ body {
   gap: 10px;
   color: var(--gl-text-inverse);
   padding: 8px 0;
-}
-
-.sidebar-logo-img {
-  color: #ffffff;
 }
 
 .sidebar-logo svg {
@@ -2589,7 +2584,6 @@ input[type="range"]::-webkit-slider-thumb {
   justify-content: center;
   background: #1f1f23;
   border-radius: 20%;
-  color: #ffffff;
   overflow: hidden;
 }
 .about-row {

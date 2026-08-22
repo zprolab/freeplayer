@@ -22,7 +22,6 @@ const OUT_ICNS = join(ROOT, 'shell', 'FreePlayer.icns');
 // ── icon tile recipe (the ONLY place background styling lives) ─────────────
 const TILE_FILL = '#1f1f23';   // matches the authoritative Pixelmator export
 const TILE_RADIUS = 4;         // in 1280 artspace; matches the export's subtle corner
-const GLYPH_COLOR = '#ffffff'; // how currentColor in the source resolves for the icon
 // ────────────────────────────────────────────────────────────────────────────
 
 // macOS iconset: name → pixel size
@@ -42,7 +41,7 @@ function glyphSvg() {
   // hoist the gradient into <defs> (spec-compliant; resvg requires it)
   const grad = inner.match(/<linearGradient[\s\S]*?<\/linearGradient>/);
   const rest = grad ? inner.replace(grad[0], '') : inner;
-  return `<defs>${grad ? grad[0] : ''}</defs>${rest}`.replaceAll('currentColor', GLYPH_COLOR);
+  return `<defs>${grad ? grad[0] : ''}</defs>${rest}`;
 }
 
 function composedSvg() {
