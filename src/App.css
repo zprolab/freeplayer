@@ -49,6 +49,9 @@
   --gl-radius-md: 6px;
   --gl-radius-lg: 8px;
 
+  /* ── Dialogs / popups — single shared width ── */
+  --gl-dialog-width: 680px;
+
   /* ── Equalizer window (hardware rack, monochrome + brand accent) ── */
   --gl-eq-bg: #101013;
   --gl-eq-surface: #16161b;
@@ -1712,7 +1715,7 @@ body {
   background: var(--gl-white);
   border-radius: var(--gl-radius-lg);
   box-shadow: var(--gl-shadow-xl);
-  width: 600px;
+  width: var(--gl-dialog-width);
   max-height: 80vh;
   display: flex;
   flex-direction: column;
@@ -2609,9 +2612,6 @@ input[type="range"]::-webkit-slider-thumb {
   display: flex;
   gap: 8px;
 }
-.legal-dialog {
-  width: min(640px, 90vw);
-}
 .legal-text {
   max-height: 55vh;
   overflow: auto;
@@ -2726,7 +2726,7 @@ input[type="range"]::-webkit-slider-thumb {
   background: var(--gl-white);
   border-radius: var(--gl-radius-lg);
   box-shadow: var(--gl-shadow-xl);
-  width: 380px;
+  width: var(--gl-dialog-width);
   padding: 24px;
   animation: slideUp 0.2s ease;
 }

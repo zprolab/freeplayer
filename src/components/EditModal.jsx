@@ -48,7 +48,7 @@ export default function EditModal({ track, onClose, onSaved }) {
 
   return (
     <div className="modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="modal" style={{ width: 480 }}>
+      <div className="modal">
         <div className="modal-header">
           <h2 className="modal-title">Edit Track</h2>
           <button className="btn-icon modal-close" onClick={onClose}>

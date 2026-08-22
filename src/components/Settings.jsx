@@ -4,6 +4,8 @@ import SegmentedControl from './SegmentedControl';
 import { useTraySettings } from '../hooks/useTraySettings';
 import { applyMonoFont } from '../utils/fonts';
 import logoUrl from '../../assets/logo.svg';
+import licenseText from '../../LICENSE?raw';
+import noticesText from '../../THIRD-PARTY-NOTICES.txt?raw';
 import { version } from '../../package.json';
 
 const MONO_FONTS = [
@@ -32,7 +34,6 @@ const Settings = memo(function Settings({
   const [monoFont, setMonoFont] = useState('');
   const [legalModal, setLegalModal] = useState(null); // 'license' | 'notices' | null
   const [legalText, setLegalText] = useState('');
-  const [legalError, setLegalError] = useState('');
   const {
     settingsLoaded,
     trayEnabled,
@@ -63,18 +64,9 @@ const Settings = memo(function Settings({
     await window.freeplayer.setSetting({ key: 'mono_font', value });
   };
 
-  const openLegal = async (which) => {
+  const openLegal = (which) => {
     setLegalModal(which);
-    setLegalText('');
-    setLegalError('');
-    try {
-      const file = which === 'license' ? 'LICENSE.txt' : 'THIRD-PARTY-NOTICES.txt';
-      const res = await fetch(file);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      setLegalText(await res.text());
-    } catch (err) {
-      setLegalError(`Could not load ${which === 'license' ? 'LICENSE.txt' : 'THIRD-PARTY-NOTICES.txt'} (${err.message || err}). It ships inside the app bundle at Resources/web/.`);
-    }
+    setLegalText(which === 'license' ? licenseText : noticesText);
   };
 
   const handleChangeLibraryDir = async () => {
@@ -338,17 +330,11 @@ const Settings = memo(function Settings({
       {/* Legal text dialog */}
       {legalModal && (
         <div className="confirm-overlay" onClick={() => setLegalModal(null)}>
-          <div className="confirm-dialog legal-dialog" onClick={(e) => e.stopPropagation()}>
+          <div className="confirm-dialog" onClick={(e) => e.stopPropagation()}>
             <h3 className="confirm-title">
               {legalModal === 'license' ? 'GNU General Public License v3' : 'Third-Party Notices'}
             </h3>
-            {legalError ? (
-              <p className="confirm-message">{legalError}</p>
-            ) : legalText ? (
-              <pre className="legal-text">{legalText}</pre>
-            ) : (
-              <p className="confirm-message">Loading…</p>
-            )}
+            <pre className="legal-text">{legalText}</pre>
             <div className="confirm-actions">
               <button className="btn btn-secondary" onClick={() => setLegalModal(null)}>
                 Close
