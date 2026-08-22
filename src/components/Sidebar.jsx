@@ -3,7 +3,7 @@ import {
   IconMusicNote, IconPlayCircle, IconPuzzle, IconGear,
   IconImport, IconList, IconPlus, IconEdit, IconTrash,
 } from './icons';
-import logoUrl from '../assets/logo.svg';
+import logoUrl from '../../assets/logo.svg';
 
 export default function Sidebar({
   currentView, onNavigate, trackCount, onImport,

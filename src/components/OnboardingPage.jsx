@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import licenseText from '../../LICENSE?raw';
-import logoUrl from '../assets/logo-dark.svg';
+import logoUrl from '../../assets/logo.svg';
 import { canAdvance, nextStep, prevStep, ONBOARDING_STEPS } from '../onboardingSteps';
 
 const STEP_LABELS = {
@@ -60,7 +60,7 @@ export default function OnboardingPage({ onDone }) {
         {step === 'welcome' && (
           <>
             <div className="ob-welcome-logo">
-              <img src={logoUrl} width={48} height={48} alt="" />
+              <span className="brand-tile"><img src={logoUrl} width={48} height={48} alt="" /></span>
             </div>
             <h1 className="ob-title">Welcome to FreePlayer</h1>
             <p className="ob-subtitle">Your music stays on your disk. No account, no tracking.</p>

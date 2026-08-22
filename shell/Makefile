@@ -58,11 +58,12 @@ $(OZAPP): $(SRCS)
 # A file-target bundle (the old `bundle: build/FreePlayer.app`) silently
 # skipped after vite builds (H7) and poisoned the next run after a failure
 # (#4) — an unconditional rebuild can't go stale or get stuck.
-# App icon: generated from the composed 1024px master (Icon Composer project
-# in FreePlayer.icon/ — regenerate the master with scripts/logo-compose.sh
-# after editing the icon, then the bundle always ships a fresh icns).
-FreePlayer.icns: FreePlayer-1024.png scripts/logo.sh
-	bash scripts/logo.sh
+# App icon: single source of truth is ../assets/logo.svg (the glyph, no
+# background); scripts/icons.mjs composes the #1f1f23 rounded tile + glyph and
+# emits FreePlayer-1024.png + FreePlayer.icns at build time (resvg + iconutil).
+# The bundle depends on the icns target, so it always ships a fresh icon.
+FreePlayer.icns: ../assets/logo.svg scripts/icons.mjs
+	node scripts/icons.mjs
 
 logo: FreePlayer.icns
 

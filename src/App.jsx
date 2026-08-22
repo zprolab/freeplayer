@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Sidebar from './components/Sidebar';
-import logoUrl from './assets/logo.svg';
+import logoUrl from '../assets/logo.svg';
 import Library from './components/Library';
 import NowPlaying from './components/NowPlaying';
 import Stats from './components/Stats';
