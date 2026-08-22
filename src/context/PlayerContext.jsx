@@ -38,9 +38,7 @@ export const initialState = {
   playlistTracks: [],
   playlistModal: null,
   pendingAddTrack: null,
-  dragOver: false,
   sidebarCollapsed: false,
-  initialPaths: null,
   eqEnabled: false,
 };
 

@@ -2770,49 +2770,6 @@ input[type="range"]::-webkit-slider-thumb {
 }
 
 /* ═══════════════════════════════════════════════════════════════════
-   Drag-and-Drop Overlay
-   ═══════════════════════════════════════════════════════════════════ */
-
-.drag-overlay {
-  position: absolute;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.35);
-  z-index: 50;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  animation: fadeIn 0.15s ease;
-  pointer-events: none;
-}
-
-.drag-zone {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 12px;
-  padding: 48px 64px;
-  border: 3px dashed var(--gl-orange);
-  border-radius: 12px;
-  background: var(--gl-orange-light);
-  animation: slideUp 0.2s ease;
-}
-
-.drag-zone-icon {
-  color: var(--gl-orange);
-}
-
-.drag-zone-title {
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--gl-orange);
-}
-
-.drag-zone-hint {
-  font-size: 11px;
-  color: var(--gl-text-secondary);
-}
-
-/* ═══════════════════════════════════════════════════════════════════
    Play Mode Buttons — PlayerBar (compact)
    ═══════════════════════════════════════════════════════════════════ */
 

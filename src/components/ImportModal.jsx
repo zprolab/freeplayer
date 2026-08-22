@@ -1,8 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 
-const SUPPORTED_FORMATS = ['.mp3', '.flac', '.wav', '.ogg', '.m4a', '.aac', '.wma', '.opus', '.aiff', '.ape'];
-
-export default function ImportModal({ onClose, onComplete, importMode, initialPaths }) {
+export default function ImportModal({ onClose, onComplete, importMode }) {
   const [step, setStep] = useState('select-source');
   const [sourceDir, setSourceDir] = useState('');
   const [files, setFiles] = useState([]);
@@ -64,81 +62,13 @@ export default function ImportModal({ onClose, onComplete, importMode, initialPa
     }
   };
 
-  // Auto-start — handle both dialog picker and drag-and-drop entry points
+  // Auto-start — the native folder picker opens on mount
   useEffect(() => {
     if (!startedRef.current) {
       startedRef.current = true;
-      if (initialPaths && initialPaths.length > 0) {
-        handleInitialPaths(initialPaths);
-      } else {
-        handleSelectSource();
-      }
+      handleSelectSource();
     }
-  }, [handleSelectSource, initialPaths]);
-
-  const handleInitialPaths = useCallback(async (paths) => {
-    try {
-      // Library dir must exist (set during onboarding); Import never sets it.
-      const libDir = await window.freeplayer.getSetting('library_dir');
-      if (!libDir) {
-        onComplete({ canceled: true, error: 'Set up your library first (first-run wizard).' });
-        return;
-      }
-
-      setScanning(true);
-      setStep('scanning');
-
-      // Process each path: directories get scanned, files get validated by extension
-      const allFiles = [];
-      const unscannable = [];
-      for (const p of paths) {
-        try {
-          const result = await window.freeplayer.scanDirectory(p);
-          if (Array.isArray(result)) {
-            // It's a directory — scanDirectory returned file list
-            allFiles.push(...result);
-          }
-        } catch {
-          // Not a directory or scan failed — treat as a file, validate extension
-          const dot = p.lastIndexOf('.');
-          const ext = dot >= 0 ? p.slice(dot).toLowerCase() : '';
-          if (SUPPORTED_FORMATS.includes(ext)) {
-            allFiles.push(p);
-          } else {
-            // A directory the native side refused to scan (not a trusted
-            // drop/panel root) — silently skipping it would import nothing
-            // with no explanation.
-            unscannable.push(p);
-          }
-        }
-      }
-
-      if (allFiles.length === 0 && unscannable.length > 0) {
-        setError('These items could not be scanned. Use the Import button (or drop them onto the app window) so they are picked up natively:\n' + unscannable.slice(0, 5).join('\n'));
-        setScanning(false);
-        return;
-      }
-
-      // Deduplicate
-      const uniqueFiles = [...new Set(allFiles)];
-
-      // Determine source display name
-      const firstPath = paths[0];
-      const sourceName = paths.length === 1
-        ? firstPath
-        : `${paths.length} paths (${firstPath}...)`;
-
-      setSourceDir(sourceName);
-      setFiles(uniqueFiles);
-      setScanning(false);
-      setStep('confirm');
-    } catch (err) {
-      console.error('Drag import scan error:', err);
-      setError(err.message || 'Failed to process dropped files');
-      setScanning(false);
-      setStep('error');
-    }
-  }, [onComplete]);
+  }, [handleSelectSource]);
 
   const formatFileSize = (bytes) => {
     if (!bytes) return '';

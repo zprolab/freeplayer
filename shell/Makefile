@@ -14,7 +14,7 @@ APP     := build/FreePlayerShell
 ASANAPP := build/FreePlayerShell-asan
 OZAPP   := build/FreePlayerShell-oz
 BUNDLE  := build/FreePlayer.app
-SRCS    := src/main.mm src/bridge.mm src/scheme.mm src/db.mm src/metadata.mm src/tray.mm src/webview.mm src/pluginfs.mm src/paths.mm
+SRCS    := src/main.mm src/bridge.mm src/scheme.mm src/db.mm src/metadata.mm src/tray.mm src/pluginfs.mm src/paths.mm
 CXX     := clang++
 # Memory/size-oriented build: -Os + section separation + dead-strip shrink
 # __TEXT/__DATA (smaller private footprint); release builds drop debug info.

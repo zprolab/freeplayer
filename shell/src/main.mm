@@ -7,7 +7,6 @@
 #include "db.h"
 #include "bridge.h"
 #include "tray.h"
-#include "webview.h"
 #include "paths.h"
 
 @interface MediaSchemeHandler : NSObject <WKURLSchemeHandler>
@@ -282,7 +281,7 @@ void fpSetWebRoot(NSString *root);
     forMainFrameOnly:YES];
   [config.userContentController addUserScript:bridgeScript];
 
-  ShellWebView *webView = [[ShellWebView alloc] initWithFrame:frame configuration:config];
+  WKWebView *webView = [[WKWebView alloc] initWithFrame:frame configuration:config];
   webView.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
   // Web Inspector (Safari > Develop > FreePlayer): on by default for dev
   // binaries (no .app bundle); bundled builds opt in via FP_INSPECT=1
@@ -451,7 +450,7 @@ void fpOpenEqWindow(void) {
       forMainFrameOnly:YES];
     [config.userContentController addUserScript:bridgeScript];
 
-    ShellWebView *webView = [[ShellWebView alloc] initWithFrame:frame configuration:config];
+    WKWebView *webView = [[WKWebView alloc] initWithFrame:frame configuration:config];
     webView.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
     if (gNavGate) webView.navigationDelegate = gNavGate;
     win.contentView = webView;
@@ -516,7 +515,7 @@ void fpOpenOnboardingWindow(void) {
       forMainFrameOnly:YES];
     [config.userContentController addUserScript:bridgeScript];
 
-    ShellWebView *webView = [[ShellWebView alloc] initWithFrame:frame configuration:config];
+    WKWebView *webView = [[WKWebView alloc] initWithFrame:frame configuration:config];
     webView.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
     if (gNavGate) webView.navigationDelegate = gNavGate;
     win.contentView = webView;

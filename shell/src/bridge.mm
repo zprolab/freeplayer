@@ -62,8 +62,8 @@ static NSArray *scanAudioFiles(NSString *root) {
 }
 
 // S7: scanDirectory is renderer-callable, so it may only enumerate roots the
-// user actually picked natively (import NSOpenPanel result, drag-and-drop
-// paths) — otherwise it's an arbitrary filesystem enumeration primitive.
+// user actually picked natively (import NSOpenPanel result) — otherwise it's
+// an arbitrary filesystem enumeration primitive.
 static NSMutableOrderedSet *gTrustedScanRoots = nil; // main thread only
 
 static void fpAddTrustedScanRoot(NSString *root) {
@@ -146,8 +146,6 @@ static const char *kBridgeScript = R"JS(
     getEqState: () => api._invoke('getEqState'),
     setEq: (data) => api._invoke('setEq', data),
     onEqChange: (callback) => { window.__freeplayerEqHandler = callback; },
-    // Native file drop -> renderer import flow
-    onDropFiles: (callback) => { window.__freeplayerDropHandler = callback; },
     // First-run onboarding
     finishOnboarding: () => api._invoke('finishOnboarding'),
     // Plugins
@@ -189,11 +187,6 @@ static const char *kBridgeScript = R"JS(
     }
   };
   // Native file drop -> paths into the renderer
-  window.freeplayer._pushDrop = (paths) => {
-    if (window.__freeplayerDropHandler) {
-      try { window.__freeplayerDropHandler(paths); } catch (e) {}
-    }
-  };
   window.freeplayer._pushEq = (state) => {
     if (window.__freeplayerEqHandler) {
       try { window.__freeplayerEqHandler(state); } catch (e) {}
@@ -469,22 +462,6 @@ static void fpBroadcastEq(void) {
     NSString *js = [NSString stringWithFormat:@"window.freeplayer._pushEq(%@)", json];
     if (gWebView) [gWebView evaluateJavaScript:js completionHandler:nil];
     if (gEqWebView) [gEqWebView evaluateJavaScript:js completionHandler:nil];
-  });
-}
-
-// Native file drop (ShellWebView) -> renderer import flow
-void fpHandleDropPaths(NSArray<NSString *> *paths) {
-  if (paths.count == 0) return;
-  // S7: dropped paths are user-picked natively — trust them as scan roots
-  for (NSString *p in paths) fpAddTrustedScanRoot(p);
-  dispatch_async(dispatch_get_main_queue(), ^{
-    if (!gWebView) return;
-    NSError *err = nil;
-    NSData *data = [NSJSONSerialization dataWithJSONObject:paths options:0 error:&err];
-    if (err || !data) return;
-    NSString *json = [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
-    NSString *js = [NSString stringWithFormat:@"window.freeplayer._pushDrop(%@)", json];
-    [gWebView evaluateJavaScript:js completionHandler:nil];
   });
 }
 

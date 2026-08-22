@@ -195,15 +195,6 @@ export default function App() {
     registryRef.current?.emit('playbackChanged', payload);
   }, [state.isPlaying, state.currentTime, state.duration]);
 
-  // Native shell: file drops arrive with real filesystem paths
-  useEffect(() => {
-    if (!window.freeplayer?.onDropFiles) return;
-    window.freeplayer.onDropFiles((paths) => {
-      if (state.view !== VIEWS.LIBRARY || state.importModalOpen) return;
-      dispatch({ type: 'SET', payload: { initialPaths: paths, importModalOpen: true } });
-    });
-  }, [state.view, state.importModalOpen, dispatch]);
-
   // macOS menu bar: actions pushed from the native menu (Playback/View/File)
   useEffect(() => {
     const actionRef = {
@@ -293,42 +284,6 @@ export default function App() {
     window.freeplayer.onEqChange((s) => eqHandlerRef.current(s));
   }, []);
 
-  // Drag-and-drop handlers
-  const handleDragEnter = (e) => {
-    if (state.view !== VIEWS.LIBRARY || state.importModalOpen) return;
-    e.preventDefault();
-    e.stopPropagation();
-    dispatch({ type: 'SET', payload: { dragOver: true } });
-  };
-
-  const handleDragOver = (e) => {
-    if (state.view !== VIEWS.LIBRARY || state.importModalOpen) return;
-    e.preventDefault();
-    e.stopPropagation();
-  };
-
-  const handleDragLeave = (e) => {
-    if (e.currentTarget === e.target) {
-      dispatch({ type: 'SET', payload: { dragOver: false } });
-    }
-  };
-
-  const handleDrop = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    dispatch({ type: 'SET', payload: { dragOver: false } });
-    if (state.view !== VIEWS.LIBRARY || state.importModalOpen) return;
-
-    const paths = [];
-    const { files } = e.dataTransfer;
-    for (let i = 0; i < files.length; i++) {
-      if (files[i].path) paths.push(files[i].path);
-    }
-    if (paths.length > 0) {
-      dispatch({ type: 'SET', payload: { initialPaths: paths, importModalOpen: true } });
-    }
-  };
-
   const displayedTracks = useMemo(() => {
     if (state.activePlaylistId === null) return state.tracks;
     return state.playlistTracks
@@ -414,18 +369,7 @@ export default function App() {
           </div>
         </header>
 
-        <div className="content-area" onDragEnter={handleDragEnter} onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}>
-          {state.dragOver && state.view === VIEWS.LIBRARY && !state.importModalOpen && (
-            <div className="drag-overlay">
-              <div className="drag-zone">
-                <svg className="drag-zone-icon" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
-                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
-                </svg>
-                <span className="drag-zone-title">Drop to Import</span>
-                <span className="drag-zone-hint">Audio files and folders supported</span>
-              </div>
-            </div>
-          )}
+        <div className="content-area">
           {state.view === VIEWS.PLUGINS ? (
             pluginRuntime ? (
               <PluginPage registry={pluginRuntime.registry} meta={meta} tracks={state.tracks} />
@@ -551,13 +495,9 @@ export default function App() {
 
       {state.importModalOpen && (
         <ImportModal
-          onClose={() => dispatch({ type: 'SET', payload: { importModalOpen: false, initialPaths: null } })}
-          onComplete={(result) => {
-            dispatch({ type: 'SET', payload: { initialPaths: null } });
-            handleImportComplete(result);
-          }}
+          onClose={() => dispatch({ type: 'SET', payload: { importModalOpen: false } })}
+          onComplete={handleImportComplete}
           importMode={state.importMode}
-          initialPaths={state.initialPaths}
         />
       )}
 
