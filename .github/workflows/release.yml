@@ -14,12 +14,13 @@ jobs:
     runs-on: macos-14
     steps:
       - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v5
         with:
           node-version: 22
-          cache: npm
-      - run: npm ci
-      - run: npm run build
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
       - name: Bundle FreePlayer.app
         run: make -C shell bundle
       - name: Package zip + dmg

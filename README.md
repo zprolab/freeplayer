@@ -50,19 +50,19 @@ macOS 上的本地音乐播放器。没有登录、没有账号、没有遥测�
 ```sh
 git clone https://github.com/zprolab/FreePlayer
 cd FreePlayer
-npm install
-npm run install:app   # 可选：构建并安装到 /Applications
-npm run dev           # 起 Vite 开发服务器并编译运行原生外壳
+pnpm install
+pnpm run install:app   # 可选：构建并安装到 /Applications
+pnpm run dev           # 起 Vite 开发服务器并编译运行原生外壳
 ```
 
-测试：`npm test`（vitest，覆盖音频引擎、均衡器、metadata 持久化、播放状态机等）。
+测试：`pnpm test`（vitest，覆盖音频引擎、均衡器、metadata 持久化、播放状态机等）。
 
 打包：
 
 ```sh
-npm run build        # vite build → dist/
-npm run shell:bundle # 打包 FreePlayer.app
-npm run shell:dist   # build + bundle → zip + dmg，输出到 shell/release/
+pnpm run build        # vite build → dist/
+pnpm run shell:bundle # 打包 FreePlayer.app
+pnpm run shell:dist   # build + bundle → zip + dmg，输出到 shell/release/
 ```
 
 产物命名：`FreePlayer-<version>-mac-arm64-<timestamp>.{zip,dmg}`。
