@@ -15,7 +15,7 @@ import { usePlayback } from './hooks/usePlayback';
 import { useLibrary } from './hooks/useLibrary';
 import { usePlaylists } from './hooks/usePlaylists';
 import { useAutoMeta } from './hooks/useAutoMeta';
-import { audioEngine } from './audioEngine';
+import { audioEngine } from './audio/audioEngine';
 import { createRegistry } from './plugins/registry';
 import { createMetadataRegistry } from './plugins/metadataRegistry';
 import { BUILTIN_PLUGINS } from './plugins/builtin';

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { AudioEngine } from '../src/audioEngine';
+import { AudioEngine } from '../src/audio/audioEngine';
 
 describe('AudioEngine', () => {
   let engine;

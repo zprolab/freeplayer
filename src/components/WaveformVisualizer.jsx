@@ -1,5 +1,5 @@
 import { useRef, useEffect, useCallback } from 'react';
-import { audioEngine } from '../audioEngine';
+import { audioEngine } from '../audio/audioEngine';
 import { monoFontStack } from '../utils/fonts';
 import { pushSpectrogramFrame } from '../utils/spectrogram';
 

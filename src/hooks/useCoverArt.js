@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { getCachedCover, setCachedCover } from '../coverCache';
+import { getCachedCover, setCachedCover } from '../utils/coverCache';
 
 export function useCoverArt(track) {
   const [coverUrl, setCoverUrl] = useState(null);

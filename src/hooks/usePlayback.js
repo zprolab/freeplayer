@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { usePlayer } from '../context/PlayerContext';
-import { audioEngine } from '../audioEngine';
+import { audioEngine } from '../audio/audioEngine';
 import { computeNextIndex, computePrevIndex, shuffleArray } from './playQueue';
 
 export function usePlayback() {

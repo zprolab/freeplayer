@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { EQ_BANDS, EQ_MIN, EQ_MAX, EQ_STEP, EQ_PRESETS, sliderFrac } from '../eqPresets';
+import { EQ_BANDS, EQ_MIN, EQ_MAX, EQ_STEP, EQ_PRESETS, sliderFrac } from '../audio/eqPresets';
 
 const THUMB = 12;
 const SLIDER_H = 118;

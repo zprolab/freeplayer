@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import licenseText from '../../LICENSE?raw';
 import logoUrl from '../../assets/logo.svg';
-import { canAdvance, nextStep, prevStep, ONBOARDING_STEPS } from '../onboardingSteps';
+import { canAdvance, nextStep, prevStep, ONBOARDING_STEPS } from '../data/onboardingSteps';
 
 const STEP_LABELS = {
   welcome: 'Welcome', license: 'License', privacy: 'Privacy', library: 'Library',

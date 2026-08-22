@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { ONBOARDING_STEPS, canAdvance, nextStep, prevStep } from '../src/onboardingSteps';
+import { ONBOARDING_STEPS, canAdvance, nextStep, prevStep } from '../src/data/onboardingSteps';
 
 describe('ONBOARDING_STEPS', () => {
   it('is exactly welcome → license → privacy → library', () => {

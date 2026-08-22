@@ -120,12 +120,12 @@ vi.mock('../src/context/PlayerContext', () => ({
   usePlayer: vi.fn(),
 }));
 
-vi.mock('../src/audioEngine', () => ({
+vi.mock('../src/audio/audioEngine', () => ({
   audioEngine: { setGain: vi.fn(), setVolume: vi.fn(), dispose: vi.fn() },
 }));
 
 import { usePlayer } from '../src/context/PlayerContext';
-import { audioEngine } from '../src/audioEngine';
+import { audioEngine } from '../src/audio/audioEngine';
 import { usePlayback } from '../src/hooks/usePlayback';
 
 function reset() {

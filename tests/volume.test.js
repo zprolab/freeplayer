@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { AudioEngine } from '../src/audioEngine';
+import { AudioEngine } from '../src/audio/audioEngine';
 
 // Root cause: in WKWebView, once an <audio> element is routed through the
 // Web Audio graph (createMediaElementSource), the element's volume/muted
