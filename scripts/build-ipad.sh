@@ -69,7 +69,13 @@ if [ "$MAKE_IPA" = 1 ] && [ -n "$DEVICE" ]; then
   PKG=$(mktemp -d)
   mkdir -p "$PKG/Payload"
   cp -R "$APP" "$PKG/Payload/"
-  IPA="$ROOT/FreePlayer-$(date +%Y%m%d-%H%M%S).ipa"
+  # Same output location + naming convention as the macOS release
+  # (shell/release/FreePlayer-<ver>-<platform>-<timestamp>.*)
+  OUT="$ROOT/shell/release"
+  mkdir -p "$OUT"
+  VER=$(node -p "require('$ROOT/package.json').version")
+  STAMP=$(date +%Y%m%d-%H%M)
+  IPA="$OUT/FreePlayer-$VER-ios-arm64-$STAMP.ipa"
   (cd "$PKG" && zip -qr "$IPA" Payload)
   rm -rf "$PKG"
   echo "==> $IPA"

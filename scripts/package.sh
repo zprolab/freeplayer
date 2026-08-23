@@ -20,8 +20,16 @@ BASE="FreePlayer-$VER-mac-arm64-$STAMP"
 
 echo "[dist] zip..."
 ditto -c -k --keepParent "$APP" "$OUT/$BASE.zip"
+
 echo "[dist] dmg..."
-diskutil image create from "$APP" "$OUT/$BASE.dmg" --format UDZO --volname FreePlayer >/dev/null
+# Stage the .app in a folder first: `diskutil image create from` treats its
+# argument as the volume root, so pointing it at the .app would spread the
+# bundle's Contents/ across the volume instead of the .app icon.
+STAGE="$OUT/.stage"
+rm -rf "$STAGE"; mkdir -p "$STAGE"
+cp -R "$APP" "$STAGE/"
+diskutil image create from "$STAGE" "$OUT/$BASE.dmg" --format UDZO --volname FreePlayer >/dev/null
+rm -rf "$STAGE"
 
 echo ""
 echo "==> outputs:"
