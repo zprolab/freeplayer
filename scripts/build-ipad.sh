@@ -76,7 +76,7 @@ fi
 [ -n "$APP" ] || { echo "==> built app not found" >&2; exit 3; }
 echo "==> $APP"
 
-if [ "$MAKE_IPA" = 1 ] && [ -n "$DEVICE" ]; then
+if [ "$MAKE_IPA" = 1 ]; then
   PKG=$(mktemp -d)
   mkdir -p "$PKG/Payload"
   cp -R "$APP" "$PKG/Payload/"
@@ -86,7 +86,12 @@ if [ "$MAKE_IPA" = 1 ] && [ -n "$DEVICE" ]; then
   mkdir -p "$OUT"
   VER=$(node -p "require('$ROOT/package.json').version")
   STAMP=$(date +%Y%m%d-%H%M)
-  IPA="$OUT/FreePlayer-$VER-ios-arm64-$STAMP.ipa"
+  if [ -n "$DEVICE" ]; then
+    PLATFORM="ios-arm64"           # signed device build
+  else
+    PLATFORM="ios-simulator"       # unsigned simulator build (CI)
+  fi
+  IPA="$OUT/FreePlayer-$VER-$PLATFORM-$STAMP.ipa"
   (cd "$PKG" && zip -qr "$IPA" Payload)
   rm -rf "$PKG"
   echo "==> $IPA"
