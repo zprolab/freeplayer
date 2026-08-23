@@ -28,14 +28,13 @@ jobs:
       # (zip + dmg via staging dir so the DMG volume root is FreePlayer.app)
       - name: Build and package macOS app (zip + dmg)
         run: pnpm dist
-      # iPad simulator ipa: unsigned (CI has no signing identity) — installable
-      # on simulators only; device builds need your own team (see README).
-      - name: Build iPad simulator ipa
+      # iPad ipa: unsigned arm64 device build (--generic-ipa) so the release
+      # ships a real-device build sideloadable on jailbroken devices / via
+      # any signing tool — no cert or device needed on the runner.
+      - name: Build iPad ipa (unsigned, device arm64)
         run: |
           brew install xcodegen
-          pnpm build:ipad --ipa
-        env:
-          SIM_DEST: generic/platform=iOS Simulator
+          pnpm build:ipad --generic-ipa
       - name: Generate release notes
         run: |
           VER=$(node -p "require('./package.json').version")
@@ -55,7 +54,7 @@ jobs:
             echo ""
             echo "- macOS build is ad-hoc signed (not notarized): first launch requires right-click → Open, or \`xattr -d com.apple.quarantine <path>\`."
             echo "- macOS 13+ / Apple Silicon only."
-            echo "- iPad \`.ipa\` is a simulator build (unsigned). To install on a device, build with your own signing team."
+            echo "- iPad \`.ipa\` is an unsigned arm64 device build (no signing team) — sideloadable via a jailbreak, Filza, or your own signing tool."
           } > /tmp/release-notes.md
       - name: Create GitHub Release
         env:
@@ -63,7 +62,7 @@ jobs:
         run: |
           VER=$(node -p "require('./package.json').version")
           MAC_ARTIFACTS=$(ls shell/release/FreePlayer-$VER-mac-arm64-* | tr '\n' ' ')
-          IPA_ARTIFACT=$(ls shell/release/FreePlayer-$VER-ios-simulator-* | tr '\n' ' ')
+          IPA_ARTIFACT=$(ls shell/release/FreePlayer-$VER-ios-arm64-unsigned-* | tr '\n' ' ')
           gh release create "$GITHUB_REF_NAME" \
             --title "FreePlayer $GITHUB_REF_NAME" \
             --notes-file /tmp/release-notes.md \
