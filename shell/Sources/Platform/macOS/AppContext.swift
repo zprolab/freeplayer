@@ -31,9 +31,7 @@ final class AppContext {
 
     // ── windows / webviews (main thread) ──
     // strong: the window is hidden (orderOut) rather than closed for
-    // close-to-tray, so the tray's "Show FreePlayer" must always find it —
-    // a weak reference would drop it once nothing else strongly holds it
-    // (bugfix: open-after-close did nothing, no window was recreated)
+    // close-to-tray, so the tray's "Show FreePlayer" must always find it
     var window: NSWindow?
     var webView: WKWebView?
     var eqWindow: NSWindow?
@@ -43,6 +41,10 @@ final class AppContext {
     var navGate: NavGate?
     var mainLoadURL: URL?
     var webRoot: String?
+
+    /// Platform-specific bridge (set by AppDelegate on launch; iPad provides
+    /// its own conformance via PlatformBridge.swift protocol).
+    var platformBridge: PlatformBridge?
 
     // ── import pipeline (M12: termination waits on this) ──
     let importTasks = AtomicInt(0)

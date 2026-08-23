@@ -115,8 +115,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             NSApp.terminate(nil)
             return
         }
-        // H#1: record symlinks created by pre-update imports so the S3e
-        // containment check keeps them playable (background, runs once).
+        // Wire the macOS platform bridge so the cross-platform router can
+        // delegate NSOpenPanel / NSAlert / Tray / PluginFS calls.
+        AppContext.shared.platformBridge = MacPlatformBridge()
         Paths.symlinkBackfill()
 
         buildMenu()

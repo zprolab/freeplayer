@@ -8,20 +8,23 @@ set(CMAKE_Swift_FLAGS "-Osize")
 # keeps the boundaries honest without extra framework targets.
 set(SWIFT_SOURCES
   Sources/main.swift
-  Sources/App/AppContext.swift
-  Sources/App/AppDelegate.swift
   Sources/App/NavGate.swift
-  Sources/App/Windows.swift
   Sources/Core/Database.swift
   Sources/Core/Metadata.swift
   Sources/Core/Paths.swift
-  Sources/Core/PluginFS.swift
   Sources/Bridge/BridgeScript.swift
   Sources/Bridge/BridgeHandler.swift
+  Sources/Bridge/BridgeRouter.swift
   Sources/Bridge/HttpClient.swift
   Sources/Bridge/ImportPipeline.swift
   Sources/UI/SchemeHandler.swift
-  Sources/UI/Tray.swift
+  Sources/UI/PlatformBridge.swift
+  Sources/Platform/macOS/AppContext.swift
+  Sources/Platform/macOS/AppDelegate.swift
+  Sources/Platform/macOS/Windows.swift
+  Sources/Platform/macOS/Tray.swift
+  Sources/Platform/macOS/PluginFS.swift
+  Sources/Platform/macOS/MacPlatformBridge.swift
 )
 
 add_executable(FreePlayerShell ${SWIFT_SOURCES})
