@@ -13,31 +13,32 @@ jobs:
     name: Package and publish
     runs-on: macos-14
     steps:
+      # full history + tags so bundle.sh/package.sh/build-ipad.sh detect the
+      # tag and stamp the clean <version> (no -g<hash> suffix) into the apps
       - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm build
-      - name: Bundle FreePlayer.app
-        run: cmake -S shell -B shell/build && cmake --build shell/build --target bundle
-      - name: Package zip + dmg
+      # pnpm dist = vite build → bundle.sh (versioned .app) → package.sh
+      # (zip + dmg via staging dir so the DMG volume root is FreePlayer.app)
+      - name: Build and package macOS app (zip + dmg)
+        run: pnpm dist
+      - name: Build iPad app (simulator, unsigned)
         run: |
-          VER=$(node -p "require('./package.json').version")
-          APP=shell/build/FreePlayer.app
-          mkdir -p release
-          ditto -c -k --keepParent "$APP" "release/FreePlayer-$VER-mac-arm64.zip"
-          hdiutil create -volname FreePlayer -srcfolder "$APP" -ov -format UDZO \
-            "release/FreePlayer-$VER-mac-arm64.dmg" >/dev/null
-          ls -lh release/
+          brew install xcodegen
+          pnpm build:ipad
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           VER=$(node -p "require('./package.json').version")
+          MAC_ARTIFACTS=$(ls shell/release/FreePlayer-$VER-mac-arm64-* | tr '\n' ' ')
           gh release create "$GITHUB_REF_NAME" \
             --title "FreePlayer $GITHUB_REF_NAME" \
-            --notes "Ad-hoc signed (not notarized): first launch requires right-click → Open, or \`xattr -d com.apple.quarantine <path>\`. macOS 13+ / Apple Silicon only." \
-            release/FreePlayer-$VER-mac-arm64.zip release/FreePlayer-$VER-mac-arm64.dmg
+            --notes "Ad-hoc signed macOS build (not notarized): first launch requires right-click → Open, or \`xattr -d com.apple.quarantine <path>\`. macOS 13+ / Apple Silicon only. iPad build is a simulator artifact (unsigned; sign with your own team to install on a device)." \
+            $MAC_ARTIFACTS

@@ -14,7 +14,10 @@ jobs:
     name: Unit tests
     runs-on: ubuntu-latest
     steps:
+      # full history + tags: vite.config.js derives __APP_VERSION__ from git
       - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v5
         with:
@@ -28,6 +31,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v5
         with:
@@ -37,9 +42,34 @@ jobs:
       - run: pnpm build
 
   shell:
-    name: Native shell compile
+    name: macOS shell compile
     runs-on: macos-14
     steps:
       - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
       - name: Build shell
         run: cmake -S shell -B shell/build && cmake --build shell/build
+
+  ipad:
+    name: iPad build (simulator)
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Install XcodeGen
+        run: brew install xcodegen
+      # build:ipad = icons (assets/logo.svg) → xcodegen → xcodebuild (simulator).
+      # SIM_DEST=generic keeps the runner's Xcode version agnostic (its
+      # simulator list lacks the newest iPad models; generic builds fine).
+      - name: Build iPad app
+        run: pnpm build:ipad
+        env:
+          SIM_DEST: generic/platform=iOS Simulator
