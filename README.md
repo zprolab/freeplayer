@@ -1,8 +1,9 @@
 # FreePlayer
 
-macOS 上的本地音乐播放器。没有登录、没有账号、没有遥测，你的音乐文件留在你自己的硬盘上。
+本地音乐播放器：macOS 原生 App + iPad 兼容层。没有登录、没有账号、没有遥测，你的音乐文件留在你自己的设备上。
 
-- 需要 macOS 13+（Apple Silicon，M-系列芯片；）
+- macOS 13+（Apple Silicon，M-系列芯片）
+- iPadOS 17+（iPad，从模拟器或 Xcode 直接构建运行）
 - 默认完全离线。只有在设置里手动打开 "Auto-Fetch Lyrics & Covers" 之后，遇到缺歌词或封面的歌曲，才会把曲目标题、艺人、专辑发到 LRCLIB（歌词）和 iTunes Search API（封面）去查。开关默认关闭。字体从写下这句话开始都是离线加载。
 
 ## 技术栈
@@ -11,15 +12,33 @@ macOS 上的本地音乐播放器。没有登录、没有账号、没有遥测�
 
 支持格式：MP3、FLAC、WAV、OGG、M4A、AAC、WMA、Opus、AIFF、APE。
 
+## 源码结构
+
+所有 Swift 源码共用一棵树（`shell/Sources/`），macOS 和 iPad 各自从里面挑平台层编译：
+
+```
+shell/Sources/
+├── Core/         跨平台：SQLite 数据库、AVFoundation 元数据、路径安全
+├── Bridge/       跨平台：JS bridge 分发、导入管线、HTTP
+├── UI/           跨平台：SchemeHandler、AppContext、PlatformBridge 协议
+├── App/          跨平台：导航门
+└── Platform/
+    ├── macOS/    macOS 平台层（AppDelegate、窗口、托盘、插件 FS）
+    └── iPad/     iPad 平台层（App 入口、WKWebView 容器、平台桥、沙盒导入）
+```
+
+- macOS：CMake + Ninja（`shell/CMakeLists.txt` 只编译 macOS 平台层）
+- iPad：XcodeGen（`ios/project.yml` 引用同一源码树 + `Platform/iPad`）
+
 ## 功能
 
-- **导入音乐库**：自动读取每首歌的 metadata（标题、艺人、专辑、年份、流派、音轨号、比特率、采样率等），按 艺人/专辑 建好目录结构，再复制或软链接进库，模式可以在设置里选。
+- **导入音乐库**：自动读取每首歌的 metadata（标题、艺人、专辑、年份、流派、音轨号、比特率、采样率等），按 艺人/专辑 建好目录结构，再复制或软链接进库，模式可以在设置里选。iPad 上为沙盒固定库（`Documents/FreePlayer Library`），只支持复制导入。
 - **播放统计**：每次播放记到本地 SQLite（开始/结束时间、播放时长、播放进度），汇总出总播放时长、播放次数、常听曲目/艺人 Top 10、近 30 天每日统计。数据全在本地，随时可以清库重置。
 - **播放列表**：创建、重命名、删除，支持单曲加入、批量加入、拖拽排序。
 - **LRC 歌词**：手动关联 .lrc 文件，自动识别编码（UTF-8 失败后依次尝试 GBK、GB18030、GB2312、Shift_JIS、EUC-KR、Big5），中英日韩歌词都不会乱码。
 - **ReplayGain**：读取音频文件里的 ReplayGain 标签，播放时自动调整音量。
 - **封面**：导入时自动提取内嵌封面，存到专辑目录下的 `.covers` 子目录。
-- **全局媒体键**：播放/暂停、上一首、下一首，窗口在后台也能响应。
+- **全局媒体键**：播放/暂停、上一首、下一首，窗口在后台也能响应。iPad 上同步到控制中心（Now Playing）。
 - **波形可视化**：播放时实时画波形（Web Audio Analyser），自带频谱图。
 - **均衡器**：10 段（31Hz~16kHz），内置几个预设，独立小窗调节，设置全局持久化。
 - **沉浸模式**：全屏无干扰播放界面。
@@ -66,6 +85,15 @@ pnpm run dist         # build + bundle → zip + dmg，输出到 shell/release/
 ```
 
 产物命名：`FreePlayer-<version>-mac-arm64-<timestamp>.{zip,dmg}`。
+
+### iPad 构建
+
+```sh
+pnpm build                    # 先产出 web 资源 dist/（Xcode 构建会 rsync 进 bundle）
+cd ios && xcodegen generate   # 生成 FreePlayer.xcodeproj（生成物不入库）
+xcodebuild -project FreePlayer.xcodeproj -scheme FreePlayer \
+  -destination 'platform=iOS Simulator,name=iPad Pro 13-inch (M5)' build
+```
 
 ## 许可证
 
