@@ -5,6 +5,8 @@
 // the icon background is defined (tile fill, corner radius):
 //   - composes tile + glyph → renders shell/FreePlayer-1024.png (1024px master)
 //   - renders the macOS iconset sizes → iconutil → shell/FreePlayer.icns
+//   - renders the iOS AppIcon (square — iOS applies its own mask) into
+//     shell/Assets.xcassets/AppIcon.appiconset/
 // Requires: node + @resvg/resvg-js (devDependency); iconutil ships with macOS.
 // CI-safe on macOS runners; the web build never invokes this.
 import { readFileSync, writeFileSync, mkdtempSync, mkdirSync, rmSync } from 'node:fs';
@@ -18,6 +20,9 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const SRC = join(ROOT, 'assets', 'logo.svg');
 const OUT_PNG = join(ROOT, 'shell', 'FreePlayer-1024.png');
 const OUT_ICNS = join(ROOT, 'shell', 'FreePlayer.icns');
+const IOS_APPICON_DIR = join(ROOT, 'shell', 'Assets.xcassets', 'AppIcon.appiconset');
+const IOS_APPICON_PNG = join(IOS_APPICON_DIR, 'AppIcon-1024.png');
+const IOS_APPICON_JSON = join(IOS_APPICON_DIR, 'Contents.json');
 
 // ── icon tile recipe (the ONLY place background styling lives) ─────────────
 const TILE_FILL = '#1f1f23';   // matches the authoritative Pixelmator export
@@ -48,9 +53,9 @@ function glyphSvg() {
   return `<defs>${grad ? grad[0] : ''}</defs>${rest}`;
 }
 
-function composedSvg() {
+function composedSvg(radius) {
   return `<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="1280" viewBox="0 0 1280 1280">
-  <rect x="0" y="0" width="1280" height="1280" rx="${TILE_RADIUS}" fill="${TILE_FILL}"/>
+  <rect x="0" y="0" width="1280" height="1280" rx="${radius}" fill="${TILE_FILL}"/>
   ${glyphSvg()}
 </svg>`;
 }
@@ -60,7 +65,7 @@ function render(svg, px) {
   return resvg.render().asPng();
 }
 
-const svg = composedSvg();
+const svg = composedSvg(TILE_RADIUS);
 
 // 1024px master
 writeFileSync(OUT_PNG, render(svg, 1024));
@@ -77,3 +82,13 @@ try {
   rmSync(tmp, { recursive: true, force: true });
 }
 console.log(`==> ${OUT_ICNS}`);
+
+// iOS AppIcon — square tile (iOS renders its own rounded mask + shadows), so
+// the exported bitmap must be a full-bleed square with no corner rounding.
+mkdirSync(IOS_APPICON_DIR, { recursive: true });
+writeFileSync(IOS_APPICON_PNG, render(composedSvg(0), 1024));
+writeFileSync(IOS_APPICON_JSON, JSON.stringify({
+  images: [{ filename: 'AppIcon-1024.png', idiom: 'universal', platform: 'ios', size: '1024x1024' }],
+  info: { author: 'xcode', version: 1 },
+}, null, 2) + '\n');
+console.log(`==> ${IOS_APPICON_PNG}`);

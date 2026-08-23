@@ -28,11 +28,15 @@ if [ ! -d "$DIST" ]; then
   (cd "$ROOT" && node_modules/.bin/vite build)
 fi
 
-# ── 2. Xcode project ──
+# ── 2. icons (regenerate AppIcon + icns from assets/logo.svg) ──
+echo "[ipad] icons..."
+(cd "$ROOT" && node scripts/icons.mjs)
+
+# ── 3. Xcode project ──
 echo "[ipad] xcodegen generate..."
 (cd "$SHELL" && xcodegen generate)
 
-# ── 3. build ──
+# ── 4. build ──
 if [ -n "$DEVICE" ]; then
   DEST="platform=iOS,id=$DEVICE"
   SIGN_ARGS=""
