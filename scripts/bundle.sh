@@ -40,6 +40,20 @@ cp -R "$DIST"/. "$BUNDLE/Contents/Resources/web/"
 cp "$SHELL/FreePlayer.icns" "$BUNDLE/Contents/Resources/FreePlayer.icns"
 cp "$ROOT/LICENSE" "$BUNDLE/Contents/Resources/LICENSE"
 cp "$SHELL/Info.plist" "$BUNDLE/Contents/Info.plist"
+
+# ── 5. build version: <pkg.version> on tag builds, else <version>-<git-hash> ──
+# (mirrors build-ipad.sh so macOS and iPad carry the same version string)
+VER=$(node -p "require('$ROOT/package.json').version")
+if git -C "$ROOT" describe --tags --exact-match >/dev/null 2>&1; then
+  BUILD_VERSION="$VER"
+else
+  HASH=$(git -C "$ROOT" rev-parse --short HEAD)
+  BUILD_VERSION="$VER-$HASH"
+fi
+/usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $BUILD_VERSION" "$BUNDLE/Contents/Info.plist"
+/usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD_VERSION" "$BUNDLE/Contents/Info.plist"
+echo "[bundle] build version: $BUILD_VERSION"
+
 # hardened runtime for release bundles (ad-hoc identity)
 codesign --force --sign - --options runtime "$BUNDLE"
 echo "==> $BUNDLE ready"

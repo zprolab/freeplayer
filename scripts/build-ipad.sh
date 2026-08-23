@@ -32,7 +32,18 @@ fi
 echo "[ipad] icons..."
 (cd "$ROOT" && node scripts/icons.mjs)
 
-# ── 3. Xcode project ──
+# ── 3. build version: <pkg.version> on tag builds, else <version>-<git-hash> ──
+VER=$(node -p "require('$ROOT/package.json').version")
+if git -C "$ROOT" describe --tags --exact-match >/dev/null 2>&1; then
+  FP_BUILD_VERSION="$VER"
+else
+  HASH=$(git -C "$ROOT" rev-parse --short HEAD)
+  FP_BUILD_VERSION="$VER-$HASH"
+fi
+echo "[ipad] build version: $FP_BUILD_VERSION"
+export FP_BUILD_VERSION
+
+# ── 4. Xcode project ──
 echo "[ipad] xcodegen generate..."
 (cd "$SHELL" && xcodegen generate)
 

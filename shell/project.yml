@@ -29,8 +29,11 @@ targets:
       path: Info-iOS.plist
       properties:
         CFBundleDisplayName: FreePlayer
-        CFBundleShortVersionString: "1.0.0"
-        CFBundleVersion: "1"
+        # Version injected at build time: build-ipad.sh sets FP_BUILD_VERSION
+        # to <pkg.version> on tag builds or <pkg.version>-<git-short-hash>
+        # otherwise. XcodeGen interpolates the env var here.
+        CFBundleShortVersionString: ${FP_BUILD_VERSION}
+        CFBundleVersion: ${FP_BUILD_VERSION}
         UILaunchScreen: {}
         UIBackgroundModes: [audio]
         UIRequiresFullScreen: true
