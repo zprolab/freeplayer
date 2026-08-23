@@ -6,7 +6,10 @@ import { applyMonoFont } from '../utils/fonts';
 import logoUrl from '../../assets/logo.svg';
 import licenseText from '../../LICENSE?raw';
 import noticesText from '../../THIRD-PARTY-NOTICES.txt?raw';
-import { version } from '../../package.json';
+
+// Injected at build time by vite.config.js (define): <pkg.version> on tag
+// builds, <pkg.version>-<git-hash> otherwise — matches the native bundles.
+const version = __APP_VERSION__;
 
 const MONO_FONTS = [
   { value: '', label: 'System default' },
