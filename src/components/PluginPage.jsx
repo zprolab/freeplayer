@@ -23,7 +23,6 @@ const PERM_DESC = {
 function renderableIcon(icon) {
   if (typeof icon !== 'string' || !icon) return { svg: null, img: null };
   if (icon.includes('<')) return { svg: sanitizeSvgIcon(icon), img: null };
-  if (/^(https?:|data:image\/)/.test(icon)) return { svg: null, img: icon };
   return { svg: null, img: null };
 }
 

@@ -29,7 +29,8 @@ function grantedRank(granted, domain) {
   for (const p of granted) {
     const [d, l] = p.split(':');
     if (d !== domain) continue;
-    if (!LEVEL_RANK[l]) return Infinity;
+    if (l === undefined) return Infinity;
+    if (!LEVEL_RANK[l]) continue;
     if (LEVEL_RANK[l] > max) max = LEVEL_RANK[l];
   }
   return max;
