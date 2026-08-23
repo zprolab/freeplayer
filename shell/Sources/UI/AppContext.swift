@@ -44,6 +44,11 @@ final class AppContext {
     /// Platform-specific bridge (set by the platform AppDelegate on launch).
     var platformBridge: PlatformBridge?
 
+    /// Strong ref to the scheme handler — WKWebView does NOT retain it; a
+    /// local variable would be released right after configuration and every
+    /// app:// / media:// request would fail (silently) on iOS.
+    var schemeHandler: SchemeHandler?
+
     // ── import pipeline (M12: termination waits on this) ──
     let importTasks = AtomicInt(0)
     let importGroup = DispatchGroup()

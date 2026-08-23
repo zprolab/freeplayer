@@ -3,6 +3,15 @@
 // UIDocumentPicker (folder/file selection), UIAlertController (reset
 // confirm), MPNowPlayingInfoCenter (Control Center), and no-op / degraded
 // answers for macOS-only features (tray, login item, plugins, EQ window).
+//
+// iOS sandbox notes (import flow):
+//  • A folder picked via UIDocumentPicker is only readable while its
+//    security-scoped access is active. We adopt it (bookmark + startAccess)
+//    and KEEP access for the process lifetime — releasing it in the picker
+//    callback would make the subsequent scanDirectory/importFiles/… fail.
+//  • library_dir is always inside the app sandbox (Documents/FreePlayer
+//    Library) — the sandbox cannot write to user-picked folders, and symlink
+//    import is impossible on iOS, so picked folders are read-only SOURCES.
 
 import UIKit
 import UniformTypeIdentifiers
@@ -18,16 +27,47 @@ final class IPadPlatformBridge: NSObject, PlatformBridge {
 
     // ── pending document-picker callbacks (one at a time) ──
     private var pendingImport: ((Any?) -> Void)?
-    private var pendingSelect: ((Any?) -> Void)?
     private var pendingUpload: ((Any?) -> Void)?
     private var pendingUploadPath: String?
+    private var pendingUploadTrackId: Int64 = 0
+
+    // MARK: - Library location (iOS sandbox)
+
+    /// Where the library lives on iOS: inside the app sandbox. The sandbox
+    /// cannot write to user-picked folders, so library_dir always points here
+    /// and picked folders are read-only import SOURCES.
+    private static func libraryDirPath() -> String {
+        let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
+        return docs.appendingPathComponent("FreePlayer Library", isDirectory: true).path
+    }
+
+    /// Make sure the in-sandbox library exists and library_dir points at it.
+    /// Idempotent: calling it twice changes nothing. Returns the library path.
+    @discardableResult
+    static func ensureLibraryDir() -> String {
+        let lib = libraryDirPath()
+        try? FileManager.default.createDirectory(
+            atPath: lib, withIntermediateDirectories: true)
+        if Database.getSetting("library_dir", nil) as? String != lib {
+            _ = Database.setSetting("library_dir", lib)
+        }
+        return lib
+    }
+
+    /// Restore bookmarks + trusted roots at launch so folders picked in a
+    /// previous session keep working (called by the iOS entry point).
+    static func restorePickedFolders() {
+        for path in SecurityScopedBookmarks.restoreAll() {
+            AppContext.shared.addTrustedScanRoot(path)
+        }
+    }
 
     private func present(_ picker: UIDocumentPickerViewController) {
         guard let host = Host.viewController else {
             // nothing to present on — answer as cancelled
-            let cancel: ((Any?) -> Void)? = pendingImport ?? pendingSelect ?? pendingUpload
+            let cancel: ((Any?) -> Void)? = pendingImport ?? pendingUpload
             cancel?(["canceled": true])
-            pendingImport = nil; pendingSelect = nil; pendingUpload = nil
+            pendingImport = nil; pendingUpload = nil
             return
         }
         host.present(picker, animated: true)
@@ -65,15 +105,17 @@ final class IPadPlatformBridge: NSObject, PlatformBridge {
     }
 
     func selectLibraryDir(reply: @escaping (Any?) -> Void) {
-        pendingSelect = reply
-        let picker = UIDocumentPickerViewController(forOpeningContentTypes: [.folder], asCopy: false)
-        picker.delegate = self
-        present(picker)
+        // iOS: the library location is FIXED (in-sandbox Documents) — there is
+        // nothing for the user to pick. Return the fixed library immediately;
+        // only importDialog (pick a SOURCE folder) opens a picker.
+        let lib = Self.ensureLibraryDir()
+        reply(["canceled": false, "path": lib, "libraryDir": lib])
     }
 
     func uploadLrc(trackId: Int64, audioPath: String, reply: @escaping (Any?) -> Void) {
         pendingUpload = reply
         pendingUploadPath = audioPath
+        pendingUploadTrackId = trackId
         let picker = UIDocumentPickerViewController(forOpeningContentTypes: [.plainText], asCopy: false)
         picker.delegate = self
         present(picker)
@@ -152,35 +194,46 @@ extension IPadPlatformBridge: UIDocumentPickerDelegate {
         guard let url = urls.first else {
             finishPending(["canceled": true]); return
         }
-        let access = url.startAccessingSecurityScopedResource()
-        defer { if access { url.stopAccessingSecurityScopedResource() } }
-        let path = url.path
+        // Adopt (bookmark + startAccess) and KEEP access alive: the sandbox
+        // only allows reads while access is active, and scan/import run on
+        // background queues after this callback returns.
+        guard let path = SecurityScopedBookmarks.adopt(url) else {
+            finishPending(["canceled": true, "error": "could not access the picked folder"])
+            return
+        }
 
         if let reply = pendingImport {
             pendingImport = nil
             // S7: the picked folder becomes a trusted scan root
             AppContext.shared.addTrustedScanRoot(path)
-            let libDir = Database.getSetting("library_dir", nil) as? String
-            let libDirValue: Any = libDir ?? NSNull()
-            reply(["canceled": false, "sourceDir": path, "libraryDir": libDirValue])
-        } else if let reply = pendingSelect {
-            pendingSelect = nil
-            AppContext.shared.addTrustedScanRoot(path)
-            _ = Database.setSetting("library_dir", path)
-            reply(["canceled": false, "path": path, "libraryDir": path])
+            // The web "Set Up Library" flow reaches us via importDialog; make
+            // sure a writable library exists before the import runs.
+            let lib = Self.ensureLibraryDir()
+            reply(["canceled": false, "sourceDir": path, "libraryDir": lib])
         } else if let reply = pendingUpload, let audioPath = pendingUploadPath {
             pendingUpload = nil
             pendingUploadPath = nil
+            let trackId = pendingUploadTrackId
+            pendingUploadTrackId = 0
             // copy the .lrc next to the audio file (sandbox-friendly)
             let target = ((audioPath as NSString).deletingLastPathComponent as NSString)
                 .appendingPathComponent((path as NSString).lastPathComponent)
-            guard FileManager.default.fileExists(atPath: target) == false,
-                  let raw = try? Data(contentsOf: url),
+            // S13: never silently overwrite an existing sidecar; target must
+            // stay inside the (sandboxed) library — mirrors the macOS handler
+            if FileManager.default.fileExists(atPath: target) {
+                reply(["success": false, "error": "A lyrics file with that name already exists"]); return
+            }
+            guard Paths.isPathInLibrary(target) else {
+                reply(["success": false, "error": "target outside library"]); return
+            }
+            guard let raw = try? Data(contentsOf: url),
                   (try? raw.write(to: URL(fileURLWithPath: target), options: .atomic)) != nil else {
                 reply(["success": false, "error": "could not copy lyrics file"]); return
             }
-            let content = String(data: raw, encoding: .utf8) ?? ""
-            reply(["success": true, "content": content, "path": target])
+            let content = String(data: raw, encoding: .utf8)
+                ?? String(data: raw, encoding: Metadata.gb18030)
+            _ = Database.setTrackLrc(trackId, target)
+            reply(["success": true, "content": content ?? "", "path": target])
         }
     }
 
@@ -189,8 +242,9 @@ extension IPadPlatformBridge: UIDocumentPickerDelegate {
     }
 
     private func finishPending(_ result: [String: Any]) {
-        let reply = pendingImport ?? pendingSelect ?? pendingUpload
-        pendingImport = nil; pendingSelect = nil; pendingUpload = nil; pendingUploadPath = nil
+        let reply = pendingImport ?? pendingUpload
+        pendingImport = nil; pendingUpload = nil
+        pendingUploadPath = nil; pendingUploadTrackId = 0
         reply?(result)
     }
 }

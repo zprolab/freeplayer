@@ -33,6 +33,7 @@ enum BridgeScript {
         // Settings
         getSetting: (key) => api._invoke('getSetting', key),
         setSetting: (data) => api._invoke('setSetting', data),
+        getPlatform: () => api._invoke('getPlatform'),
         isSetup: () => api._invoke('isSetup'),
         selectLibraryDir: () => api._invoke('selectLibraryDir'),
         resetDatabase: () => api._invoke('resetDatabase'),

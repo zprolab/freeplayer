@@ -4,6 +4,9 @@
 
 import Foundation
 import WebKit
+import os
+
+private let bridgeLog = Logger(subsystem: "com.zprolab.FreePlayer", category: "bridge")
 
 final class BridgeHandler: NSObject, WKScriptMessageHandler {
 
@@ -61,7 +64,7 @@ final class BridgeHandler: NSObject, WKScriptMessageHandler {
 
         // Trivial system events stay here for zero routing overhead
         if method == "__ready" {
-            NSLog("[shell] bridge ready, %@", webView.url?.absoluteString ?? "?")
+            bridgeLog.info("bridge ready: \(webView.url?.absoluteString ?? "?")")
             if UserDefaults.standard.bool(forKey: "FP_SPECTRO_TEST") {
                 webView.evaluateJavaScript("window.__FP_SPECTRO_TEST = true;")
             }

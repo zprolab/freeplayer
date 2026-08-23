@@ -13,3 +13,7 @@ shell/build/
 shell/release/
 shell/FreePlayer-1024.png
 shell/FreePlayer.icns
+
+# XcodeGen artifacts (regenerate with: cd ios && xcodegen generate)
+ios/FreePlayer.xcodeproj/
+ios/Info.plist

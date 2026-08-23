@@ -17,8 +17,17 @@ final class BridgeRouter {
 
         let platform = AppContext.shared.platformBridge
 
+        // ── Platform identity (renderer adapts its UI: iOS has a fixed
+        // in-sandbox library and copy-only import; macOS has panels + symlink) ──
+        if method == "getPlatform" {
+            #if os(iOS)
+            reply(idNum, "ios")
+            #else
+            reply(idNum, "macos")
+            #endif
+        }
         // ── Settings / setup ──
-        if method == "isSetup" {
+        else if method == "isSetup" {
             let dir = Database.getSetting("library_dir", nil) as? String
             let libraryDirValue: Any = dir ?? NSNull()
             reply(idNum, ["setup": dir != nil, "libraryDir": libraryDirValue])
@@ -31,7 +40,12 @@ final class BridgeRouter {
             if key == "library_dir" { reply(idNum, false); return } // NEW-2: trust anchor — native-only
             if key == "import_mode" {
                 let mode = "\(d["value"] ?? "")"
+                #if os(iOS)
+                // iOS sandbox cannot symlink out of the container — copy only
+                guard mode == "copy" else { reply(idNum, false); return }
+                #else
                 guard mode == "copy" || mode == "symlink" else { reply(idNum, false); return }
+                #endif
                 reply(idNum, Database.setSetting(key, mode)); return
             }
             let plain: Set<String> = [
@@ -293,8 +307,15 @@ final class BridgeRouter {
                 reply(idNum, ["imported": 0, "errors": [], "error": "library not set"]); return
             }
             let importMode = (Database.getSetting("import_mode", "copy") as? String) ?? "copy"
+            // iOS sandbox cannot create symlinks into (or read-through) picked
+            // folders — always copy on iOS, whatever the stored preference says.
+            #if os(iOS)
+            let effectiveMode = "copy"
+            #else
+            let effectiveMode = importMode
+            #endif
             let mid = idNum
-            ImportPipeline.runImport(files: files.compactMap { $0 as? String }, storedLib: storedLib, importMode: importMode) { result in
+            ImportPipeline.runImport(files: files.compactMap { $0 as? String }, storedLib: storedLib, importMode: effectiveMode) { result in
                 reply(mid, result)
             }
         }

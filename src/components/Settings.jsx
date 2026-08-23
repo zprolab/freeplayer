@@ -33,6 +33,7 @@ const Settings = memo(function Settings({
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [monoFont, setMonoFont] = useState('');
   const [uiMode, setUiMode] = useState('unified');
+  const [platform, setPlatform] = useState('macos');
   const [legalModal, setLegalModal] = useState(null); // 'license' | 'notices' | null
   const [legalText, setLegalText] = useState('');
   const {
@@ -53,11 +54,13 @@ const Settings = memo(function Settings({
     Promise.all([
       window.freeplayer.getSetting('mono_font'),
       window.freeplayer.getSetting('ui_mode'),
+      window.freeplayer.getPlatform(),
     ])
-      .then(([font, mode]) => {
+      .then(([font, mode, plat]) => {
         if (cancelled) return;
         setMonoFont(typeof font === 'string' ? font : '');
         setUiMode(mode === 'classic' ? 'classic' : 'unified');
+        setPlatform(plat === 'ios' ? 'ios' : 'macos');
       })
       .catch(() => {});
     return () => { cancelled = true; };
@@ -113,18 +116,20 @@ const Settings = memo(function Settings({
             </div>
           </button>
 
-          <button
-            className={`import-mode-card ${importMode === 'symlink' ? 'import-mode-card--selected' : ''}`}
-            onClick={() => onImportModeChange('symlink')}
-          >
-            <div className="import-mode-radio">
-              <div className="import-mode-radio-dot" />
-            </div>
-            <div>
-              <div className="import-mode-label">Symlink</div>
-              <div className="import-mode-hint">Create symbolic links (saves disk space)</div>
-            </div>
-          </button>
+          {platform !== 'ios' && (
+            <button
+              className={`import-mode-card ${importMode === 'symlink' ? 'import-mode-card--selected' : ''}`}
+              onClick={() => onImportModeChange('symlink')}
+            >
+              <div className="import-mode-radio">
+                <div className="import-mode-radio-dot" />
+              </div>
+              <div>
+                <div className="import-mode-label">Symlink</div>
+                <div className="import-mode-hint">Create symbolic links (saves disk space)</div>
+              </div>
+            </button>
+          )}
         </div>
       </div>
 
@@ -146,9 +151,11 @@ const Settings = memo(function Settings({
           ) : (
             <span className="library-dir-empty">No library directory set</span>
           )}
-          <button className="btn btn-secondary" onClick={handleChangeLibraryDir} style={{ flexShrink: 0 }}>
-            Change...
-          </button>
+          {platform !== 'ios' && (
+            <button className="btn btn-secondary" onClick={handleChangeLibraryDir} style={{ flexShrink: 0 }}>
+              Change...
+            </button>
+          )}
         </div>
       </div>
 

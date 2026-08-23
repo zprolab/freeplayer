@@ -4,6 +4,19 @@
 
 import Foundation
 import WebKit
+import os
+
+private let schemeLog = Logger(subsystem: "com.zprolab.FreePlayer", category: "scheme")
+
+private func schemeDiag(_ msg: String) {
+    let url = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("scheme-diag.log")
+    if !FileManager.default.fileExists(atPath: url.path) {
+        FileManager.default.createFile(atPath: url.path, contents: nil)
+    }
+    if let h = try? FileHandle(forWritingTo: url) {
+        h.seekToEndOfFile(); h.write(("[\(Date())] \(msg)\n").data(using: .utf8)!); try? h.close()
+    }
+}
 
 // S11: mirror the page's own CSP meta tag (index.html — including the
 // `blob:` script allowance the plugin worker sandbox needs) — the app://
@@ -68,13 +81,18 @@ final class SchemeHandler: NSObject, WKURLSchemeHandler {
     }
 
     func webView(_ webView: WKWebView, start task: any WKURLSchemeTask) {
+        schemeLog.info("start \(task.request.url?.absoluteString ?? "?")")
+        schemeDiag("start \(task.request.url?.absoluteString ?? "?")")
         guard let url = task.request.url else {
             task.didFailWithError(NSError(domain: "FreePlayerShell", code: 400))
             return
         }
 
-        // ── app:// — bundled web assets ──
-        if url.scheme == "app" {
+        // ── web scheme — bundled web assets ──
+        // macOS registers "app"; iOS must avoid the reserved app:// scheme and
+        // registers "fpapp" instead. Same handler, same path-pinning logic.
+        if url.scheme == "app" || url.scheme == "fpapp" {
+            schemeDiag("app:// branch hit, path=\(url.path) scheme=\(url.scheme ?? "?")")
             var rel = url.path // "/index.html", "/assets/x.js"
             if rel.isEmpty || rel == "/" { rel = "/index.html" }
             // H6: standardize the path and pin it inside gWebRoot — ".." components
@@ -108,6 +126,7 @@ final class SchemeHandler: NSObject, WKURLSchemeHandler {
             task.didReceive(response)
             task.didReceive(data)
             task.didFinish()
+            schemeDiag("app:// served \(file) (\(data.count) bytes)")
             return
         }
 
@@ -122,6 +141,7 @@ final class SchemeHandler: NSObject, WKURLSchemeHandler {
             task.didFailWithError(NSError(domain: "FreePlayerShell", code: 400))
             return
         }
+        schemeDiag("media:// path=\(path)")
 
         // L2: only library-owned files may stream — Paths.isPathInLibrary
         // standardizes AND resolves symlinks, so a symlink-imported track that
