@@ -1,7 +1,10 @@
 #!/bin/bash
 # FreePlayer — install the app bundle
-#   npm run install            → /Applications
-#   npm run install ~/Desktop   → ~/Desktop
+#   npm run install:app            → /Applications
+#   npm run install:app ~/Desktop   → ~/Desktop
+# NOTE: the script is NOT named "install" in package.json — npm/pnpm treat
+# "install" as a lifecycle hook that runs on every `pnpm install`, which would
+# build the macOS shell on CI runners (and fail on non-macOS). See e79bfb0.
 # Builds FreePlayer.app on demand (via scripts/bundle.sh), then copies it in.
 set -e
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"

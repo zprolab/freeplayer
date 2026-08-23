@@ -70,7 +70,7 @@ shell/Sources/
 git clone https://github.com/zprolab/FreePlayer
 cd FreePlayer
 pnpm install
-pnpm run install      # 可选：构建并安装到 /Applications
+pnpm run install:app  # 可选：构建并安装到 /Applications
 pnpm run dev          # 起 Vite 开发服务器并编译运行原生外壳
 ```
 

@@ -9,7 +9,7 @@
     "build": "vite build",
     "bundle": "bash scripts/bundle.sh",
     "dist": "bash scripts/package.sh",
-    "install": "bash scripts/install.sh",
+    "install:app": "bash scripts/install.sh",
     "test": "vitest run",
     "test:watch": "vitest",
     "clean": "bash scripts/clean.sh",
