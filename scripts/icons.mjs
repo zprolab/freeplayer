@@ -21,7 +21,11 @@ const OUT_ICNS = join(ROOT, 'shell', 'FreePlayer.icns');
 
 // ── icon tile recipe (the ONLY place background styling lives) ─────────────
 const TILE_FILL = '#1f1f23';   // matches the authoritative Pixelmator export
-const TILE_RADIUS = 4;         // in 1280 artspace; matches the export's subtle corner
+// macOS applies its own squircle mask on the Dock; a near-square tile leaves
+// its corners clipped → a visible border ring around the icon. Give the tile
+// the standard macOS corner radius (~22% of size) so the mask hugs the
+// content and the icon fills the Dock slot edge-to-edge.
+const TILE_RADIUS = 280;       // in 1280 artspace (~21.9%)
 // ────────────────────────────────────────────────────────────────────────────
 
 // macOS iconset: name → pixel size
