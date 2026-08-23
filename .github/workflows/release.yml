@@ -11,7 +11,7 @@ permissions:
 jobs:
   release:
     name: Package and publish
-    runs-on: macos-15
+    runs-on: macos-26
     steps:
       # full history + tags so bundle.sh/package.sh/build-ipad.sh detect the
       # tag and stamp the clean <version> (no -g<hash> suffix) into the apps
