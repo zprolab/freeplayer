@@ -6,15 +6,18 @@
   "author": "zprolab",
   "scripts": {
     "dev": "bash scripts/dev.sh",
-    "build": "vite build",
+
+    "bundle": "vite build && cmake -S shell -B shell/build -G Ninja && cmake --build shell/build --target bundle",
+    "build": "bash scripts/package.sh",
+    "install": "bash scripts/install.sh",
+    
     "vite:dev": "vite",
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "shell:bundle": "vite build && cmake -S shell -B shell/build -G Ninja && cmake --build shell/build --target bundle",
-    "shell:dist": "bash scripts/package.sh",
-    "install:app": "bash scripts/install.sh",
-    "clean": "bash scripts/clean.sh",
-    "clean:all": "bash scripts/clean.sh --all"
+    "vite:build": "vite build",
+
+    "vite:test": "vitest run",
+    "vite:test:watch": "vitest",
+    
+    "clean": "bash scripts/clean.sh"
   },
   "devDependencies": {
     "@resvg/resvg-js": "^2.6.2",
