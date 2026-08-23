@@ -28,7 +28,7 @@ shell/Sources/
 ```
 
 - macOS：CMake + Ninja（`shell/CMakeLists.txt` 只编译 macOS 平台层）
-- iPad：XcodeGen（`ios/project.yml` 引用同一源码树 + `Platform/iPad`）
+- iPad：XcodeGen（`shell/project.yml` 引用同一源码树 + `Platform/iPad`）
 
 ## 功能
 
@@ -90,7 +90,7 @@ pnpm run dist         # build + bundle → zip + dmg，输出到 shell/release/
 
 ```sh
 pnpm build                    # 先产出 web 资源 dist/（Xcode 构建会 rsync 进 bundle）
-cd ios && xcodegen generate   # 生成 FreePlayer.xcodeproj（生成物不入库）
+cd shell && xcodegen generate # 生成 FreePlayer.xcodeproj（生成物不入库）
 xcodebuild -project FreePlayer.xcodeproj -scheme FreePlayer \
   -destination 'platform=iOS Simulator,name=iPad Pro 13-inch (M5)' build
 ```
