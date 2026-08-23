@@ -49,8 +49,11 @@ jobs:
         with:
           fetch-depth: 0
       - name: Build shell
-        # Swift requires the Ninja generator (macos-26 runners ship Ninja).
-        run: cmake -S shell -B shell/build -G Ninja && cmake --build shell/build
+        # Swift requires the Ninja generator (macos-26 runners ship Ninja);
+        # SDKROOT lets the absolute-path swiftc find the SDK stdlib.
+        run: |
+          export SDKROOT="$(xcrun --sdk macosx --show-sdk-path)"
+          cmake -S shell -B shell/build -G Ninja && cmake --build shell/build
 
   ipad:
     name: iPad build (simulator)

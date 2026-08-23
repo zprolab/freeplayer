@@ -20,14 +20,11 @@ fi
 # ── 2. shell binary ──
 if [ ! -d "$BUILD" ] || [ ! -f "$BUILD/build.ninja" ]; then
   echo "[bundle] configuring cmake..."
-  # Point CMake at the Xcode toolchain's swiftc explicitly when available —
-  # some runners' bundled CMake cannot auto-detect the Swift compiler.
-  SWIFTC=""
-  if command -v xcrun >/dev/null 2>&1; then
-    SWIFTC="-DCMAKE_Swift_COMPILER=$(xcrun -f swiftc)"
-  fi
-  # shellcheck disable=SC2086
-  cmake -S "$SHELL" -B "$BUILD" -G Ninja $SWIFTC
+  # swiftc called by its absolute path cannot locate the macOS SDK's standard
+  # library ("unable to load standard library for target 'arm64-apple-macosx…")
+  # — export SDKROOT so the CMake compiler probe succeeds (CI + local).
+  SDKROOT="${SDKROOT:-$(xcrun --sdk macosx --show-sdk-path 2>/dev/null || true)}" \
+    cmake -S "$SHELL" -B "$BUILD" -G Ninja
 fi
 if [ ! -f "$BIN" ]; then
   echo "[bundle] building shell binary..."
