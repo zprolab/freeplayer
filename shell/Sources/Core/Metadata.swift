@@ -7,6 +7,13 @@ import AVFoundation
 import CoreMedia
 import AudioToolbox
 
+/// Box so concurrently-executing code may mutate the payload without tripping
+/// the Swift 5.10 strict-concurrency check (same pattern as ImportPipeline).
+private final class Box<T> {
+    var value: T
+    init(_ v: T) { value = v }
+}
+
 enum Metadata {
 
     static let gb18030: String.Encoding = {
@@ -216,13 +223,16 @@ enum Metadata {
         let url = URL(fileURLWithPath: path)
         let asset = AVURLAsset(url: url, options: nil)
         let sem = DispatchSemaphore(value: 0)
-        var result: [String: Any]?
+        // Box so the detached task may mutate the payload without tripping the
+        // Swift 5.10 strict-concurrency check ("mutation of captured var in
+        // concurrently-executing code") — same pattern as ImportPipeline.
+        let box = Box<[String: Any]?>(nil)
         Task.detached {
-            result = await Self.extractAsync(asset: asset, path: path)
+            box.value = await Self.extractAsync(asset: asset, path: path)
             sem.signal()
         }
         _ = sem.wait(timeout: .now() + 10)
-        return result
+        return box.value
     }
 
     private static func extractAsync(asset: AVURLAsset, path: String) async -> [String: Any]? {
