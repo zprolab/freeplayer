@@ -20,7 +20,14 @@ fi
 # ── 2. shell binary ──
 if [ ! -d "$BUILD" ] || [ ! -f "$BUILD/build.ninja" ]; then
   echo "[bundle] configuring cmake..."
-  cmake -S "$SHELL" -B "$BUILD" -G Ninja
+  # Point CMake at the Xcode toolchain's swiftc explicitly when available —
+  # some runners' bundled CMake cannot auto-detect the Swift compiler.
+  SWIFTC=""
+  if command -v xcrun >/dev/null 2>&1; then
+    SWIFTC="-DCMAKE_Swift_COMPILER=$(xcrun -f swiftc)"
+  fi
+  # shellcheck disable=SC2086
+  cmake -S "$SHELL" -B "$BUILD" -G Ninja $SWIFTC
 fi
 if [ ! -f "$BIN" ]; then
   echo "[bundle] building shell binary..."

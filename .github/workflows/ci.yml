@@ -43,17 +43,22 @@ jobs:
 
   shell:
     name: macOS shell compile
-    runs-on: macos-14
+    runs-on: macos-15
     steps:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
       - name: Build shell
-        run: cmake -S shell -B shell/build && cmake --build shell/build
+        # Point CMake at the Xcode toolchain's swiftc explicitly — the runner's
+        # bundled CMake may not auto-detect the Swift compiler.
+        run: |
+          cmake -S shell -B shell/build \
+            -DCMAKE_Swift_COMPILER="$(xcrun -f swiftc)"
+          cmake --build shell/build
 
   ipad:
     name: iPad build (simulator)
-    runs-on: macos-14
+    runs-on: macos-15
     steps:
       - uses: actions/checkout@v5
         with:

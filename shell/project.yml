@@ -8,6 +8,9 @@ options:
   deploymentTarget:
     iOS: "17.0"
   createIntermediateGroups: true
+  # CI runners ship Xcode 15.4 — pin the project format so the generated
+  # FreePlayer.xcodeproj opens there (format 77 = Xcode 16+ only).
+  xcodeVersion: "15.0"
 
 targets:
   FreePlayer:
