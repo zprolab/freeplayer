@@ -6,17 +6,12 @@
   "author": "zprolab",
   "scripts": {
     "dev": "bash scripts/dev.sh",
-
-    "bundle": "vite build && cmake -S shell -B shell/build -G Ninja && cmake --build shell/build --target bundle",
-    "build": "bash scripts/package.sh",
+    "build": "vite build",
+    "bundle": "bash scripts/bundle.sh",
+    "dist": "bash scripts/package.sh",
     "install": "bash scripts/install.sh",
-    
-    "vite:dev": "vite",
-    "vite:build": "vite build",
-
-    "vite:test": "vitest run",
-    "vite:test:watch": "vitest",
-    
+    "test": "vitest run",
+    "test:watch": "vitest",
     "clean": "bash scripts/clean.sh"
   },
   "devDependencies": {

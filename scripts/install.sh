@@ -2,22 +2,14 @@
 # FreePlayer — install the app bundle
 #   npm run install            → /Applications
 #   npm run install ~/Desktop   → ~/Desktop
-# Builds dist + FreePlayer.app on demand, then copies the bundle in.
+# Builds FreePlayer.app on demand (via scripts/bundle.sh), then copies it in.
 set -e
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 TARGET="${1:-/Applications}"
 APP="$ROOT/shell/build/FreePlayer.app"
 
-if [ ! -d "$ROOT/dist" ]; then
-  echo "[install] vite build..."
-  (cd "$ROOT" && node_modules/.bin/vite build)
-fi
-if [ ! -d "$APP" ]; then
-  echo "[install] bundling FreePlayer.app..."
-  # configure on demand — shell/build may not exist after a clean
-  [ -f "$ROOT/shell/build/build.ninja" ] || cmake -S "$ROOT/shell" -B "$ROOT/shell/build" -G Ninja
-  cmake --build "$ROOT/shell/build" --target bundle
-fi
+echo "[install] bundling FreePlayer.app..."
+bash "$ROOT/scripts/bundle.sh"
 
 if [ ! -d "$TARGET" ]; then
   echo "==> target directory missing: $TARGET" >&2

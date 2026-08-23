@@ -1,18 +1,13 @@
 #!/bin/bash
-# FreePlayer shell — packaging pipeline
-#   vite build -> .app bundle -> auto-named zip + dmg
+# FreePlayer — build a release: .app bundle → auto-named zip + dmg.
+#   npm run dist
 #   Output: shell/release/FreePlayer-<version>-mac-arm64-<timestamp>.[zip|dmg]
 set -e
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
-echo "[pack] vite build..."
-node_modules/.bin/vite build
-
-echo "[pack] bundling FreePlayer.app..."
-# configure on demand — shell/build may not exist after a clean
-[ -f "$ROOT/shell/build/build.ninja" ] || cmake -S "$ROOT/shell" -B "$ROOT/shell/build" -G Ninja
-cmake --build "$ROOT/shell/build" --target bundle
+echo "[dist] bundling FreePlayer.app..."
+bash "$ROOT/scripts/bundle.sh"
 
 APP="$ROOT/shell/build/FreePlayer.app"
 OUT="$ROOT/shell/release"
@@ -23,10 +18,9 @@ VER=$(node -p "require('./package.json').version")
 STAMP=$(date +%Y%m%d-%H%M)
 BASE="FreePlayer-$VER-mac-arm64-$STAMP"
 
-echo "[pack] zip..."
+echo "[dist] zip..."
 ditto -c -k --keepParent "$APP" "$OUT/$BASE.zip"
-echo "[pack] dmg..."
-# diskutil image create from is the modern replacement for hdiutil create
+echo "[dist] dmg..."
 diskutil image create from "$APP" "$OUT/$BASE.dmg" --format UDZO --volname FreePlayer >/dev/null
 
 echo ""

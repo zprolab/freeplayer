@@ -1,7 +1,8 @@
 #!/bin/bash
-# FreePlayer — bundle FreePlayer.app (CMake `bundle` custom target; port of the
-# old Makefile bundle rule). Needs ../dist from `pnpm build` and the shell
-# binary; regenerates the icon from assets/logo.svg on every bundle.
+# FreePlayer — build FreePlayer.app in shell/build/.
+# Self-contained: ensures ./dist (vite build), the shell binary (cmake build)
+# and the icon are all current before packing the .app. Shared by `npm run
+# bundle` and the CMake `bundle` target.
 set -e
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SHELL="$ROOT/shell"
@@ -10,12 +11,27 @@ DIST="$ROOT/dist"
 BIN="${BIN:-$BUILD/FreePlayerShell}"
 BUNDLE="$BUILD/FreePlayer.app"
 
-[ -d "$DIST" ] || { echo "==> missing $DIST — run 'pnpm build' first"; exit 2; }
-[ -f "$BIN" ] || { echo "==> missing $BIN — run 'cmake --build shell/build' first"; exit 2; }
+# ── 1. web assets ──
+if [ ! -d "$DIST" ]; then
+  echo "[bundle] vite build..."
+  (cd "$ROOT" && node_modules/.bin/vite build)
+fi
 
-# App icon: regenerated from the single source of truth (assets/logo.svg)
+# ── 2. shell binary ──
+if [ ! -d "$BUILD" ] || [ ! -f "$BUILD/build.ninja" ]; then
+  echo "[bundle] configuring cmake..."
+  cmake -S "$SHELL" -B "$BUILD" -G Ninja
+fi
+if [ ! -f "$BIN" ]; then
+  echo "[bundle] building shell binary..."
+  cmake --build "$BUILD"
+fi
+[ -f "$BIN" ] || { echo "==> missing $BIN"; exit 2; }
+
+# ── 3. app icon (from the single source of truth assets/logo.svg) ──
 node "$ROOT/scripts/icons.mjs"
 
+# ── 4. pack the bundle ──
 echo "[bundle] packing $BUNDLE"
 rm -rf "$BUNDLE"
 mkdir -p "$BUNDLE/Contents/MacOS" "$BUNDLE/Contents/Resources/web"
