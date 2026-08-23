@@ -94,7 +94,7 @@ struct MacPlatformBridge: PlatformBridge {
         _ = Database.setTrackLrc(trackId, target)
         let content = String(data: raw, encoding: .utf8)
             ?? String(data: raw, encoding: Metadata.gb18030)
-        reply(["success": true, "content": content, "path": target])
+        reply(["success": true, "content": content ?? "", "path": target])
     }
 
     func resetDatabase() -> Bool {

@@ -26,8 +26,8 @@ BASE="FreePlayer-$VER-mac-arm64-$STAMP"
 echo "[pack] zip..."
 ditto -c -k --keepParent "$APP" "$OUT/$BASE.zip"
 echo "[pack] dmg..."
-hdiutil create -volname FreePlayer -srcfolder "$APP" -ov -format UDZO \
-  "$OUT/$BASE.dmg" >/dev/null
+# diskutil image create from is the modern replacement for hdiutil create
+diskutil image create from "$APP" "$OUT/$BASE.dmg" --format UDZO --volname FreePlayer >/dev/null
 
 echo ""
 echo "==> outputs:"

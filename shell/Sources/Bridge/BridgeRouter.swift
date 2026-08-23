@@ -85,7 +85,7 @@ final class BridgeRouter {
         } else if method == "deleteTrack" {
             let tid = (args.first as? NSNumber)?.int64Value ?? 0
             let track = Database.getTrackById(tid)
-            var ok = Database.deleteTrack(tid)
+            let ok = Database.deleteTrack(tid)
             // S9: shared album covers: only remove when no other track references
             if ok, let track = track as? [String: Any] {
                 if let cover = track["cover_path"] as? String, !cover.isEmpty,

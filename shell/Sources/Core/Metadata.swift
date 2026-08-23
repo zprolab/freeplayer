@@ -14,9 +14,9 @@ enum Metadata {
         return String.Encoding(rawValue: cf)
     }()
 
-    private static func firstValue(_ items: [AVMetadataItem], _ key: AVMetadataKey) -> String? {
+    private static func firstValue(_ items: [AVMetadataItem], _ key: AVMetadataKey) async -> String? {
         for it in items where it.commonKey == key {
-            if let v = it.stringValue {
+            if let v = try? await it.load(.stringValue) {
                 let trimmed = v.trimmingCharacters(in: .whitespacesAndNewlines)
                 if !trimmed.isEmpty { return trimmed }
             }
@@ -210,32 +210,38 @@ enum Metadata {
     /// Returns nil if the asset cannot be loaded within 10s (M10: the timeout is
     /// the only failure signal — the load error is intentionally not surfaced;
     /// on timeout the caller falls back to filename-derived tags).
-    /// Call on a background queue.
+    /// Call on a background queue. Sync facade over the modern async AVFoundation
+    /// load(_:) API (deprecated loadValuesAsynchronously/commonMetadata/value).
     static func extractAtPath(_ path: String) -> [String: Any]? {
         let url = URL(fileURLWithPath: path)
         let asset = AVURLAsset(url: url, options: nil)
-
-        var loaded = false
         let sem = DispatchSemaphore(value: 0)
-        asset.loadValuesAsynchronously(forKeys: ["commonMetadata", "duration", "tracks"]) {
-            loaded = true
+        var result: [String: Any]?
+        Task.detached {
+            result = await Self.extractAsync(asset: asset, path: path)
             sem.signal()
         }
         _ = sem.wait(timeout: .now() + 10)
-        guard loaded else { return nil }
+        return result
+    }
 
-        let meta = asset.commonMetadata
+    private static func extractAsync(asset: AVURLAsset, path: String) async -> [String: Any]? {
+        // M10: a load failure is the only failure signal — on timeout or error
+        // the caller falls back to filename-derived tags.
+        guard let (meta, duration, tracks) = try? await asset.load(.commonMetadata, .duration, .tracks) else {
+            return nil
+        }
 
         // FLAC: pull Vorbis comments manually (AVFoundation hides them)
         let ext = (path as NSString).pathExtension.lowercased()
         let vorbis = ext == "flac" ? parseFlacVorbisComments(path) : nil
         let id3 = ext == "mp3" ? parseId3v2(path) : nil // handles GBK/CJK tags AVFoundation mangles
 
-        var title = firstValue(meta, .commonKeyTitle)
-        var artist = firstValue(meta, .commonKeyArtist)
-        var album = firstValue(meta, .commonKeyAlbumName)
-        var genre = firstValue(meta, .commonKeyType)
-        var yearStr = firstValue(meta, .commonKeyCreationDate)
+        var title = await firstValue(meta, .commonKeyTitle)
+        var artist = await firstValue(meta, .commonKeyArtist)
+        var album = await firstValue(meta, .commonKeyAlbumName)
+        var genre = await firstValue(meta, .commonKeyType)
+        var yearStr = await firstValue(meta, .commonKeyCreationDate)
 
         var year = 0
         var trackNo = 0
@@ -269,7 +275,7 @@ enum Metadata {
 
         // Track number: value is {trackNumber, totalTrackCount}
         for it in meta where it.commonKey == AVMetadataKey(rawValue: "tracknumber") {
-            if let d = it.value as? [String: Any] {
+            if let d = (try? await it.load(.value)) as? [String: Any] {
                 if trackNo == 0, let n = d["trackNumber"] as? NSNumber { trackNo = Int(truncating: n) }
                 if discNo == 0, let n = d["discNumber"] as? NSNumber { discNo = Int(truncating: n) }
             }
@@ -278,10 +284,9 @@ enum Metadata {
         // Audio track -> sample rate / channels
         var sampleRate = 0.0
         var channels = 0
-        for t in asset.tracks where t.mediaType == .audio {
-            if let fd = t.formatDescriptions.first {
-                let cmfd = fd as! CMFormatDescription
-                let afd = CMAudioFormatDescriptionGetStreamBasicDescription(cmfd)
+        for t in tracks where t.mediaType == .audio {
+            if let fds = try? await t.load(.formatDescriptions), let fd = fds.first {
+                let afd = CMAudioFormatDescriptionGetStreamBasicDescription(fd)
                 if let asbd = afd {
                     sampleRate = asbd.pointee.mSampleRate
                     channels = Int(asbd.pointee.mChannelsPerFrame)
@@ -290,14 +295,14 @@ enum Metadata {
             break
         }
 
-        var duration = CMTimeGetSeconds(asset.duration)
-        if !duration.isFinite || duration <= 0 { duration = 0 }
+        var durationSec = CMTimeGetSeconds(duration)
+        if !durationSec.isFinite || durationSec <= 0 { durationSec = 0 }
 
         let fileSize = ((try? FileManager.default.attributesOfItem(atPath: path))?[.size] as? NSNumber)?.uint64Value ?? 0
         // Bitrate from size/duration (kbps), like "1411 kbps"
         var bitrateKbps = 0
-        if duration > 1, fileSize > 0 {
-            bitrateKbps = Int(Double(fileSize) * 8.0 / duration / 1000.0)
+        if durationSec > 1, fileSize > 0 {
+            bitrateKbps = Int(Double(fileSize) * 8.0 / durationSec / 1000.0)
         }
 
         var out: [String: Any] = [
@@ -308,7 +313,7 @@ enum Metadata {
             "disc_number": discNo != 0 ? NSNumber(value: discNo) : NSNull(),
             "genre": (genre?.isEmpty ?? true) ? NSNull() : genre!,
             "year": year != 0 ? NSNumber(value: year) : NSNull(),
-            "duration": NSNumber(value: duration),
+            "duration": NSNumber(value: durationSec),
             "file_name": baseName,
             "file_size": NSNumber(value: fileSize),
             "file_format": ext,
@@ -319,9 +324,9 @@ enum Metadata {
 
         // Cover art
         for it in meta where it.commonKey == .commonKeyArtwork {
-            if let artwork = it.value as? Data, artwork.count > 0 {
+            if let artwork = (try? await it.load(.value)) as? Data, artwork.count > 0 {
                 out["artwork"] = artwork
-            } else if let d = it.value as? [String: Any], let artwork = d["data"] as? Data, artwork.count > 0 {
+            } else if let d = (try? await it.load(.value)) as? [String: Any], let artwork = d["data"] as? Data, artwork.count > 0 {
                 out["artwork"] = artwork
             }
             break
