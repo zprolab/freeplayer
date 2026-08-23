@@ -44,10 +44,11 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.zprolab.FreePlayer
         TARGETED_DEVICE_FAMILY: "2"
         SWIFT_VERSION: "5.0"
-        # CLI simulator builds don't need signing; real-device installs
-        # require a team — override in Xcode.
-        CODE_SIGNING_ALLOWED: "NO"
-        CODE_SIGNING_REQUIRED: "NO"
+        # Personal team (free) signing — DEVELOPMENT_TEAM is NOT hardcoded here;
+        # pass it on the command line (or set it in Xcode's Signing & Capabilities):
+        #   xcodebuild ... DEVELOPMENT_TEAM=<TeamID> CODE_SIGN_STYLE=Automatic
+        CODE_SIGN_STYLE: Automatic
+        CODE_SIGN_IDENTITY: Apple Development
         ENABLE_HARDENED_RUNTIME: "NO"
         ASSETCATALOG_COMPILER_GENERATE_ASSET_SYMBOLS: "YES"
 
