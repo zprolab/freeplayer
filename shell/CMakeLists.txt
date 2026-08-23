@@ -1,7 +1,11 @@
 cmake_minimum_required(VERSION 3.28)
+# Must precede project(): CMake probes the Swift compiler inside project(),
+# and without a deployment target it defaults to the host macOS version
+# (e.g. macosx26.0 on macos-26 runners), which the toolchain's stdlib does
+# not ship — "unable to load standard library for target 'arm64-apple-macosx26.0'".
+set(CMAKE_OSX_DEPLOYMENT_TARGET "13.0")
 project(FreePlayerShell LANGUAGES Swift)
 
-set(CMAKE_OSX_DEPLOYMENT_TARGET "13.0")
 set(CMAKE_Swift_FLAGS "-Osize")
 
 # Modules are plain directories; Swift access control (internal/fileprivate)
