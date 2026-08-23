@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <!-- CSP: script-src deliberately has NO 'unsafe-inline' — plugin code runs
+         only inside Web Workers created from blob: URLs (same-origin), so
+         blob: must stay allowed. If a bundled WKWebView page ever rejects
+         blob: workers, revert to 'unsafe-inline' for script-src and re-open
+         the sandbox question instead of re-enabling inline execution. -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' blob:; style-src 'self' 'unsafe-inline'; media-src 'self' media:; img-src 'self' data: media:; font-src 'self'; connect-src 'self' app: ws://localhost:*">
+    <title>FreePlayer</title>
+    <!-- No webfont CDN: UI fonts resolve against fonts installed locally
+         (Settings > Appearance > Mono Font picks the family). Fully offline. -->
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>

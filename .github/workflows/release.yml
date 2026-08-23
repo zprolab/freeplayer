@@ -1,0 +1,70 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Package and publish
+    runs-on: macos-26
+    steps:
+      # full history + tags so bundle.sh/package.sh/build-ipad.sh detect the
+      # tag and stamp the clean <version> (no -g<hash> suffix) into the apps
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # pnpm dist = vite build → bundle.sh (versioned .app) → package.sh
+      # (zip + dmg via staging dir so the DMG volume root is FreePlayer.app)
+      - name: Build and package macOS app (zip + dmg)
+        run: pnpm dist
+      # iPad simulator ipa: unsigned (CI has no signing identity) — installable
+      # on simulators only; device builds need your own team (see README).
+      - name: Build iPad simulator ipa
+        run: |
+          brew install xcodegen
+          pnpm build:ipad --ipa
+        env:
+          SIM_DEST: generic/platform=iOS Simulator
+      - name: Generate release notes
+        run: |
+          VER=$(node -p "require('./package.json').version")
+          PREV=$(git describe --tags --abbrev=0 HEAD~1 2>/dev/null || true)
+          {
+            echo "## FreePlayer $VER"
+            echo ""
+            echo "### What's changed since ${PREV:-the beginning}"
+            echo ""
+            if [ -n "$PREV" ]; then
+              git log --oneline --no-merges "$PREV..HEAD"
+            else
+              git log --oneline --no-merges -20 HEAD
+            fi
+            echo ""
+            echo "### Notes"
+            echo ""
+            echo "- macOS build is ad-hoc signed (not notarized): first launch requires right-click → Open, or \`xattr -d com.apple.quarantine <path>\`."
+            echo "- macOS 13+ / Apple Silicon only."
+            echo "- iPad \`.ipa\` is a simulator build (unsigned). To install on a device, build with your own signing team."
+          } > /tmp/release-notes.md
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VER=$(node -p "require('./package.json').version")
+          MAC_ARTIFACTS=$(ls shell/release/FreePlayer-$VER-mac-arm64-* | tr '\n' ' ')
+          IPA_ARTIFACT=$(ls shell/release/FreePlayer-$VER-ios-simulator-* | tr '\n' ' ')
+          gh release create "$GITHUB_REF_NAME" \
+            --title "FreePlayer $GITHUB_REF_NAME" \
+            --notes-file /tmp/release-notes.md \
+            $MAC_ARTIFACTS $IPA_ARTIFACT

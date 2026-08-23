@@ -6,9 +6,15 @@ release/
 *.log
 .cache/
 Thumbs.db
+.claude/
 .superpowers/
 docs/
 shell/build/
 shell/release/
-macos/.build/
-macos/build/
+shell/FreePlayer-1024.png
+shell/FreePlayer.icns
+shell/Assets.xcassets/AppIcon.appiconset/AppIcon-1024.png
+
+# XcodeGen artifacts (regenerate with: cd shell && xcodegen generate)
+shell/FreePlayer.xcodeproj/
+shell/Info-iOS.plist

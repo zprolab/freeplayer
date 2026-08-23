@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleName</key>
+	<string>FreePlayer</string>
+	<key>CFBundleDisplayName</key>
+	<string>FreePlayer</string>
+	<key>CFBundleIdentifier</key>
+	<string>com.freeplayer.app</string>
+	<key>CFBundleVersion</key>
+	<string>1.0.0</string>
+	<key>CFBundleShortVersionString</key>
+	<string>1.0.0</string>
+	<key>CFBundleExecutable</key>
+	<string>FreePlayer</string>
+	<key>CFBundleIconFile</key>
+	<string>FreePlayer</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>LSMinimumSystemVersion</key>
+	<string>13.0</string>
+	<key>LSApplicationCategoryType</key>
+	<string>public.app-category.music</string>
+	<key>NSHighResolutionCapable</key>
+	<true/>
+	<key>NSPrincipalClass</key>
+	<string>NSApplication</string>
+	<key>NSSupportsAutomaticTermination</key>
+	<false/>
+	<!-- Q12: the app is ad-hoc signed with the hardened runtime (see
+	     Makefile `codesign --options runtime`). If this is ever notarized
+	     with a Developer ID, add an entitlements file here, e.g.
+	     com.apple.security.cs.allow-jit is NOT needed (no JIT); keep the
+	     default hardened-runtime entitlements unless SMAppService
+	     (login item) registration requires more. -->
+</dict>
+</plist>

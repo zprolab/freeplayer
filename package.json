@@ -1,0 +1,30 @@
+{
+  "name": "freeplayer",
+  "version": "1.1.0",
+  "description": "A local music player with metadata tracking and listening statistics",
+  "license": "GPL-3.0-or-later",
+  "author": "zprolab",
+  "scripts": {
+    "dev": "bash scripts/dev.sh",
+    "build": "vite build",
+    "bundle": "bash scripts/bundle.sh",
+    "dist": "bash scripts/package.sh",
+    "install:app": "bash scripts/install.sh",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "clean": "bash scripts/clean.sh",
+    "build:ipad": "bash scripts/build-ipad.sh",
+    "build:iphone": "bash scripts/build-ipad.sh --iphone"
+  },
+  "devDependencies": {
+    "@resvg/resvg-js": "^2.6.2",
+    "@vitejs/plugin-react": "^4.3.4",
+    "lightningcss": "^1.33.0",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "terser": "^5.49.2",
+    "vite": "^6.0.7",
+    "vitest": "^4.1.7"
+  },
+  "packageManager": "pnpm@11.9.0+sha512.bd682d5d03fe525ef7c9fd6780c6884d1e756ac4c9c9fe00c538782824310dcf90e3ddc4f53835f06dfaebd5085e41855e0bcbb3b60de2ac5bbab89e5036f03b"
+}
