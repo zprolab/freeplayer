@@ -1,14 +1,16 @@
 // FreePlayer shell — platform-specific operations that differ between macOS/iPad.
 // Cross-platform code (Router) calls these via AppContext.shared.platformBridge.
+// IMPORTANT: no AppKit/UIKit types may appear in this protocol — the Router
+// and Core/Bridge/UI sources must compile against the iOS SDK unchanged.
 
-import WebKit
+import Foundation
 
 /// Abstracts every method the bridge dispatch needs that touches platform-only
-/// APIs (NSOpenPanel, NSAlert, SMAppService, NSStatusBar, plugin FS, window
-/// management). Each target platform (macOS / iPad) provides its own conformance.
+/// APIs (file pickers, alerts, login item, plugins, window management). Each
+/// target platform (macOS / iPad) provides its own conformance.
 protocol PlatformBridge {
     // ── Window management ──
-    func handleDragStart(sx: Double, sy: Double, win: NSWindow?)
+    func handleDragStart(sx: Double, sy: Double)
     func openEqWindow()
     func finishOnboarding()
     func setAppearance(dark: Bool)

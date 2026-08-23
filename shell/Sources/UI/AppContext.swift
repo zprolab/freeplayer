@@ -1,10 +1,14 @@
 // FreePlayer shell — cross-module runtime state (replaces the C globals).
-// All webview/window/import state lives here so modules stay decoupled:
+// All webview/import state lives here so modules stay decoupled:
 // Core knows nothing about UI, Bridge talks to App through this context.
+// Platform-agnostic: compiles unchanged for macOS and iPad. Window state is
+// guarded by canImport(AppKit) so the iOS SDK build skips it.
 
 import Foundation
 import WebKit
+#if canImport(AppKit)
 import AppKit
+#endif
 
 /// Lock-protected integer (import counter; std::atomic in the ObjC++ port).
 final class AtomicInt {
@@ -29,21 +33,15 @@ final class AppContext {
     static let shared = AppContext()
     private init() {}
 
-    // ── windows / webviews (main thread) ──
-    // strong: the window is hidden (orderOut) rather than closed for
-    // close-to-tray, so the tray's "Show FreePlayer" must always find it
-    var window: NSWindow?
+    // ── webviews (main thread) — windows are platform-specific ──
     var webView: WKWebView?
-    var eqWindow: NSWindow?
     var eqWebView: WKWebView?
-    var onboardingWindow: NSWindow?
     var onboardingWebView: WKWebView?
     var navGate: NavGate?
     var mainLoadURL: URL?
     var webRoot: String?
 
-    /// Platform-specific bridge (set by AppDelegate on launch; iPad provides
-    /// its own conformance via PlatformBridge.swift protocol).
+    /// Platform-specific bridge (set by the platform AppDelegate on launch).
     var platformBridge: PlatformBridge?
 
     // ── import pipeline (M12: termination waits on this) ──
@@ -79,6 +77,14 @@ final class AppContext {
         return v
     }()
 
+    // ── macOS-only window state ──
+    #if canImport(AppKit)
+    // strong: the window is hidden (orderOut) rather than closed for
+    // close-to-tray, so the tray's "Show FreePlayer" must always find it
+    var window: NSWindow?
+    var eqWindow: NSWindow?
+    var onboardingWindow: NSWindow?
+
     /// Window chrome color follows the sidebar/top-bar shade (dark = #292b2f,
     /// light = #fafafa) so the unified content card's corner gap always shows
     /// a color that matches the L-shaped frame.
@@ -90,4 +96,5 @@ final class AppContext {
         eqWindow?.backgroundColor = color
         onboardingWindow?.backgroundColor = color
     }
+    #endif
 }

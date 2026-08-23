@@ -320,9 +320,8 @@ final class BridgeRouter {
         }
         switch method {
         case "__dragStart":
-            let win = AppContext.shared.webView?.window
             platform.handleDragStart(sx: args.first as? Double ?? 0,
-                                     sy: (args.count > 1 ? args[1] as? Double : 0) ?? 0, win: win)
+                                     sy: (args.count > 1 ? args[1] as? Double : 0) ?? 0)
         case "openEqWindow":
             platform.openEqWindow(); reply(idNum, true)
         case "finishOnboarding":

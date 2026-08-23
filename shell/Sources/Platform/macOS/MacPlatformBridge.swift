@@ -8,8 +8,9 @@ struct MacPlatformBridge: PlatformBridge {
 
     // MARK: - Window management
 
-    func handleDragStart(sx: Double, sy: Double, win: NSWindow?) {
-        guard let win else { return }
+    func handleDragStart(sx: Double, sy: Double) {
+        // window comes from AppContext (macOS-only); iPad ignores this
+        guard let win = AppContext.shared.webView?.window else { return }
         // Q3: WKWebView reports screenX/screenY in CSS points — do NOT scale by
         // backingScaleFactor or the grab lands at 2x on Retina.
         let screen = win.screen ?? NSScreen.main

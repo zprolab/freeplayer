@@ -17,9 +17,9 @@ set(SWIFT_SOURCES
   Sources/Bridge/BridgeRouter.swift
   Sources/Bridge/HttpClient.swift
   Sources/Bridge/ImportPipeline.swift
+  Sources/UI/AppContext.swift
   Sources/UI/SchemeHandler.swift
   Sources/UI/PlatformBridge.swift
-  Sources/Platform/macOS/AppContext.swift
   Sources/Platform/macOS/AppDelegate.swift
   Sources/Platform/macOS/Windows.swift
   Sources/Platform/macOS/Tray.swift
