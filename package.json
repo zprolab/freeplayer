@@ -12,7 +12,8 @@
     "install": "bash scripts/install.sh",
     "test": "vitest run",
     "test:watch": "vitest",
-    "clean": "bash scripts/clean.sh"
+    "clean": "bash scripts/clean.sh",
+    "build:ipad": "bash scripts/build-ipad.sh"
   },
   "devDependencies": {
     "@resvg/resvg-js": "^2.6.2",
