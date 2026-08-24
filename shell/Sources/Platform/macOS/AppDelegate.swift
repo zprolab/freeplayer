@@ -115,6 +115,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             NSApp.terminate(nil)
             return
         }
+        // P: Open tracks database in library root
+        Database.openTracksDb(Database.defaultTracksDbPath())
         // Wire the macOS platform bridge so the cross-platform router can
         // delegate NSOpenPanel / NSAlert / Tray / PluginFS calls.
         AppContext.shared.platformBridge = MacPlatformBridge()
