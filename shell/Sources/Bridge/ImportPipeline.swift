@@ -112,7 +112,7 @@ enum ImportPipeline {
                 var tracksToInsert: [[String: Any]] = []
                 var imported = 0
                 var skipped = 0
-                for (filePath, meta) in prepared.value {
+                for (filePath, meta) in prepared {
                     guard let meta else {
                         boxErrors.append(["file": filePath, "error": "Unreadable audio file"])
                         continue
