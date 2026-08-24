@@ -81,7 +81,6 @@ enum ImportPipeline {
             var prepared: [(String, [String: Any]?)] = []
             var boxErrors: [[String: Any]] = []
             let maxConcurrent = ProcessInfo.processInfo.activeProcessorCount
-            var activeTasks = 0
             let semaphore = DispatchSemaphore(value: maxConcurrent)
             
             for filePath in files {

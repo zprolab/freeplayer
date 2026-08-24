@@ -24,6 +24,7 @@ set(SWIFT_SOURCES
   Sources/UI/AppContext.swift
   Sources/UI/SchemeHandler.swift
   Sources/UI/PlatformBridge.swift
+  Sources/UI/DebugLog.swift
   Sources/Platform/macOS/AppDelegate.swift
   Sources/Platform/macOS/Windows.swift
   Sources/Platform/macOS/Tray.swift
