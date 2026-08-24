@@ -89,18 +89,14 @@ pnpm run dist         # build + bundle → zip + dmg，输出到 shell/release/
 ### iPad / iPhone 构建
 
 ```sh
-pnpm build                    # 先产出 web 资源 dist/（Xcode 构建会 rsync 进 bundle）
-cd shell && xcodegen generate # 生成 FreePlayer.xcodeproj（生成物不入库）
-xcodebuild -project FreePlayer.xcodeproj -scheme FreePlayer \
-  -destination 'platform=iOS Simulator,name=iPad Pro 13-inch (M5)' build
+pnpm build:ipad                  # iPad 模拟器构建
+pnpm build:iphone                # iPhone 模拟器构建
 ```
 
-独立的 iPhone target 使用同一套播放器内核和 Web UI，但有自己的 bundle id、入口和设备配置：
+自定义构建参数：
 
 ```sh
-pnpm build:iphone
+bash scripts/build-ipad.sh --iphone --simulator          # iPhone 模拟器
+bash scripts/build-ipad.sh --ipad --no-simulator         # iPad 通用设备 (unsigned)
+bash scripts/build/ipad.sh --iphone --no-simulator --device XXX --team YYY --ipa
 ```
-
-## 许可证
-
-GPL-3.0-or-later，© 2026 zprolab。详见 [LICENSE](LICENSE)。
