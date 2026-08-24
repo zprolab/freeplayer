@@ -155,4 +155,67 @@ enum HttpClient {
             DispatchQueue.main.async { onMain(result) }
         }
     }
+
+
+    // P5: Async version of httpGet that doesn't block threads with semaphores.
+    // Uses Swift concurrency (async/await) for non-blocking HTTP requests.
+    @available(iOS 15.0, macOS 12.0, *)
+    static func httpGetAsync(_ urlStr: String) async -> [String: Any] {
+        guard !urlStr.isEmpty else { return ["ok": false, "error": "empty url"] }
+        guard let url = URL(string: urlStr) else { return ["ok": false, "error": "bad url"] }
+        guard urlAllowed(url) else { return ["ok": false, "error": "url not allowed"] }
+
+        let ver = (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String) ?? "dev"
+        let ua = "FreePlayer/\(ver) (+https://github.com/zprolab/FreePlayer)"
+
+        var current = url
+        var redirects = 0
+
+        while true {
+            var req = URLRequest(url: current)
+            req.timeoutInterval = 10
+            req.setValue(ua, forHTTPHeaderField: "User-Agent")
+
+            do {
+                let (data, response) = try await sharedSession.data(for: req)
+                guard let http = response as? HTTPURLResponse else {
+                    return ["ok": false, "error": "invalid response"]
+                }
+
+                // Handle redirects
+                if (300..<400).contains(http.statusCode) {
+                    let loc = http.allHeaderFields["Location"] as? String
+                    guard let next = loc.flatMap({ URL(string: $0, relativeTo: current)?.absoluteURL }),
+                          urlAllowed(next) else {
+                        return ["ok": false, "error": "redirect target not allowed"]
+                    }
+                    current = next
+                    redirects += 1
+                    if redirects > 5 {
+                        return ["ok": false, "error": "too many redirects"]
+                    }
+                    continue
+                }
+
+                // Handle HTTP errors
+                if http.statusCode >= 400 {
+                    var result: [String: Any] = ["ok": false, "status": http.statusCode, "error": "http error"]
+                    if let ra = http.allHeaderFields["Retry-After"] as? String, !ra.isEmpty {
+                        result["retryAfter"] = ra
+                    }
+                    return result
+                }
+
+                // Check response size
+                guard data.count <= kMaxHttpBytes else {
+                    return ["ok": false, "error": "response too large"]
+                }
+
+                return ["ok": true, "status": http.statusCode, "data": data]
+            } catch {
+                return ["ok": false, "error": error.localizedDescription]
+            }
+        }
+    }
+
 }

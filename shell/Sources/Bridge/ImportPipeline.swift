@@ -12,17 +12,28 @@ private final class Box<T> {
 
 enum ImportPipeline {
 
+    /// P2: Scan result with truncation info
+    struct ScanResult {
+        let files: [String]
+        let truncated: Bool
+        let scannedCount: Int
+    }
+
     /// Recursive audio file scan (M3: skip hidden dirs without descending; S7:
     /// cap at 100k entries / 60s so a hostile root can't wedge the app)
-    static func scanAudioFiles(_ root: String) -> [String] {
+    static func scanAudioFiles(_ root: String) -> ScanResult {
         var found: [String] = []
         let fm = FileManager.default
         let en = fm.enumerator(atPath: root)
         var scanned = 0
         let start = CFAbsoluteTimeGetCurrent()
+        var truncated = false
         while let rel = en?.nextObject() as? String {
             scanned += 1
-            if scanned >= 100000 || CFAbsoluteTimeGetCurrent() - start > 60.0 { break }
+            if scanned >= 100000 || CFAbsoluteTimeGetCurrent() - start > 60.0 {
+                truncated = true
+                break
+            }
             let full = (root as NSString).appendingPathComponent(rel)
             guard let attrs = try? fm.attributesOfItem(atPath: full) else { continue }
             if attrs[.type] as? FileAttributeType == .typeDirectory {
@@ -35,7 +46,7 @@ enum ImportPipeline {
                 found.append(full)
             }
         }
-        return found
+        return ScanResult(files: found, truncated: truncated, scannedCount: scanned)
     }
 
     /// S4: replace path separators AND "."/".." components with underscores —
@@ -62,12 +73,17 @@ enum ImportPipeline {
         }
 
         DispatchQueue.global(qos: .userInitiated).async {
-            // H4: extract metadata concurrently (bounded), keep order-insensitive
+            // H4/P7: extract metadata concurrently with bounded parallelism.
+            // Use a thread-safe collection instead of serial queue for better throughput.
             let extractQ = DispatchQueue(label: "fp.extract", attributes: .concurrent)
-            let collectQ = DispatchQueue(label: "fp.collect")
             let group = DispatchGroup()
-            let prepared = Box<[(String, [String: Any]?)]>([])
+            let lock = NSLock()
+            var prepared: [(String, [String: Any]?)] = []
             var boxErrors: [[String: Any]] = []
+            let maxConcurrent = ProcessInfo.processInfo.activeProcessorCount
+            var activeTasks = 0
+            let semaphore = DispatchSemaphore(value: maxConcurrent)
+            
             for filePath in files {
                 // S3b: only audio files may enter the library — everything else is
                 // skipped with a recorded error (defense in depth on the source
@@ -76,16 +92,15 @@ enum ImportPipeline {
                     boxErrors.append(["file": filePath, "error": "not an audio file"])
                     continue
                 }
-                extractQ.async(group: group) {
+                semaphore.wait()
+                group.enter()
+                extractQ.async {
                     let meta = Metadata.extractAtPath(filePath)
-                    // Track the nested append inside the group: the queue async
-                    // counts only this block's return, so the append must
-                    // enter/leave the group itself or notify could race it.
-                    group.enter()
-                    collectQ.async {
-                        prepared.value.append((filePath, meta))
-                        group.leave()
-                    }
+                    lock.lock()
+                    prepared.append((filePath, meta))
+                    lock.unlock()
+                    semaphore.signal()
+                    group.leave()
                 }
             }
 

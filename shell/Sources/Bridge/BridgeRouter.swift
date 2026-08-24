@@ -290,7 +290,14 @@ final class BridgeRouter {
             guard AppContext.shared.isTrustedScanRoot(dir) else { reply(idNum, []); return }
             let mid = idNum
             DispatchQueue.global(qos: .userInitiated).async {
-                DispatchQueue.main.async { reply(mid, ImportPipeline.scanAudioFiles(dir)) }
+                let result = ImportPipeline.scanAudioFiles(dir)
+                // P2: Return truncation info so the UI can warn the user
+                let response: [String: Any] = [
+                    "files": result.files,
+                    "truncated": result.truncated,
+                    "scannedCount": result.scannedCount
+                ]
+                DispatchQueue.main.async { reply(mid, response) }
             }
         } else if method == "importFiles" {
             // S5: validate the payload shape BEFORE touching a background queue —

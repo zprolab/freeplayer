@@ -8,14 +8,15 @@ import os
 
 private let schemeLog = Logger(subsystem: "com.zprolab.FreePlayer", category: "scheme")
 
+// P10: Named constants for streaming configuration
+private let kStreamChunkSize: UInt64 = 64 * 1024        // 64KB per disk read
+private let kStreamBatchChunks = 16                       // 16 chunks = 1MB per main-queue hop
+private let kStreamMaxInFlight = 8                        // max ~8MB queued on main thread
+private let kStreamBackoffUs: UInt32 = 2000               // 2ms backoff poll interval
+
+// P4: Use DebugLog for file-based diagnostics (DEBUG only)
 private func schemeDiag(_ msg: String) {
-    let url = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("scheme-diag.log")
-    if !FileManager.default.fileExists(atPath: url.path) {
-        FileManager.default.createFile(atPath: url.path, contents: nil)
-    }
-    if let h = try? FileHandle(forWritingTo: url) {
-        h.seekToEndOfFile(); h.write(("[\(Date())] \(msg)\n").data(using: .utf8)!); try? h.close()
-    }
+    DebugLog.file(msg, to: "scheme-diag.log")
 }
 
 // S11: mirror the page's own CSP meta tag (index.html — including the
@@ -258,12 +259,9 @@ final class SchemeHandler: NSObject, WKURLSchemeHandler {
         // H1: read in 64KB chunks but flush to the main queue in ~1MB batches with
         // flow control (max ~8 batches in flight) so a large file can never queue
         // unbounded NSData on the main thread.
-        let chunk: UInt64 = 64 * 1024
-        let batchChunks: Int = 16 // 1MB per main-queue hop
-        let maxInFlight = 8       // ~8MB of queued data at most
         let inFlight = AtomicInt(0)
         var remaining = length
-        var buf = Data(capacity: batchChunks * Int(chunk))
+        var buf = Data(capacity: kStreamBatchChunks * Int(kStreamChunkSize))
         let finishedFlag = AtomicBool(false)
 
         DispatchQueue.global(qos: .userInitiated).async {
@@ -277,15 +275,15 @@ final class SchemeHandler: NSObject, WKURLSchemeHandler {
                 }
             }
             while remaining > 0, !stopped.value {
-                let n = Int(min(remaining, chunk))
+                let n = Int(min(remaining, kStreamChunkSize))
                 let data = fh.readData(ofLength: n)
                 if data.isEmpty { break }
                 buf.append(data)
                 remaining -= UInt64(data.count)
-                if buf.count >= batchChunks * Int(chunk) {
+                if buf.count >= kStreamBatchChunks * Int(kStreamChunkSize) {
                     // Backpressure: wait until the main queue drains below the cap
-                    while inFlight.current >= maxInFlight, !stopped.value {
-                        usleep(2000)
+                    while inFlight.current >= kStreamMaxInFlight, !stopped.value {
+                        usleep(kStreamBackoffUs)
                     }
                     if stopped.value { break }
                     flushBatch(buf)
@@ -293,7 +291,7 @@ final class SchemeHandler: NSObject, WKURLSchemeHandler {
                 }
             }
             if buf.count > 0, !stopped.value {
-                while inFlight.current >= maxInFlight, !stopped.value { usleep(2000) }
+                while inFlight.current >= kStreamMaxInFlight, !stopped.value { usleep(kStreamBackoffUs) }
                 if !stopped.value { flushBatch(buf) }
             }
             DispatchQueue.main.async {

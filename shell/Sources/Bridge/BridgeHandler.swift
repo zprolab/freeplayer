@@ -53,12 +53,22 @@ final class BridgeHandler: NSObject, WKScriptMessageHandler {
                 guard let data, let s = String(data: data, encoding: .utf8) else { NSLog("[shell] reply failed for %@", mid); return }
                 json = s
             }
+            // P1: JSON is safe from JSONSerialization; defense-in-depth: verify encoding
+            guard json.data(using: .utf8) != nil else {
+                NSLog("[shell] reply: json encoding failed for %@", mid)
+                return
+            }
             webView.evaluateJavaScript("window.freeplayer._resolve(\(mid.int64Value), \(json))")
         }
 
         func reject(_ mid: NSNumber, _ why: String?) {
             let data = try? JSONSerialization.data(withJSONObject: why ?? "error")
             let json = data.flatMap { String(data: $0, encoding: .utf8) } ?? "\"error\""
+            // P1: JSON is safe from JSONSerialization; defense-in-depth: verify encoding
+            guard json.data(using: .utf8) != nil else {
+                NSLog("[shell] reject: json encoding failed for %@", mid)
+                return
+            }
             webView.evaluateJavaScript("window.freeplayer._reject(\(mid.int64Value), \(json))")
         }
 

@@ -13,19 +13,9 @@ final class WebViewController: UIViewController, WKNavigationDelegate {
 
     private var webView: WKWebView!
 
-    /// Durable diagnostics: writes to the app sandbox Documents/diag.log so the
-    /// load path can be verified from outside via simctl get_app_container.
+    /// P4: Diagnostics only in DEBUG builds to avoid writing to disk in release.
     private func diag(_ msg: String) {
-        let url = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
-            .appendingPathComponent("diag.log")
-        if !FileManager.default.fileExists(atPath: url.path) {
-            FileManager.default.createFile(atPath: url.path, contents: nil)
-        }
-        if let h = try? FileHandle(forWritingTo: url) {
-            h.seekToEndOfFile()
-            h.write(("[\(Date())] \(msg)\n").data(using: .utf8)!)
-            try? h.close()
-        }
+        DebugLog.file(msg, to: "diag.log")
     }
 
     override func viewDidLoad() {

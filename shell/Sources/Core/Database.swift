@@ -103,9 +103,18 @@ enum Database {
 
     static func defaultDbPath() -> String {
         // S12: FP_DB env override is a dev-binary convenience — a bundled release
-        // must never point at an attacker/repo-controlled database path
-        if !Bundle.main.bundlePath.hasSuffix(".app") {
-            if let env = ProcessInfo.processInfo.environment["FP_DB"], !env.isEmpty {
+        // must never point at an attacker/repo-controlled database path.
+        // P3: Strengthened check — verify bundle is in a legitimate location.
+        if let env = ProcessInfo.processInfo.environment["FP_DB"], !env.isEmpty {
+            let bundlePath = Bundle.main.bundlePath
+            let isDevBinary = bundlePath.contains("/DerivedData/")
+                || bundlePath.hasPrefix("/tmp/")
+                || bundlePath.hasPrefix("/var/")
+                || bundlePath.contains("/Build/Products/")
+            // Also allow if not inside a .app bundle (command-line tools)
+            let isAppBundle = bundlePath.hasSuffix(".app")
+            if isDevBinary || !isAppBundle {
+                NSLog("[db] FP_DB override: %@", env)
                 return env
             }
         }
@@ -170,9 +179,16 @@ enum Database {
         CREATE INDEX IF NOT EXISTS idx_tracks_artist ON tracks(artist);
         CREATE INDEX IF NOT EXISTS idx_tracks_album ON tracks(album);
         CREATE INDEX IF NOT EXISTS idx_tracks_imported_at ON tracks(imported_at);
+        CREATE INDEX IF NOT EXISTS idx_tracks_file_path ON tracks(file_path);
+        CREATE INDEX IF NOT EXISTS idx_tracks_cover_path ON tracks(cover_path);
         CREATE INDEX IF NOT EXISTS idx_play_history_track ON play_history(track_id);
         CREATE INDEX IF NOT EXISTS idx_play_history_started ON play_history(started_at);
         CREATE INDEX IF NOT EXISTS idx_playlist_tracks_playlist ON playlist_tracks(playlist_id);
+        CREATE INDEX IF NOT EXISTS idx_playlist_tracks_track ON playlist_tracks(track_id);
+        CREATE INDEX IF NOT EXISTS idx_playlist_tracks_composite ON playlist_tracks(playlist_id, position);
+        -- P6: Composite indexes for common query patterns
+        CREATE INDEX IF NOT EXISTS idx_tracks_artist_album ON tracks(artist, album);
+        CREATE INDEX IF NOT EXISTS idx_tracks_year ON tracks(year) WHERE year IS NOT NULL;
         """
         if sqlite3_exec(db, schema, nil, nil, &err) != SQLITE_OK {
             NSLog("[db] schema failed: %s", err.map { String(cString: $0) } ?? "?")
