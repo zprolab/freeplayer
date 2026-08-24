@@ -86,13 +86,19 @@ pnpm run dist         # build + bundle → zip + dmg，输出到 shell/release/
 
 产物命名：`FreePlayer-<version>-mac-arm64-<timestamp>.{zip,dmg}`。
 
-### iPad 构建
+### iPad / iPhone 构建
 
 ```sh
 pnpm build                    # 先产出 web 资源 dist/（Xcode 构建会 rsync 进 bundle）
 cd shell && xcodegen generate # 生成 FreePlayer.xcodeproj（生成物不入库）
 xcodebuild -project FreePlayer.xcodeproj -scheme FreePlayer \
   -destination 'platform=iOS Simulator,name=iPad Pro 13-inch (M5)' build
+```
+
+独立的 iPhone target 使用同一套播放器内核和 Web UI，但有自己的 bundle id、入口和设备配置：
+
+```sh
+pnpm build:iphone
 ```
 
 ## 许可证

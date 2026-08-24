@@ -67,3 +67,52 @@ schemes:
         FreePlayer: all
     run:
       config: Debug
+
+  FreePlayer-iPhone:
+    type: application
+    platform: iOS
+    sources:
+      - path: Sources/UI
+      - path: Sources/App/NavGate.swift
+      - path: Sources/Bridge
+      - path: Sources/Core
+      - path: Sources/Platform/iPad
+        excludes:
+          - FreePlayeriOSApp.swift
+      - path: Sources/Platform/iPhone
+      - path: Assets.xcassets
+    preBuildScripts:
+      - name: Copy Web Assets
+        basedOnDependencyAnalysis: false
+        script: |
+          rsync -a --delete "$SRCROOT/../dist/" "$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/web/"
+    info:
+      path: Info-iPhone.plist
+      properties:
+        CFBundleDisplayName: FreePlayer
+        CFBundleShortVersionString: ${FP_BUILD_VERSION}
+        CFBundleVersion: ${FP_BUILD_VERSION}
+        UILaunchScreen: {}
+        UIBackgroundModes: [audio]
+        ITSAppUsesNonExemptEncryption: false
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.zprolab.FreePlayer.iPhone
+        TARGETED_DEVICE_FAMILY: "1"
+        SWIFT_VERSION: "5.0"
+        CODE_SIGN_STYLE: Automatic
+        CODE_SIGN_IDENTITY: Apple Development
+        ENABLE_HARDENED_RUNTIME: "NO"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GENERATE_ASSET_SYMBOLS: "YES"
+
+  FreePlayer-iPhone:
+    build:
+      targets:
+        FreePlayer-iPhone: all
+    run:
+      config: Debug

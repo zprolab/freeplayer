@@ -63,6 +63,10 @@ final class WebViewController: UIViewController, WKNavigationDelegate {
         webView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         webView.navigationDelegate = self
         view.addSubview(webView)
+        // The renderer owns safe-area spacing (including iPhone's home
+        // indicator). Prevent UIKit from applying a second inset.
+        webView.scrollView.contentInsetAdjustmentBehavior = .never
+        webView.scrollView.delaysContentTouches = false
         // Register with AppContext: BridgeHandler.isAppWebView() rejects every
         // message from a webview that is not one of ours, and the macOS shell
         // assigns this in its AppDelegate — without it all bridge calls from

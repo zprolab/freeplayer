@@ -1,27 +1,31 @@
 #!/bin/bash
-# FreePlayer — build the iPad app via XcodeGen + xcodebuild.
+# FreePlayer — build the iPad or standalone iPhone app via XcodeGen + xcodebuild.
 # Three modes:
 #   default          simulator build (unsigned)
 #   --device <UDID>                  physical-device build, signed if --team given
 #   --generic-ipa                    arm64 device build, UNSIGNED (for jailbroken
 #                                    devices / sideloading), always packs an .ipa
 # Self-contained: ensures ./dist (vite build), regenerates the Xcode project
-# from shell/project.yml, then builds.
-#   bash scripts/build-ipad.sh [--device <UDID> [--team <TEAMID>]] [--ipa]
+# from shell/project.yml, then builds. Defaults to the simulator (no signing);
+# for a signed device build pass the iPad's UDID (and your team ID):
+#   bash scripts/build-ipad.sh --device <UDID> --team <TEAMID> [--ipa]
 set -e
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SHELL="$ROOT/shell"
 DIST="$ROOT/dist"
 SIM_DEST="${SIM_DEST:-platform=iOS Simulator,name=iPad Pro 13-inch (M5)}"
+SIM_DEST_IPHONE="${SIM_DEST_IPHONE:-platform=iOS Simulator,name=iPhone 17}"
 
 DEVICE=""
 TEAM=""
 MAKE_IPA=0
 GENERIC_IPA=0
+TARGET="FreePlayer"
 while [ $# -gt 0 ]; do
   case "$1" in
     --device)     DEVICE="$2"; shift 2 ;;
     --team)       TEAM="$2";   shift 2 ;;
+    --iphone)     TARGET="FreePlayer-iPhone"; SIM_DEST="$SIM_DEST_IPHONE"; shift ;;
     --ipa)        MAKE_IPA=1;  shift ;;
     --generic-ipa) GENERIC_IPA=1; shift ;;
     *) echo "unknown arg: $1" >&2; exit 2 ;;
@@ -29,8 +33,8 @@ while [ $# -gt 0 ]; do
 done
 
 # ── 1. web assets (the Xcode pre-build script rsyncs dist/ into the bundle) ──
-if [ ! -d "$DIST" ]; then
-  echo "[ipad] vite build..."
+if [ ! -f "$DIST/index.html" ]; then
+  echo "[ios] vite build..."
   (cd "$ROOT" && node_modules/.bin/vite build)
 fi
 
@@ -60,29 +64,29 @@ if [ -n "$DEVICE" ]; then
   if [ -n "$TEAM" ]; then
     SIGN_ARGS="DEVELOPMENT_TEAM=$TEAM CODE_SIGN_STYLE=Automatic"
   fi
-  echo "[ipad] building for device $DEVICE${TEAM:+ (team $TEAM)}... [Debug-iphoneos]"
+  echo "[ipad] building for device $DEVICE${TEAM:+ (team $TEAM)}..."
   # shellcheck disable=SC2086
-  (cd "$SHELL" && xcodebuild -project FreePlayer.xcodeproj -scheme FreePlayer \
+  (cd "$SHELL" && xcodebuild -project FreePlayer.xcodeproj -scheme "$TARGET" \
     -configuration Debug -destination "$DEST" -allowProvisioningUpdates \
     $SIGN_ARGS build)
 elif [ "$GENERIC_IPA" = 1 ]; then
   echo "[ipad] building unsigned device (arm64) for jailbroken device... [Debug-iphoneos]"
-  (cd "$SHELL" && xcodebuild -project FreePlayer.xcodeproj -scheme FreePlayer \
+  (cd "$SHELL" && xcodebuild -project FreePlayer.xcodeproj -scheme "$TARGET" \
     -configuration Debug -destination 'generic/platform=iOS' \
     CODE_SIGNING_ALLOWED=NO build)
 else
-  echo "[ipad] building for simulator ($SIM_DEST)... [Debug-iphonesimulator]"
-  (cd "$SHELL" && xcodebuild -project FreePlayer.xcodeproj -scheme FreePlayer \
+  echo "[ipad] building for simulator ($SIM_DEST)..."
+  (cd "$SHELL" && xcodebuild -project FreePlayer.xcodeproj -scheme "$TARGET" \
     -configuration Debug -destination "$SIM_DEST" build)
 fi
 
 # ── 6. locate the product ──
 if [ -n "$DEVICE" ] || [ "$GENERIC_IPA" = 1 ]; then
   APP=$(find "$HOME/Library/Developer/Xcode/DerivedData/FreePlayer-"* \
-    -path "*Debug-iphoneos/FreePlayer.app" -type d 2>/dev/null | head -1)
+    -path "*Debug-iphoneos/${TARGET}.app" -type d 2>/dev/null | head -1)
 else
   APP=$(find "$HOME/Library/Developer/Xcode/DerivedData/FreePlayer-"* \
-    -path "*Debug-iphonesimulator/FreePlayer.app" -type d 2>/dev/null | head -1)
+    -path "*Debug-iphonesimulator/${TARGET}.app" -type d 2>/dev/null | head -1)
 fi
 [ -n "$APP" ] || { echo "==> built app not found" >&2; exit 3; }
 echo "==> $APP"
@@ -98,14 +102,16 @@ if [ "$PACK_IPA" = 1 ]; then
   OUT="$ROOT/shell/release"
   mkdir -p "$OUT"
   STAMP=$(date +%Y%m%d-%H%M)
+  # Same output location + naming convention as the macOS release
+  # (shell/release/FreePlayer-<ver>-<platform>-<timestamp>.*)
   if [ "$GENERIC_IPA" = 1 ]; then
     PLATFORM="ios-arm64-unsigned"   # jailbreak/side-load unsigned build
   elif [ -n "$DEVICE" ]; then
     PLATFORM="ios-arm64"            # signed device build
   else
-    PLATFORM="ios-simulator"        # unsigned simulator build
+    PLATFORM="ios-simulator"        # unsigned simulator build (CI)
   fi
-  IPA="$OUT/FreePlayer-$VER-$PLATFORM-$STAMP.ipa"
+  IPA="$OUT/$TARGET-$VER-$PLATFORM-$STAMP.ipa"
   (cd "$PKG" && zip -qr "$IPA" Payload)
   rm -rf "$PKG"
   echo "==> $IPA"
