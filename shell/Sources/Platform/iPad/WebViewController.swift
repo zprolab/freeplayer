@@ -63,19 +63,21 @@ final class WebViewController: UIViewController, WKNavigationDelegate {
         // the page (isSetup/getSetting/getTracks/…) hang forever.
         AppContext.shared.webView = webView
 
+        // Open the SQLite database first (macOS does this in AppDelegate.applicationDidFinishLaunching).
+        if !Database.isOpen {
+            let opened = Database.open(Database.defaultDbPath())
+            diag("Database.open(\(Database.defaultDbPath())) -> \(opened)")
+        }
+        
         // Library location is fixed on iOS (in-sandbox) — make it exists and
         // is recorded, so isSetup/import work even before any folder is picked.
         // P: Must set library_dir BEFORE opening tracks DB so it goes in the right place.
         let lib = IPadPlatformBridge.ensureLibraryDir()
         diag("library_dir=\(lib)")
         
-        // Open the SQLite database (macOS does this in AppDelegate.applicationDidFinishLaunching).
-        if !Database.isOpen {
-            let opened = Database.open(Database.defaultDbPath())
-            diag("Database.open(\(Database.defaultDbPath())) -> \(opened)")
-            // P: Open tracks database in library root
+        // P: Open tracks database in library root (after library_dir is set)
+        if Database.tracksDbPath() == nil {
             Database.openTracksDb(Database.defaultTracksDbPath())
-            diag("TracksDb.open(\(Database.defaultTracksDbPath()))")
         }
 
         // Bundled web assets: Xcode packs dist/ as a folder reference, so it
