@@ -74,6 +74,26 @@ jobs:
       # SIM_DEST=generic keeps the runner's Xcode version agnostic (its
       # simulator list lacks the newest iPad models; generic builds fine).
       - name: Build iPad app
-        run: pnpm build:ipad
+        run: pnpm build:ipad --ipad --simulator
+        env:
+          SIM_DEST: generic/platform=iOS Simulator
+
+  iphone:
+    name: iPhone build (simulator)
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Install XcodeGen
+        run: brew install xcodegen
+      - name: Build iPhone app
+        run: pnpm build:iphone --iphone --simulator
         env:
           SIM_DEST: generic/platform=iOS Simulator

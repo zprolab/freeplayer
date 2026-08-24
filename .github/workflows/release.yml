@@ -24,17 +24,27 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      # ── macOS ──
       # pnpm dist = vite build → bundle.sh (versioned .app) → package.sh
       # (zip + dmg via staging dir so the DMG volume root is FreePlayer.app)
       - name: Build and package macOS app (zip + dmg)
         run: pnpm dist
-      # iPad ipa: unsigned arm64 device build (--generic-ipa) so the release
-      # ships a real-device build sideloadable on jailbroken devices / via
-      # any signing tool — no cert or device needed on the runner.
+
+      # ── iPad ipa ──
+      # unsigned arm64 device build so the release ships a real-device build
+      # sideloadable on jailbroken devices / via any signing tool — no cert
+      # or device needed on the runner.
       - name: Build iPad ipa (unsigned, device arm64)
-        run: |
-          brew install xcodegen
-          pnpm build:ipad --generic-ipa
+        run: pnpm build:ipad --ipad --no-simulator --ipa
+
+      # ── iPhone ipa ──
+      - name: Build iPhone ipa (unsigned, device arm64)
+        run: pnpm build:iphone --iphone --no-simulator --ipa
+
+      # ── release notes ──
       - name: Generate release notes
         run: |
           VER=$(node -p "require('./package.json').version")
@@ -55,15 +65,19 @@ jobs:
             echo "- macOS build is ad-hoc signed (not notarized): first launch requires right-click → Open, or \`xattr -d com.apple.quarantine <path>\`."
             echo "- macOS 13+ / Apple Silicon only."
             echo "- iPad \`.ipa\` is an unsigned arm64 device build (no signing team) — sideloadable via a jailbreak, Filza, or your own signing tool."
+            echo "- iPhone \`.ipa\` is an unsigned arm64 device build — same as iPad but for iPhone."
           } > /tmp/release-notes.md
+
+      # ── publish ──
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           VER=$(node -p "require('./package.json').version")
           MAC_ARTIFACTS=$(ls shell/release/FreePlayer-$VER-mac-arm64-* | tr '\n' ' ')
-          IPA_ARTIFACT=$(ls shell/release/FreePlayer-$VER-ios-arm64-unsigned-* | tr '\n' ' ')
+          IPAD_IPA=$(ls shell/release/FreePlayer-iPad-$VER-ios-arm64-unsigned-* 2>/dev/null || true)
+          IPHONE_IPA=$(ls shell/release/FreePlayer-iPhone-$VER-ios-arm64-unsigned-* 2>/dev/null || true)
           gh release create "$GITHUB_REF_NAME" \
             --title "FreePlayer $GITHUB_REF_NAME" \
             --notes-file /tmp/release-notes.md \
-            $MAC_ARTIFACTS $IPA_ARTIFACT
+            $MAC_ARTIFACTS $IPAD_IPA $IPHONE_IPA
