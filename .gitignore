@@ -18,3 +18,4 @@ shell/Assets.xcassets/AppIcon.appiconset/AppIcon-1024.png
 # XcodeGen artifacts (regenerate with: cd shell && xcodegen generate)
 shell/FreePlayer.xcodeproj/
 shell/Info-iOS.plist
+shell/Info-iPhone.plist
