@@ -67,6 +67,9 @@ final class WebViewController: UIViewController, WKNavigationDelegate {
         if !Database.isOpen {
             let opened = Database.open(Database.defaultDbPath())
             diag("Database.open(\(Database.defaultDbPath())) -> \(opened)")
+            // P: Open tracks database in library root
+            Database.openTracksDb(Database.defaultTracksDbPath())
+            diag("TracksDb.open(\(Database.defaultTracksDbPath()))")
         }
         // Library location is fixed on iOS (in-sandbox) — make it exists and
         // is recorded, so isSetup/import work even before any folder is picked.

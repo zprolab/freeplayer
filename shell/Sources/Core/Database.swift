@@ -1,5 +1,6 @@
 // FreePlayer shell — SQLite layer (port of electron/database.js)
 // Pure Swift: sqlite3 C API, results as [String: Any]/[Any].
+// P: Split into config DB (settings, symlinks) and tracks DB (tracks, playlists, history).
 
 import Foundation
 import SQLite3
@@ -12,6 +13,14 @@ private let SQLITE_TRANSIENT = unsafeBitCast(-1, to: sqlite3_destructor_type.sel
 /// background import thread can never crash into a closed connection.
 enum Database {
     private(set) static var isOpen = false
+
+    // MARK: - dual database state
+    // Config DB: settings, imported_symlinks (lives in Application Support)
+    private static var gDb: OpaquePointer?
+    private static var gDbPath: String?
+    // Tracks DB: tracks, playlists, playlist_tracks, play_history (lives in library root)
+    private static var gTracksDb: OpaquePointer?
+    private static var gTracksDbPath: String?
 
     // MARK: - row helpers
 
@@ -63,10 +72,9 @@ enum Database {
         }
     }
 
-    private static func runQuery(_ sql: String, _ params: [Any]) -> [[String: Any]] {
-        // Q1: the DB can be closed while a background import thread is mid-flight —
-        // every entry point must tolerate a closed DB
-        guard let db = gDb else { return [] }
+    /// Execute a query on a specific database handle.
+    private static func runQueryOn(_ db: OpaquePointer?, _ sql: String, _ params: [Any]) -> [[String: Any]] {
+        guard let db else { return [] }
         var stmt: OpaquePointer?
         if sqlite3_prepare_v2(db, sql, -1, &stmt, nil) != SQLITE_OK {
             NSLog("[db] prepare failed: %s | %@", sqlite3_errmsg(db), sql)
@@ -84,9 +92,8 @@ enum Database {
     }
 
     @discardableResult
-    private static func runExec(_ sql: String, _ params: [Any]) -> Bool {
-        // Q1: see runQuery — never prepare on a closed DB
-        guard let db = gDb else { return false }
+    private static func runExecOn(_ db: OpaquePointer?, _ sql: String, _ params: [Any]) -> Bool {
+        guard let db else { return false }
         var stmt: OpaquePointer?
         if sqlite3_prepare_v2(db, sql, -1, &stmt, nil) != SQLITE_OK {
             NSLog("[db] exec prepare failed: %s", sqlite3_errmsg(db))
@@ -97,6 +104,26 @@ enum Database {
             bindParam(stmt!, Int32(i) + 1, p)
         }
         return sqlite3_step(stmt) == SQLITE_DONE
+    }
+
+    // Config DB query/exec (settings, symlinks)
+    private static func runQuery(_ sql: String, _ params: [Any]) -> [[String: Any]] {
+        runQueryOn(gDb, sql, params)
+    }
+
+    @discardableResult
+    private static func runExec(_ sql: String, _ params: [Any]) -> Bool {
+        runExecOn(gDb, sql, params)
+    }
+
+    // Tracks DB query/exec (tracks, playlists, history)
+    private static func runTracksQuery(_ sql: String, _ params: [Any]) -> [[String: Any]] {
+        runQueryOn(gTracksDb, sql, params)
+    }
+
+    @discardableResult
+    private static func runTracksExec(_ sql: String, _ params: [Any]) -> Bool {
+        runExecOn(gTracksDb, sql, params)
     }
 
     // MARK: - lifecycle
@@ -120,6 +147,15 @@ enum Database {
         }
         let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
         return support.appendingPathComponent("freeplayer/freeplayer.db").path
+    }
+
+    /// P: Tracks DB path — stored in library root as tracks.db
+    static func defaultTracksDbPath() -> String {
+        guard let libDir = getSetting("library_dir", nil) as? String, !libDir.isEmpty else {
+            // Fallback: same location as config DB
+            return (defaultDbPath() as NSString).deletingLastPathComponent + "/tracks.db"
+        }
+        return (libDir as NSString).appendingPathComponent("tracks.db")
     }
 
     @discardableResult
@@ -148,7 +184,45 @@ enum Database {
         _ = sqlite3_exec(db, "PRAGMA synchronous=NORMAL;", nil, nil, nil)
         _ = sqlite3_exec(db, "PRAGMA busy_timeout=5000;", nil, nil, nil)
         _ = sqlite3_exec(db, "PRAGMA foreign_keys=ON;", nil, nil, nil)
-        let schema = """
+        // Config DB schema: only settings and symlinks
+        let configSchema = """
+        CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+        CREATE TABLE IF NOT EXISTS imported_symlinks (
+         lib_path TEXT PRIMARY KEY, target TEXT NOT NULL);
+        """
+        if sqlite3_exec(db, configSchema, nil, nil, &err) != SQLITE_OK {
+            NSLog("[db] config schema failed: %s", err.map { String(cString: $0) } ?? "?")
+            if let err { sqlite3_free(err) }
+        }
+        NSLog("[db] config open ok: %@", path)
+        return true
+    }
+
+    /// P: Open the tracks database in the library root.
+    @discardableResult
+    static func openTracksDb(_ path: String) -> Bool {
+        gTracksDbPath = path
+        try? FileManager.default.createDirectory(
+            atPath: (path as NSString).deletingLastPathComponent,
+            withIntermediateDirectories: true)
+        var db: OpaquePointer?
+        if sqlite3_open_v2(path, &db,
+                           SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_FULLMUTEX,
+                           nil) != SQLITE_OK {
+            NSLog("[db] tracks open failed: %s", sqlite3_errmsg(db))
+            return false
+        }
+        gTracksDb = db
+        var err: UnsafeMutablePointer<CChar>?
+        if sqlite3_exec(db, "PRAGMA journal_mode=WAL;", nil, nil, &err) != SQLITE_OK {
+            NSLog("[db] tracks WAL failed: %s", err.map { String(cString: $0) } ?? "?")
+            if let err { sqlite3_free(err) }
+        }
+        _ = sqlite3_exec(db, "PRAGMA synchronous=NORMAL;", nil, nil, nil)
+        _ = sqlite3_exec(db, "PRAGMA busy_timeout=5000;", nil, nil, nil)
+        _ = sqlite3_exec(db, "PRAGMA foreign_keys=ON;", nil, nil, nil)
+        // Tracks DB schema
+        let tracksSchema = """
         CREATE TABLE IF NOT EXISTS tracks (
          id INTEGER PRIMARY KEY AUTOINCREMENT,
          title TEXT NOT NULL, artist TEXT DEFAULT 'Unknown Artist',
@@ -172,9 +246,6 @@ enum Database {
          FOREIGN KEY (playlist_id) REFERENCES playlists(id) ON DELETE CASCADE,
          FOREIGN KEY (track_id) REFERENCES tracks(id) ON DELETE CASCADE,
          UNIQUE(playlist_id, track_id));
-        CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
-        CREATE TABLE IF NOT EXISTS imported_symlinks (
-         lib_path TEXT PRIMARY KEY, target TEXT NOT NULL);
         CREATE INDEX IF NOT EXISTS idx_tracks_title ON tracks(title);
         CREATE INDEX IF NOT EXISTS idx_tracks_artist ON tracks(artist);
         CREATE INDEX IF NOT EXISTS idx_tracks_album ON tracks(album);
@@ -186,20 +257,55 @@ enum Database {
         CREATE INDEX IF NOT EXISTS idx_playlist_tracks_playlist ON playlist_tracks(playlist_id);
         CREATE INDEX IF NOT EXISTS idx_playlist_tracks_track ON playlist_tracks(track_id);
         CREATE INDEX IF NOT EXISTS idx_playlist_tracks_composite ON playlist_tracks(playlist_id, position);
-        -- P6: Composite indexes for common query patterns
         CREATE INDEX IF NOT EXISTS idx_tracks_artist_album ON tracks(artist, album);
         CREATE INDEX IF NOT EXISTS idx_tracks_year ON tracks(year) WHERE year IS NOT NULL;
         """
-        if sqlite3_exec(db, schema, nil, nil, &err) != SQLITE_OK {
-            NSLog("[db] schema failed: %s", err.map { String(cString: $0) } ?? "?")
+        if sqlite3_exec(db, tracksSchema, nil, nil, &err) != SQLITE_OK {
+            NSLog("[db] tracks schema failed: %s", err.map { String(cString: $0) } ?? "?")
             if let err { sqlite3_free(err) }
         }
-        // Migrations (ignore failures — column already exists)
+        // Migrations
         _ = sqlite3_exec(db, "ALTER TABLE tracks ADD COLUMN replaygain_gain REAL DEFAULT 0", nil, nil, nil)
         _ = sqlite3_exec(db, "ALTER TABLE tracks ADD COLUMN replaygain_peak REAL DEFAULT 0", nil, nil, nil)
         _ = sqlite3_exec(db, "ALTER TABLE tracks ADD COLUMN lrc_path TEXT", nil, nil, nil)
-        NSLog("[db] open ok: %@", path)
+        NSLog("[db] tracks open ok: %@", path)
         return true
+    }
+
+    /// P: Migrate data from old single DB to split DBs.
+    static func migrateToSplitDb() {
+        guard let oldDbPath = gDbPath else { return }
+        let tracksPath = defaultTracksDbPath()
+        // Already migrated?
+        if FileManager.default.fileExists(atPath: tracksPath) { return }
+        // Check if old DB has tracks table
+        var db: OpaquePointer?
+        guard sqlite3_open_v2(oldDbPath, &db, SQLITE_OPEN_READONLY, nil) == SQLITE_OK else { return }
+        defer { sqlite3_close(db) }
+        var checkStmt: OpaquePointer?
+        sqlite3_prepare_v2(db, "SELECT name FROM sqlite_master WHERE type='table' AND name='tracks'", -1, &checkStmt, nil)
+        let hasTracks = sqlite3_step(checkStmt) == SQLITE_ROW
+        sqlite3_finalize(checkStmt)
+        guard hasTracks else { return }
+        NSLog("[db] migrating tracks to split DB: %@", tracksPath)
+        // Open tracks DB and copy data
+        openTracksDb(tracksPath)
+        guard let tracksDb = gTracksDb else { return }
+        // Copy tracks
+        var selectStmt: OpaquePointer?
+        sqlite3_prepare_v2(db, "SELECT * FROM tracks", -1, &selectStmt, nil)
+        var insertStmt: OpaquePointer?
+        sqlite3_prepare_v2(tracksDb, "INSERT INTO tracks SELECT * FROM tracks", -1, &insertStmt, nil)
+        // Use backup API for safe copy
+        var backup: OpaquePointer?
+        backup = sqlite3_backup_init(tracksDb, "main", db, "main")
+        if let backup {
+            sqlite3_backup_step(backup, -1)
+            sqlite3_backup_finish(backup)
+        }
+        sqlite3_finalize(selectStmt)
+        sqlite3_finalize(insertStmt)
+        NSLog("[db] migration complete")
     }
 
     static func close() {
@@ -208,42 +314,51 @@ enum Database {
         // BUSY — retry briefly instead of dropping the connection mid-insert
         var tries = 0
         while sqlite3_close(db) == SQLITE_BUSY, tries < 50 {
-            Thread.sleep(forTimeInterval: 0.1)
             tries += 1
+            usleep(100_000) // 100ms
         }
         gDb = nil
         isOpen = false
+        // Also close tracks DB
+        if let tracksDb = gTracksDb {
+            var t = 0
+            while sqlite3_close(tracksDb) == SQLITE_BUSY, t < 50 {
+                t += 1
+                usleep(100_000)
+            }
+            gTracksDb = nil
+        }
+        NSLog("[db] closed (config + tracks)")
     }
 
-    // MARK: - settings
+    // MARK: - settings (config DB)
 
-    static func getSetting(_ key: String, _ def: Any?) -> Any? {
+    static func getSetting(_ key: String, _ defaultValue: String?) -> String? {
         let rows = runQuery("SELECT value FROM settings WHERE key = ?", [key])
-        return rows.first?["value"] ?? def
+        guard let v = rows.first?["value"], !(v is NSNull) else { return defaultValue }
+        return v as? String
     }
 
     @discardableResult
     static func setSetting(_ key: String, _ value: String?) -> Bool {
-        runExec("INSERT INTO settings (key, value) VALUES (?, ?)"
-                + " ON CONFLICT(key) DO UPDATE SET value = excluded.value",
-                [key, value ?? ""])
+        guard let value else { return runExec("DELETE FROM settings WHERE key = ?", [key]) }
+        return runExec("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", [key, value])
     }
 
-    // MARK: - imported symlinks (S3e: trust anchor for library symlinks)
-
-    @discardableResult
-    static func recordSymlink(_ libPath: String, _ resolvedTarget: String) -> Bool {
-        runExec("INSERT INTO imported_symlinks (lib_path, target) VALUES (?, ?)"
-                + " ON CONFLICT(lib_path) DO UPDATE SET target = excluded.target",
-                [libPath, resolvedTarget])
-    }
+    // MARK: - imported_symlinks (config DB)
 
     static func symlinkTarget(_ libPath: String) -> String? {
         let rows = runQuery("SELECT target FROM imported_symlinks WHERE lib_path = ?", [libPath])
-        return rows.first?["target"] as? String
+        guard let v = rows.first?["target"], !(v is NSNull) else { return nil }
+        return v as? String
     }
 
-    // MARK: - tracks
+    @discardableResult
+    static func recordSymlink(_ libPath: String, _ target: String) -> Bool {
+        runExec("INSERT OR REPLACE INTO imported_symlinks (lib_path, target) VALUES (?, ?)", [libPath, target])
+    }
+
+    // MARK: - tracks (tracks DB)
 
     static func getAllTracks(_ search: String, _ sortBy: String, _ sortDir: String) -> [[String: Any]] {
         let allowed = ["title", "artist", "album", "duration", "imported_at", "year"]
@@ -257,17 +372,17 @@ enum Database {
             params = [term, term, term]
         }
         sql += " ORDER BY \(b) \(d)"
-        return runQuery(sql, params)
+        return runTracksQuery(sql, params)
     }
 
     static func getTrackById(_ id: Int64) -> Any? {
-        let rows = runQuery("SELECT * FROM tracks WHERE id = ?", [NSNumber(value: id)])
+        let rows = runTracksQuery("SELECT * FROM tracks WHERE id = ?", [NSNumber(value: id)])
         return rows.first ?? NSNull()
     }
 
     @discardableResult
     static func insertTrack(_ t: [String: Any]) -> Bool {
-        runExec(
+        runTracksExec(
             "INSERT INTO tracks (title, artist, album, track_number, disc_number, genre, year,"
             + " duration, file_path, file_name, file_size, file_format, bitrate, sample_rate,"
             + " channels, cover_path, replaygain_gain, replaygain_peak)"
@@ -294,250 +409,243 @@ enum Database {
 
     @discardableResult
     static func updateTrack(_ id: Int64, _ fields: [String: Any]) -> Bool {
-        let allowed = ["title", "artist", "album", "genre", "year", "track_number"]
         var sets: [String] = []
-        var params: [Any] = []
-        for key in allowed {
-            if let v = fields[key] {
-                sets.append("\(key) = ?")
-                params.append(v)
-            }
+        var vals: [Any] = []
+        for (k, v) in fields {
+            guard k != "id", k != "imported_at" else { continue }
+            sets.append("\(k) = ?")
+            vals.append(v)
         }
-        if sets.isEmpty { return true }
-        params.append(NSNumber(value: id))
-        let sql = "UPDATE tracks SET \(sets.joined(separator: ", ")), updated_at = CURRENT_TIMESTAMP WHERE id = ?"
-        return runExec(sql, params)
+        guard !sets.isEmpty else { return false }
+        sets.append("updated_at = CURRENT_TIMESTAMP")
+        vals.append(NSNumber(value: id))
+        return runTracksExec("UPDATE tracks SET \(sets.joined(separator: ", ")) WHERE id = ?", vals)
     }
 
     @discardableResult
     static func deleteTrack(_ id: Int64) -> Bool {
-        runExec("DELETE FROM tracks WHERE id = ?", [NSNumber(value: id)])
+        runTracksExec("DELETE FROM tracks WHERE id = ?", [NSNumber(value: id)])
     }
 
     static func getTrackCount() -> Int64 {
-        let rows = runQuery("SELECT COUNT(*) as count FROM tracks", [])
-        return (rows.first?["count"] as? NSNumber)?.int64Value ?? 0
+        let rows = runTracksQuery("SELECT COUNT(*) AS c FROM tracks", [])
+        return (rows.first?["c"] as? NSNumber)?.int64Value ?? 0
     }
 
     static func getTotalDuration() -> Double {
-        let rows = runQuery("SELECT COALESCE(SUM(duration), 0) as total FROM tracks", [])
-        return (rows.first?["total"] as? NSNumber)?.doubleValue ?? 0
+        let rows = runTracksQuery("SELECT COALESCE(SUM(duration), 0) AS d FROM tracks", [])
+        return (rows.first?["d"] as? NSNumber)?.doubleValue ?? 0
     }
 
-    // MARK: - play history
+    // MARK: - play_history (tracks DB)
 
-    static func startPlaySession(_ trackId: Int64) -> Int64 {
-        let rows = runQuery("INSERT INTO play_history (track_id, started_at) VALUES (?, datetime('now')) RETURNING id",
-                            [NSNumber(value: trackId)])
-        if let id = rows.first?["id"] as? NSNumber {
-            return id.int64Value
-        }
-        // L5: fallback for pre-3.35 SQLite — reuse the connection's last insert id
-        if runExec("INSERT INTO play_history (track_id, started_at) VALUES (?, datetime('now'))",
-                   [NSNumber(value: trackId)]),
-           let db = gDb {
-            return Int64(sqlite3_last_insert_rowid(db))
-        }
-        return 0
+    @discardableResult
+    static func playStart(_ trackId: Int64) -> Bool {
+        runTracksExec("INSERT INTO play_history (track_id, started_at) VALUES (?, datetime('now'))",
+                [NSNumber(value: trackId)])
     }
 
     @discardableResult
-    static func endPlaySession(_ sessionId: Int64, _ durationSeconds: Double, _ playPercentage: Double) -> Bool {
-        runExec("UPDATE play_history SET ended_at = datetime('now'), duration_seconds = ?, play_percentage = ? WHERE id = ?",
-                [NSNumber(value: durationSeconds), NSNumber(value: playPercentage), NSNumber(value: sessionId)])
+    static func playEnd(_ historyId: Int64, _ duration: Double, _ percentage: Double) -> Bool {
+        runTracksExec("UPDATE play_history SET ended_at = datetime('now'), duration_seconds = ?, play_percentage = ? WHERE id = ?",
+                [NSNumber(value: duration), NSNumber(value: percentage), NSNumber(value: historyId)])
     }
 
     static func getPlayHistory(_ limit: Int) -> [[String: Any]] {
-        runQuery("SELECT ph.*, t.title, t.artist, t.album, t.file_path, t.duration as track_duration"
+        runTracksQuery("SELECT ph.*, t.title, t.artist, t.album, t.file_path, t.cover_path"
                  + " FROM play_history ph JOIN tracks t ON ph.track_id = t.id"
                  + " ORDER BY ph.started_at DESC LIMIT ?", [NSNumber(value: limit)])
     }
 
-    static func getListeningStats() -> [String: Any] {
-        let t = runQuery("SELECT COALESCE(SUM(duration_seconds), 0) as total FROM play_history WHERE ended_at IS NOT NULL", [])
-        let c = runQuery("SELECT COUNT(*) as count FROM play_history", [])
-        let u = runQuery("SELECT COUNT(DISTINCT track_id) as count FROM play_history", [])
-        let topTracks = runQuery(
-            "SELECT t.id, t.title, t.artist, t.album, t.duration as track_duration,"
-            + " COUNT(ph.id) as play_count, COALESCE(SUM(ph.duration_seconds), 0) as total_listen_time"
-            + " FROM play_history ph JOIN tracks t ON ph.track_id = t.id"
-            + " GROUP BY t.id ORDER BY play_count DESC LIMIT 10", [])
-        let topArtists = runQuery(
-            "SELECT t.artist, COUNT(ph.id) as play_count, COALESCE(SUM(ph.duration_seconds), 0) as total_listen_time"
-            + " FROM play_history ph JOIN tracks t ON ph.track_id = t.id"
-            + " GROUP BY t.artist ORDER BY play_count DESC LIMIT 10", [])
-        let dailyStats = runQuery(
-            "SELECT DATE(started_at) as date, COUNT(*) as plays, COALESCE(SUM(duration_seconds), 0) as total_time"
-            + " FROM play_history WHERE started_at >= datetime('now', '-30 days')"
-            + " GROUP BY DATE(started_at) ORDER BY date DESC", [])
-        return [
-            "totalTime": (t.first?["total"] as? NSNumber) ?? 0,
-            "totalPlays": (c.first?["count"] as? NSNumber) ?? 0,
-            "uniqueTracksPlayed": (u.first?["count"] as? NSNumber) ?? 0,
-            "topTracks": topTracks,
-            "topArtists": topArtists,
-            "dailyStats": dailyStats,
-        ]
+    static func getStats() -> [String: Any] {
+        var d: [String: Any] = [:]
+        let r1 = runTracksQuery("SELECT COUNT(*) AS c FROM tracks", [])
+        d["totalTracks"] = r1.first?["c"] ?? 0
+        let r2 = runTracksQuery("SELECT COALESCE(SUM(duration), 0) AS d FROM tracks", [])
+        d["totalDuration"] = r2.first?["d"] ?? 0
+        let r3 = runTracksQuery("SELECT COUNT(*) AS c FROM play_history", [])
+        d["totalPlays"] = r3.first?["c"] ?? 0
+        let r4 = runTracksQuery("SELECT COUNT(DISTINCT track_id) AS c FROM play_history", [])
+        d["uniqueTracks"] = r4.first?["c"] ?? 0
+        return d
     }
 
-    // MARK: - playlists
+    // MARK: - playlists (tracks DB)
 
-    static func createPlaylist(_ name: String, _ description: String?) -> Int64 {
-        guard let db = gDb else { return 0 }
-        var stmt: OpaquePointer?
-        guard sqlite3_prepare_v2(db, "INSERT INTO playlists (name, description) VALUES (?, ?)", -1, &stmt, nil) == SQLITE_OK else {
-            NSLog("[db] createPlaylist prepare failed: %s", sqlite3_errmsg(db))
-            return 0
-        }
-        defer { sqlite3_finalize(stmt) }
-        sqlite3_bind_text(stmt, 1, (name as NSString).utf8String, -1, SQLITE_TRANSIENT)
-        sqlite3_bind_text(stmt, 2, ((description ?? "") as NSString).utf8String, -1, SQLITE_TRANSIENT)
-        _ = sqlite3_step(stmt)
-        return Int64(sqlite3_last_insert_rowid(db))
+    @discardableResult
+    static func createPlaylist(_ name: String, _ description: String?) -> Bool {
+        runTracksExec("INSERT INTO playlists (name, description) VALUES (?, ?)",
+                [name, description ?? NSNull()])
     }
 
-    static func getAllPlaylists() -> [[String: Any]] {
-        runQuery("SELECT * FROM playlists ORDER BY updated_at DESC", [])
+    static func getPlaylists() -> [[String: Any]] {
+        runTracksQuery("SELECT * FROM playlists ORDER BY updated_at DESC", [])
     }
 
     @discardableResult
-    static func addTrackToPlaylist(_ playlistId: Int64, _ trackId: Int64) -> Bool {
-        let rows = runQuery("SELECT COALESCE(MAX(position), -1) + 1 as next_pos FROM playlist_tracks WHERE playlist_id = ?",
-                            [NSNumber(value: playlistId)])
+    static func addToPlaylist(_ playlistId: Int64, _ trackId: Int64) -> Bool {
+        let rows = runTracksQuery("SELECT COALESCE(MAX(position), -1) + 1 as next_pos FROM playlist_tracks WHERE playlist_id = ?", [NSNumber(value: playlistId)])
         let pos = (rows.first?["next_pos"] as? NSNumber)?.int64Value ?? 0
-        return runExec("INSERT OR IGNORE INTO playlist_tracks (playlist_id, track_id, position) VALUES (?, ?, ?)",
-                       [NSNumber(value: playlistId), NSNumber(value: trackId), NSNumber(value: pos)])
+        return runTracksExec("INSERT OR IGNORE INTO playlist_tracks (playlist_id, track_id, position) VALUES (?, ?, ?)",
+                [NSNumber(value: playlistId), NSNumber(value: trackId), NSNumber(value: pos)])
     }
 
     @discardableResult
-    static func addTracksToPlaylist(_ playlistId: Int64, _ trackIds: [Any]) -> Bool {
-        if trackIds.isEmpty { return true }
-        guard let db = gDb else { return false }
-        let rows = runQuery("SELECT COALESCE(MAX(position), -1) + 1 as next_pos FROM playlist_tracks WHERE playlist_id = ?",
-                            [NSNumber(value: playlistId)])
-        var pos = (rows.first?["next_pos"] as? NSNumber)?.int64Value ?? 0
-        // M8: check prepare — stepping a null stmt would crash on DB failure
+    static func addTracksToPlaylist(_ playlistId: Int64, _ trackIds: [Any], startAt pos: Int64) -> Bool {
+        insertPlaylistTracks(playlistId, trackIds, startAt: pos, orIgnore: true)
+    }
+
+    // P9: Shared helper for playlist track insertion to avoid code duplication
+    private static func insertPlaylistTracks(_ playlistId: Int64, _ trackIds: [Any], startAt pos: Int64, orIgnore: Bool = false) -> Bool {
+        guard let db = gTracksDb else { return false }
+        let insertSQL = orIgnore
+            ? "INSERT OR IGNORE INTO playlist_tracks (playlist_id, track_id, position) VALUES (?, ?, ?)"
+            : "INSERT INTO playlist_tracks (playlist_id, track_id, position) VALUES (?, ?, ?)"
         var stmt: OpaquePointer?
-        guard sqlite3_prepare_v2(db, "INSERT OR IGNORE INTO playlist_tracks (playlist_id, track_id, position) VALUES (?, ?, ?)", -1, &stmt, nil) == SQLITE_OK else {
-            NSLog("[db] addTracksToPlaylist prepare failed: %s", sqlite3_errmsg(db))
+        guard sqlite3_prepare_v2(db, insertSQL, -1, &stmt, nil) == SQLITE_OK else {
+            NSLog("[db] insertPlaylistTracks prepare failed: %s", sqlite3_errmsg(db))
             return false
         }
         defer { sqlite3_finalize(stmt) }
-        // Q6: a failed step must fail the call, not vanish
+        var currentPos = pos
         var allOk = true
         for tid in trackIds {
             guard let num = tid as? NSNumber else { allOk = false; continue }
             sqlite3_bind_int64(stmt, 1, playlistId)
             sqlite3_bind_int64(stmt, 2, num.int64Value)
-            sqlite3_bind_int64(stmt, 3, pos)
-            pos += 1
+            sqlite3_bind_int64(stmt, 3, currentPos)
+            currentPos += 1
             if sqlite3_step(stmt) != SQLITE_DONE { allOk = false }
             _ = sqlite3_reset(stmt)
         }
         return allOk
-            && runExec("UPDATE playlists SET updated_at = CURRENT_TIMESTAMP WHERE id = ?", [NSNumber(value: playlistId)])
+            && runTracksExec("UPDATE playlists SET updated_at = CURRENT_TIMESTAMP WHERE id = ?", [NSNumber(value: playlistId)])
     }
 
     @discardableResult
     static func setPlaylistTracks(_ playlistId: Int64, _ trackIds: [Any]) -> Bool {
-        guard runExec("DELETE FROM playlist_tracks WHERE playlist_id = ?", [NSNumber(value: playlistId)]),
-              let db = gDb else { return false }
-        // M8: check prepare — stepping a null stmt would crash on DB failure
-        var stmt: OpaquePointer?
-        guard sqlite3_prepare_v2(db, "INSERT INTO playlist_tracks (playlist_id, track_id, position) VALUES (?, ?, ?)", -1, &stmt, nil) == SQLITE_OK else {
-            NSLog("[db] setPlaylistTracks prepare failed: %s", sqlite3_errmsg(db))
-            return false
-        }
-        defer { sqlite3_finalize(stmt) }
-        // Q6: a failed step must fail the call, not vanish
-        var pos: Int64 = 0
-        var allOk = true
-        for tid in trackIds {
-            guard let num = tid as? NSNumber else { allOk = false; continue }
-            sqlite3_bind_int64(stmt, 1, playlistId)
-            sqlite3_bind_int64(stmt, 2, num.int64Value)
-            sqlite3_bind_int64(stmt, 3, pos)
-            pos += 1
-            if sqlite3_step(stmt) != SQLITE_DONE { allOk = false }
-            _ = sqlite3_reset(stmt)
-        }
-        return allOk
-            && runExec("UPDATE playlists SET updated_at = CURRENT_TIMESTAMP WHERE id = ?", [NSNumber(value: playlistId)])
+        guard runTracksExec("DELETE FROM playlist_tracks WHERE playlist_id = ?", [NSNumber(value: playlistId)]) else { return false }
+        return insertPlaylistTracks(playlistId, trackIds, startAt: 0, orIgnore: false)
     }
 
     static func getPlaylistTracks(_ playlistId: Int64) -> [[String: Any]] {
-        runQuery("SELECT t.*, pt.position, pt.added_at as added_to_playlist_at"
+        runTracksQuery("SELECT t.*, pt.position, pt.added_at as added_to_playlist_at"
                  + " FROM playlist_tracks pt JOIN tracks t ON pt.track_id = t.id"
                  + " WHERE pt.playlist_id = ? ORDER BY pt.position", [NSNumber(value: playlistId)])
     }
 
     @discardableResult
     static func removeTrackFromPlaylist(_ playlistId: Int64, _ trackId: Int64) -> Bool {
-        runExec("DELETE FROM playlist_tracks WHERE playlist_id = ? AND track_id = ?",
+        runTracksExec("DELETE FROM playlist_tracks WHERE playlist_id = ? AND track_id = ?",
                 [NSNumber(value: playlistId), NSNumber(value: trackId)])
     }
 
     @discardableResult
     static func deletePlaylist(_ playlistId: Int64) -> Bool {
-        runExec("DELETE FROM playlists WHERE id = ?", [NSNumber(value: playlistId)])
+        runTracksExec("DELETE FROM playlists WHERE id = ?", [NSNumber(value: playlistId)])
     }
 
     @discardableResult
     static func renamePlaylist(_ playlistId: Int64, _ name: String?) -> Bool {
-        runExec("UPDATE playlists SET name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+        runTracksExec("UPDATE playlists SET name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
                 [name ?? "", NSNumber(value: playlistId)])
     }
 
-    // MARK: - transactions (batch writes: import, EQ save)
+    // MARK: - transactions (tracks DB)
 
-    static func beginTransaction() -> Bool { runExec("BEGIN IMMEDIATE", []) }
-    static func commitTransaction() -> Bool { runExec("COMMIT", []) }
-    static func rollbackTransaction() -> Bool { runExec("ROLLBACK", []) }
+    static func beginTransaction() -> Bool { runTracksExec("BEGIN IMMEDIATE", []) }
+    static func commitTransaction() -> Bool { runTracksExec("COMMIT", []) }
+    static func rollbackTransaction() -> Bool { runTracksExec("ROLLBACK", []) }
 
-    // MARK: - LRC
+    // MARK: - LRC (tracks DB)
 
     @discardableResult
     static func setTrackLrc(_ trackId: Int64, _ lrcPath: String?) -> Bool {
-        runExec("UPDATE tracks SET lrc_path = ? WHERE id = ?", [lrcPath ?? NSNull(), NSNumber(value: trackId)])
+        runTracksExec("UPDATE tracks SET lrc_path = ? WHERE id = ?", [lrcPath ?? NSNull(), NSNumber(value: trackId)])
     }
 
     @discardableResult
     static func setTrackCover(_ trackId: Int64, _ coverPath: String?) -> Bool {
-        runExec("UPDATE tracks SET cover_path = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+        runTracksExec("UPDATE tracks SET cover_path = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
                 [coverPath ?? NSNull(), NSNumber(value: trackId)])
     }
 
     static func getTrackLrc(_ trackId: Int64) -> String? {
-        let rows = runQuery("SELECT lrc_path FROM tracks WHERE id = ?", [NSNumber(value: trackId)])
+        let rows = runTracksQuery("SELECT lrc_path FROM tracks WHERE id = ?", [NSNumber(value: trackId)])
         guard let v = rows.first?["lrc_path"], !(v is NSNull) else { return nil }
         return v as? String
     }
 
     @discardableResult
     static func clearTrackLrc(_ trackId: Int64) -> Bool {
-        runExec("UPDATE tracks SET lrc_path = NULL WHERE id = ?", [NSNumber(value: trackId)])
+        runTracksExec("UPDATE tracks SET lrc_path = NULL WHERE id = ?", [NSNumber(value: trackId)])
     }
 
     static func countTracksWithCover(_ coverPath: String) -> Int64 {
-        let rows = runQuery("SELECT COUNT(*) AS c FROM tracks WHERE cover_path = ?", [coverPath])
+        let rows = runTracksQuery("SELECT COUNT(*) AS c FROM tracks WHERE cover_path = ?", [coverPath])
         return (rows.first?["c"] as? NSNumber)?.int64Value ?? 0
     }
 
     @discardableResult
     static func resetDatabase() -> Bool {
-        guard let db = gDb else { return false }
-        // sqlite3_exec runs ALL statements; runExec only compiles the first
+        guard let db = gTracksDb else { return false }
         var err: UnsafeMutablePointer<CChar>?
         let rc = sqlite3_exec(db,
             "DELETE FROM playlist_tracks; DELETE FROM play_history; DELETE FROM playlists;"
-            + " DELETE FROM tracks; DELETE FROM settings;",
+            + " DELETE FROM tracks;",
             nil, nil, &err)
         if let err { sqlite3_free(err) }
         return rc == SQLITE_OK
     }
 
-    // MARK: - state
+    // MARK: - tracks DB path accessor
 
-    private static var gDb: OpaquePointer?
-    private static var gDbPath: String?
+    static func tracksDbPath() -> String? { gTracksDbPath }
+
+    // MARK: - play session helpers
+
+    @discardableResult
+    static func startPlaySession(_ trackId: Int64) -> Int64 {
+        guard let db = gTracksDb else { return 0 }
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, "INSERT INTO play_history (track_id, started_at) VALUES (?, datetime('now'))", -1, &stmt, nil) == SQLITE_OK else {
+            return 0
+        }
+        defer { sqlite3_finalize(stmt) }
+        sqlite3_bind_int64(stmt, 1, trackId)
+        guard sqlite3_step(stmt) == SQLITE_DONE else { return 0 }
+        return sqlite3_last_insert_rowid(db)
+    }
+
+    @discardableResult
+    static func endPlaySession(_ historyId: Int64, _ duration: Double, _ percentage: Double) -> Bool {
+        runTracksExec("UPDATE play_history SET ended_at = datetime('now'), duration_seconds = ?, play_percentage = ? WHERE id = ?",
+                [NSNumber(value: duration), NSNumber(value: percentage), NSNumber(value: historyId)])
+    }
+
+    static func getListeningStats() -> [String: Any] {
+        var d: [String: Any] = [:]
+        let r1 = runTracksQuery("SELECT COUNT(*) AS c FROM tracks", [])
+        d["totalTracks"] = r1.first?["c"] ?? 0
+        let r2 = runTracksQuery("SELECT COALESCE(SUM(duration), 0) AS d FROM tracks", [])
+        d["totalDuration"] = r2.first?["d"] ?? 0
+        let r3 = runTracksQuery("SELECT COUNT(*) AS c FROM play_history", [])
+        d["totalPlays"] = r3.first?["c"] ?? 0
+        let r4 = runTracksQuery("SELECT COUNT(DISTINCT track_id) AS c FROM play_history", [])
+        d["uniqueTracks"] = r4.first?["c"] ?? 0
+        return d
+    }
+
+    static func getAllPlaylists() -> [[String: Any]] {
+        runTracksQuery("SELECT * FROM playlists ORDER BY updated_at DESC", [])
+    }
+
+    @discardableResult
+    static func addTrackToPlaylist(_ playlistId: Int64, _ trackId: Int64) -> Bool {
+        let rows = runTracksQuery("SELECT COALESCE(MAX(position), -1) + 1 as next_pos FROM playlist_tracks WHERE playlist_id = ?", [NSNumber(value: playlistId)])
+        let pos = (rows.first?["next_pos"] as? NSNumber)?.int64Value ?? 0
+        return runTracksExec("INSERT OR IGNORE INTO playlist_tracks (playlist_id, track_id, position) VALUES (?, ?, ?)",
+                [NSNumber(value: playlistId), NSNumber(value: trackId), NSNumber(value: pos)])
+    }
+
 }

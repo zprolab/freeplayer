@@ -222,7 +222,8 @@ final class BridgeRouter {
             guard let ids = d["trackIds"] as? [Any], ids.count <= 10000 else { reply(idNum, false); return }
             reply(idNum, Database.addTracksToPlaylist(
                 (d["playlistId"] as? NSNumber)?.int64Value ?? 0,
-                ids))
+                ids,
+                startAt: 0))
         } else if method == "setPlaylistTracks" {
             let d = args.first as? [String: Any] ?? [:]
             guard let ids = d["trackIds"] as? [Any], ids.count <= 10000 else { reply(idNum, false); return }
