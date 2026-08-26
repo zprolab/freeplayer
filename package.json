@@ -14,7 +14,10 @@
     "test:watch": "vitest",
     "clean": "bash scripts/clean.sh",
     "build:ipad": "bash scripts/build-ipad.sh --ipad --simulator",
-    "build:iphone": "bash scripts/build-ipad.sh --iphone --simulator"
+    "build:iphone": "bash scripts/build-ipad.sh --iphone --simulator",
+    "test:simulator": "bash scripts/test-simulator.sh",
+    "test:simulator:unit": "bash scripts/test-simulator.sh unit",
+    "test:simulator:ui": "bash scripts/test-simulator.sh ui"
   },
   "devDependencies": {
     "@resvg/resvg-js": "^2.6.2",
