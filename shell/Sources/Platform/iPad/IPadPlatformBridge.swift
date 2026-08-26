@@ -25,6 +25,12 @@ enum Host {
 
 final class IPadPlatformBridge: NSObject, PlatformBridge {
 
+    var platformId: String { "ios" }
+
+    /// iOS sandbox cannot symlink into (or read-through) picked folders —
+    /// copy-only import, whatever the stored preference says.
+    var allowedImportModes: Set<String> { ["copy"] }
+
     // ── pending document-picker callbacks (one at a time) ──
     private var pendingImport: ((Any?) -> Void)?
     private var pendingUpload: ((Any?) -> Void)?

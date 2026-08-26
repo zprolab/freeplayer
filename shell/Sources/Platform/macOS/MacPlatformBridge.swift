@@ -6,6 +6,8 @@ import ServiceManagement
 
 struct MacPlatformBridge: PlatformBridge {
 
+    var platformId: String { "macos" }
+
     // MARK: - Window management
 
     func handleDragStart(sx: Double, sy: Double) {

@@ -16,9 +16,10 @@ set(SWIFT_SOURCES
   Sources/Core/Database.swift
   Sources/Core/Metadata.swift
   Sources/Core/Paths.swift
-  Sources/Bridge/BridgeScript.swift
+  Sources/Bridge/BridgeCore.swift
   Sources/Bridge/BridgeHandler.swift
-  Sources/Bridge/BridgeRouter.swift
+  Sources/Bridge/BridgeScript.swift
+  Sources/Bridge/FPBridge.swift
   Sources/Bridge/HttpClient.swift
   Sources/Bridge/ImportPipeline.swift
   Sources/UI/AppContext.swift

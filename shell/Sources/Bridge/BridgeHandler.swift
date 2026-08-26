@@ -1,6 +1,8 @@
-// FreePlayer shell — WKScriptMessageHandler: security gate + console capture,
-// delegates all dispatch to BridgeRouter (cross-platform) which in turn
-// delegates platform-specific calls to PlatformBridge (macOS / iPad).
+// FreePlayer shell — WKScriptMessageHandler transport (通用桥层 的 WebKit 适配).
+// Security gate + console capture + reply serialization; every method call
+// goes to the shared BridgeCore (installed by BridgeBootstrap). The generic
+// core itself is WebKit-free — a future Android/Windows transport feeds the
+// same dispatch semantics.
 
 import Foundation
 import WebKit
@@ -8,9 +10,20 @@ import os
 
 private let bridgeLog = Logger(subsystem: "com.zprolab.FreePlayer", category: "bridge")
 
-final class BridgeHandler: NSObject, WKScriptMessageHandler {
+/// Pushes outbound bridge events to every FreePlayer webview as
+/// `window.freeplayer.<channel>(<json>)` — the EQ sync path today, media-key
+/// / tray pushes if they ever route through the core.
+enum BridgeEmitter {
+    static func push(_ channel: String, _ payload: Any) {
+        guard let data = try? JSONSerialization.data(withJSONObject: payload),
+              let json = String(data: data, encoding: .utf8) else { return }
+        let js = "window.freeplayer.\(channel)(\(json))"
+        AppContext.shared.webView?.evaluateJavaScript(js)
+        AppContext.shared.eqWebView?.evaluateJavaScript(js)
+    }
+}
 
-    private let router = BridgeRouter()
+final class BridgeHandler: NSObject, WKScriptMessageHandler {
 
     // S16: page console output goes to the system log — truncate and redact
     // common secret patterns (Bearer tokens, api keys, passwords, auth headers).
@@ -90,7 +103,8 @@ final class BridgeHandler: NSObject, WKScriptMessageHandler {
         // M7: verbose IPC logging
         if AppContext.shared.verboseLogging { NSLog("[shell] method=%@", method) }
 
-        // Everything else goes to the router (which may delegate to PlatformBridge)
-        router.dispatch(method: method, args: args, idNum: idNum, reply: reply, reject: reject)
+        // Everything else goes to the shared generic core (fp + platform layers)
+        BridgeBootstrap.install().dispatch(method: method, args: args, idNum: idNum,
+                                           reply: reply, reject: reject)
     }
 }

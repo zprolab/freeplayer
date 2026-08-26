@@ -19,13 +19,19 @@
 ```
 shell/Sources/
 ├── Core/         跨平台：SQLite 数据库、AVFoundation 元数据、路径安全
-├── Bridge/       跨平台：JS bridge 分发、导入管线、HTTP
+├── Bridge/       跨平台：JS bridge（三层：通用桥层 + fp注册层 + 平台分配层）、导入管线、HTTP
 ├── UI/           跨平台：SchemeHandler、AppContext、PlatformBridge 协议
 ├── App/          跨平台：导航门
 └── Platform/
     ├── macOS/    macOS 平台层（AppDelegate、窗口、托盘、插件 FS）
     └── iPad/     iPad 平台层（App 入口、WKWebView 容器、平台桥、沙盒导入）
 ```
+
+JS bridge 拆成三层，Web 层 `window.freeplayer` API 不变：
+
+- **通用桥层**（`Bridge/BridgeCore.swift`）：无 WebKit 依赖的方法注册表 + 分发 + 出站事件，可脱离 WebView 单测；未来 Android/Windows 移植照抄同一套语义
+- **fp注册层**（`Bridge/FPBridge.swift`）：FreePlayer 的全部跨平台方法（曲目、播放统计、播放列表、歌词、封面、EQ、导入、HTTP）注册进通用桥层；平台差异通过能力查询委托给平台层
+- **平台分配层**（`UI/PlatformBridge.swift` + 各平台实现）：`platformId`/`allowedImportModes` 能力 + 平台专属方法（导入对话框、登录项、插件、媒体键、EQ 窗口）由各平台自己注册
 
 - macOS：CMake + Ninja（`shell/CMakeLists.txt` 只编译 macOS 平台层）
 - iPad：XcodeGen（`shell/project.yml` 引用同一源码树 + `Platform/iPad`）

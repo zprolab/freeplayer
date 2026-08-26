@@ -44,6 +44,10 @@ final class AppContext {
     /// Platform-specific bridge (set by the platform AppDelegate on launch).
     var platformBridge: PlatformBridge?
 
+    /// Shared generic bridge core (通用桥层), installed by BridgeBootstrap on
+    /// first use. Main-thread only (WKScriptMessageHandler delivers on main).
+    var bridgeCore: BridgeCore?
+
     /// Strong ref to the scheme handler — WKWebView does NOT retain it; a
     /// local variable would be released right after configuration and every
     /// app:// / media:// request would fail (silently) on iOS.
