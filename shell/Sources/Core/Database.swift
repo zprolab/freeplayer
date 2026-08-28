@@ -272,39 +272,74 @@ enum Database {
         return true
     }
 
-    /// P: Migrate data from old single DB to split DBs.
+    /// P: Migrate tracks data from the pre-split single config DB into the tracks DB.
+    ///
+    /// The split shipped without a call site, and the original migration bailed
+    /// whenever the tracks file already existed — but openTracksDb creates it
+    /// empty at every launch, so pre-split libraries showed 0 tracks forever.
+    /// This version runs AFTER openTracksDb, checks whether the legacy config DB
+    /// still holds track rows AND the tracks DB is empty, then copies the four
+    /// tracks-related tables across (column order is identical in both schemas).
+    /// Idempotent: once the tracks DB has rows, it does nothing.
     static func migrateToSplitDb() {
-        guard let oldDbPath = gDbPath else { return }
-        let tracksPath = defaultTracksDbPath()
-        // Already migrated?
-        if FileManager.default.fileExists(atPath: tracksPath) { return }
-        // Check if old DB has tracks table
-        var db: OpaquePointer?
-        guard sqlite3_open_v2(oldDbPath, &db, SQLITE_OPEN_READONLY, nil) == SQLITE_OK else { return }
-        defer { sqlite3_close(db) }
-        var checkStmt: OpaquePointer?
-        sqlite3_prepare_v2(db, "SELECT name FROM sqlite_master WHERE type='table' AND name='tracks'", -1, &checkStmt, nil)
-        let hasTracks = sqlite3_step(checkStmt) == SQLITE_ROW
-        sqlite3_finalize(checkStmt)
-        guard hasTracks else { return }
-        NSLog("[db] migrating tracks to split DB: %@", tracksPath)
-        // Open tracks DB and copy data
-        openTracksDb(tracksPath)
-        guard let tracksDb = gTracksDb else { return }
-        // Copy tracks
-        var selectStmt: OpaquePointer?
-        sqlite3_prepare_v2(db, "SELECT * FROM tracks", -1, &selectStmt, nil)
-        var insertStmt: OpaquePointer?
-        sqlite3_prepare_v2(tracksDb, "INSERT INTO tracks SELECT * FROM tracks", -1, &insertStmt, nil)
-        // Use backup API for safe copy
-        var backup: OpaquePointer?
-        backup = sqlite3_backup_init(tracksDb, "main", db, "main")
-        if let backup {
-            sqlite3_backup_step(backup, -1)
-            sqlite3_backup_finish(backup)
+        guard let oldDbPath = gDbPath, let dest = gTracksDb else { return }
+        // Legacy source: the config DB may still carry the pre-split tables.
+        var old: OpaquePointer?
+        guard sqlite3_open_v2(oldDbPath, &old, SQLITE_OPEN_READONLY, nil) == SQLITE_OK else { return }
+        defer { sqlite3_close(old) }
+
+        // Does the legacy DB hold any tracks at all?
+        var countStmt: OpaquePointer?
+        var legacyCount: Int64 = 0
+        if sqlite3_prepare_v2(old, "SELECT COUNT(*) FROM tracks", -1, &countStmt, nil) == SQLITE_OK {
+            if sqlite3_step(countStmt) == SQLITE_ROW { legacyCount = sqlite3_column_int64(countStmt, 0) }
+            sqlite3_finalize(countStmt)
         }
-        sqlite3_finalize(selectStmt)
-        sqlite3_finalize(insertStmt)
+        guard legacyCount > 0 else { return }
+
+        // Already migrated (tracks DB already has rows)?
+        var destCount: Int64 = 0
+        var dStmt: OpaquePointer?
+        if sqlite3_prepare_v2(dest, "SELECT COUNT(*) FROM tracks", -1, &dStmt, nil) == SQLITE_OK {
+            if sqlite3_step(dStmt) == SQLITE_ROW { destCount = sqlite3_column_int64(dStmt, 0) }
+            sqlite3_finalize(dStmt)
+        }
+        guard destCount == 0 else { return }
+
+        NSLog("[db] migrating %lld legacy tracks to split tracks DB", legacyCount)
+        var err: UnsafeMutablePointer<CChar>?
+        // Copy with FKs off so table order does not matter; restore afterwards.
+        _ = sqlite3_exec(dest, "PRAGMA foreign_keys=OFF;", nil, nil, &err)
+        if let err { sqlite3_free(err) }
+        err = nil
+
+        // Attach the legacy DB read-only to this connection for cross-db SELECT.
+        var attachStmt: OpaquePointer?
+        if sqlite3_prepare_v2(dest, "ATTACH DATABASE ? AS legacy", -1, &attachStmt, nil) == SQLITE_OK {
+            sqlite3_bind_text(attachStmt, 1, oldDbPath, -1, SQLITE_TRANSIENT)
+            sqlite3_step(attachStmt)
+            sqlite3_finalize(attachStmt)
+        }
+
+        let tables = ["tracks", "playlists", "playlist_tracks", "play_history"]
+        for table in tables {
+            let sql = "INSERT INTO main.\(table) SELECT * FROM legacy.\(table)"
+            if sqlite3_exec(dest, sql, nil, nil, &err) != SQLITE_OK {
+                NSLog("[db] migration copy failed for %@: %s", table, err.map { String(cString: $0) } ?? "?")
+                if let err { sqlite3_free(err) }
+                err = nil
+            }
+        }
+        // Keep AUTOINCREMENT sequences above the copied ids so future inserts
+        // (which pass NULL rowids) never collide with migrated rows.
+        for table in tables {
+            let seqSQL = "DELETE FROM main.sqlite_sequence WHERE name = '\(table)';"
+                + " INSERT INTO main.sqlite_sequence(name, seq) SELECT '\(table)', MAX(id) FROM main.\(table);"
+            _ = sqlite3_exec(dest, seqSQL, nil, nil, &err)
+            if let err { sqlite3_free(err) }
+            err = nil
+        }
+        _ = sqlite3_exec(dest, "DETACH DATABASE legacy; PRAGMA foreign_keys=ON;", nil, nil, nil)
         NSLog("[db] migration complete")
     }
 

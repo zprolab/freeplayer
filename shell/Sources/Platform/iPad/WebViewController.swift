@@ -79,6 +79,8 @@ final class WebViewController: UIViewController, WKNavigationDelegate {
         if Database.tracksDbPath() == nil {
             Database.openTracksDb(Database.defaultTracksDbPath())
         }
+        // P: carry pre-split library data (tracks/playlists/history) into tracks.db
+        Database.migrateToSplitDb()
 
         // Bundled web assets: Xcode packs dist/ as a folder reference, so it
         // lands at <bundle>/dist (the macOS bundle calls it "web"). Accept both.

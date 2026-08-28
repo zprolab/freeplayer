@@ -117,6 +117,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
         // P: Open tracks database in library root
         Database.openTracksDb(Database.defaultTracksDbPath())
+        // P: carry pre-split library data (tracks/playlists/history) into tracks.db
+        Database.migrateToSplitDb()
         // Wire the macOS platform bridge so the cross-platform router can
         // delegate NSOpenPanel / NSAlert / Tray / PluginFS calls.
         AppContext.shared.platformBridge = MacPlatformBridge()

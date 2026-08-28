@@ -23,7 +23,11 @@ export default function ImportModal({ onClose, onComplete, importMode }) {
       setScanning(true);
       setStep('scanning');
       const foundFiles = await window.freeplayer.scanDirectory(result.sourceDir);
-      setFiles(foundFiles);
+      // Native returns { files, truncated, scannedCount } so the UI can warn on
+      // truncation; older builds may return a bare array — accept both. Treating
+      // the dict as an array here crashed the confirm screen (files.slice is not
+      // a function) and blanked the whole app.
+      setFiles(Array.isArray(foundFiles) ? foundFiles : (foundFiles?.files ?? []));
       setScanning(false);
       setStep('confirm');
     } catch (err) {
