@@ -39,6 +39,8 @@ export default function PluginPage({ registry, meta, tracks }) {
   const [openDetail, setOpenDetail] = useState(null); // 详情面板插件 id
   const [detailTab, setDetailTab] = useState('settings');
   const [settingsValues, setSettingsValues] = useState({});
+  const [diagnosticsPath, setDiagnosticsPath] = useState('');
+  const [managedContainerPath, setManagedContainerPath] = useState('');
   const [autoFetch, setAutoFetch] = useState({}); // { [pluginId]: boolean }
   const [backfillProgress, setBackfillProgress] = useState(null); // { pluginId, done, total, ok, fail, noMatch }
 
@@ -54,6 +56,13 @@ export default function PluginPage({ registry, meta, tracks }) {
       setAutoFetch((a) => ({ ...a, [openDetail]: s === '1' || s === '1.0' || s === 'true' || s === 'yes' || s === 'on' }));
     })();
     return () => { cancelled = true; };
+  }, [openDetail]);
+
+  useEffect(() => {
+    if (openDetail !== 'managed-library') return;
+    window.freeplayer?.getSetting?.('library_dir').then((dir) => {
+      if (dir) setManagedContainerPath(`${dir}/FreePlayer.fpmlib`);
+    }).catch(() => {});
   }, [openDetail]);
 
   const handleAutoFetchChange = (pluginId, val) => {
@@ -116,6 +125,11 @@ export default function PluginPage({ registry, meta, tracks }) {
     })();
     return () => { cancelled = true; };
   }, [openDetail, plugins]);
+
+  useEffect(() => {
+    if (openDetail !== 'diagnostics-log') return;
+    window.freeplayer?.getDiagnosticsPath?.().then(setDiagnosticsPath).catch(() => {});
+  }, [openDetail]);
 
   const isNew = (p) => !p.perms.enabled && p.perms.granted.length === 0;
 
@@ -192,6 +206,12 @@ export default function PluginPage({ registry, meta, tracks }) {
       } else {
         await registry.disable(p.id);
       }
+      if (p.id === 'diagnostics-log' && window.freeplayer?.setDiagnosticsEnabled) {
+        await window.freeplayer.setDiagnosticsEnabled(enabled);
+      }
+      if (p.id === 'managed-library') {
+        await window.freeplayer.setSetting({ key: 'managed_library_enabled', value: enabled ? '1' : '0' });
+      }
       await refresh();
     } catch (err) {
       console.warn(`[plugins] toggle ${p.id}:`, err.message || err);
@@ -201,6 +221,12 @@ export default function PluginPage({ registry, meta, tracks }) {
   async function confirmEnable() {
     try {
       await registry.enable(pendingPlugin.id, pendingGrants);
+      if (pendingPlugin.id === 'diagnostics-log' && window.freeplayer?.setDiagnosticsEnabled) {
+        await window.freeplayer.setDiagnosticsEnabled(true);
+      }
+      if (pendingPlugin.id === 'managed-library') {
+        await window.freeplayer.setSetting({ key: 'managed_library_enabled', value: '1' });
+      }
       setOpenDetail(pendingPlugin.id); setDetailTab('settings');
       setPendingPlugin(null);
       await refresh();
@@ -473,6 +499,24 @@ export default function PluginPage({ registry, meta, tracks }) {
                     )}
                   </div>
                 ))}
+                {p.id === 'diagnostics-log' && (
+                  <div className="playback-row">
+                    <div className="playback-label-group">
+                      <span className="playback-label">Log file location</span>
+                      <span className="playback-hint">This fixed location is included in support reports.</span>
+                    </div>
+                    <code className="plugins-dir-path">{diagnosticsPath || '~/Library/Application Support/FreePlayer/diagnostics/freeplayer-diagnostics.log'}</code>
+                  </div>
+                )}
+                {p.id === 'managed-library' && (
+                  <div className="playback-row">
+                    <div className="playback-label-group">
+                      <span className="playback-label">FPMLIB container</span>
+                      <span className="playback-hint">Lossless audio container used for new imports.</span>
+                    </div>
+                    <code className="plugins-dir-path">{managedContainerPath || 'Select a library directory first'}</code>
+                  </div>
+                )}
                 {(p.manifest.settings || []).length === 0 && !p.manifest.provides?.lyrics && !p.manifest.provides?.cover && !p.manifest.provides?.metadata && (
                   <p className="plugin-empty">This plugin has no settings.</p>
                 )}

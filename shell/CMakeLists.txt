@@ -3,7 +3,9 @@ cmake_minimum_required(VERSION 3.28)
 # and without a deployment target it defaults to the host macOS version
 # (e.g. macosx26.0 on macos-26 runners), which the toolchain's stdlib does
 # not ship — "unable to load standard library for target 'arm64-apple-macosx26.0'".
-set(CMAKE_OSX_DEPLOYMENT_TARGET "13.0")
+set(CMAKE_OSX_DEPLOYMENT_TARGET "13.0" CACHE STRING "Minimum supported macOS version")
+# Swift currently rejects multiple values for CMAKE_OSX_ARCHITECTURES; let
+# Xcode/CMake select the host architecture so macOS 26/27 builds remain valid.
 project(FreePlayerShell LANGUAGES Swift)
 
 set(CMAKE_Swift_FLAGS "-Osize")
@@ -16,6 +18,7 @@ set(SWIFT_SOURCES
   Sources/Core/Database.swift
   Sources/Core/Metadata.swift
   Sources/Core/Paths.swift
+  Sources/Core/FPMLib.swift
   Sources/Bridge/BridgeCore.swift
   Sources/Bridge/BridgeHandler.swift
   Sources/Bridge/BridgeScript.swift
@@ -49,6 +52,7 @@ target_link_libraries(FreePlayerShell
   "-framework ServiceManagement"
   "-framework UserNotifications"
   "-framework UniformTypeIdentifiers"
+  "-lz"
   "-lsqlite3"
 )
 

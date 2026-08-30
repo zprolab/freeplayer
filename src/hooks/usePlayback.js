@@ -43,7 +43,9 @@ export function usePlayback() {
         // rejection must never leave the old session unclosed.
         await endPlaySession();
         dispatch({ type: 'SET_CURRENT_TRACK', payload: track });
-        audioRef.current.src = `media://${encodeURI(track.file_path)}`;
+        // Encode the complete path. encodeURI leaves '#' and '?' unescaped,
+        // which WebKit interprets as URL fragment/query and truncates filenames.
+        audioRef.current.src = `media://${encodeURIComponent(track.file_path)}`;
         const gainDb = track.replaygain_gain || 0;
         audioEngine.setGain(gainDb);
         try {
@@ -179,6 +181,10 @@ export function usePlayback() {
       const err = audio.error;
       const codes = { 1: 'MEDIA_ERR_ABORTED', 2: 'MEDIA_ERR_NETWORK', 3: 'MEDIA_ERR_DECODE', 4: 'MEDIA_ERR_SRC_NOT_SUPPORTED' };
       console.error('Audio error:', codes[err?.code] || 'UNKNOWN', err?.message || '', 'src:', audio.src);
+      window.freeplayer?.logDiagnostic?.('playback', 'error', `Audio error: ${JSON.stringify({ code: err?.code, name: codes[err?.code] || 'UNKNOWN', message: err?.message || '', src: audio.src, readyState: audio.readyState, networkState: audio.networkState })}`);
+    };
+    const onMediaState = (event) => {
+      window.freeplayer?.logDiagnostic?.('playback', 'info', `Media event ${event.type}: ${JSON.stringify({ src: audio.src, readyState: audio.readyState, networkState: audio.networkState, currentTime: audio.currentTime, duration: audio.duration })}`);
     };
 
     audio.addEventListener('timeupdate', onTimeUpdate);
@@ -187,6 +193,7 @@ export function usePlayback() {
     audio.addEventListener('play', onPlay);
     audio.addEventListener('pause', onPause);
     audio.addEventListener('error', onError);
+    ['loadedmetadata', 'canplay', 'playing', 'stalled', 'waiting', 'abort', 'emptied', 'suspend'].forEach((name) => audio.addEventListener(name, onMediaState));
 
     return () => {
       audio.removeEventListener('timeupdate', onTimeUpdate);
@@ -195,6 +202,7 @@ export function usePlayback() {
       audio.removeEventListener('play', onPlay);
       audio.removeEventListener('pause', onPause);
       audio.removeEventListener('error', onError);
+      ['loadedmetadata', 'canplay', 'playing', 'stalled', 'waiting', 'abort', 'emptied', 'suspend'].forEach((name) => audio.removeEventListener(name, onMediaState));
     };
   }, [audioRef, dispatch]);
 

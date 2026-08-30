@@ -1,0 +1,11 @@
+{
+  "id": "managed-library",
+  "name": "Managed FPMLIB Library",
+  "version": "1.0.0",
+  "description": "Stores imported audio bytes in one lossless FreePlayer.fpmlib container.",
+  "author": "zprolab",
+  "apiVersion": 1,
+  "main": "main.js",
+  "permissions": [],
+  "settings": []
+}

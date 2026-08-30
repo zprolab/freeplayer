@@ -28,6 +28,7 @@ export default function ImportModal({ onClose, onComplete, importMode }) {
       // the dict as an array here crashed the confirm screen (files.slice is not
       // a function) and blanked the whole app.
       setFiles(Array.isArray(foundFiles) ? foundFiles : (foundFiles?.files ?? []));
+      window.freeplayer?.logDiagnostic?.('import-ui', 'info', `Scan completed: ${JSON.stringify({ sourceDir: result.sourceDir, files: Array.isArray(foundFiles) ? foundFiles.length : foundFiles?.files?.length || 0, truncated: foundFiles?.truncated, scannedCount: foundFiles?.scannedCount })}`);
       setScanning(false);
       setStep('confirm');
     } catch (err) {
@@ -45,6 +46,7 @@ export default function ImportModal({ onClose, onComplete, importMode }) {
     setErrorDetails([]);
     try {
       const res = await window.freeplayer.importFiles({ files });
+      window.freeplayer?.logDiagnostic?.('import-ui', 'info', `Import response: ${JSON.stringify(res)}`);
       setResult(res);
       setImporting(false);
       if (res.error) {
@@ -60,6 +62,7 @@ export default function ImportModal({ onClose, onComplete, importMode }) {
       }
     } catch (err) {
       console.error('Import error:', err);
+      window.freeplayer?.logDiagnostic?.('import-ui', 'error', `Import exception: ${err?.stack || err?.message || String(err)}`);
       setError(err.message || 'Import failed');
       setImporting(false);
       setStep('error');

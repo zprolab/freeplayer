@@ -8,6 +8,7 @@ release/
 Thumbs.db
 .claude/
 .superpowers/
+.codex/
 docs/
 shell/build/
 shell/release/

@@ -68,6 +68,11 @@ enum BridgeScript {
         onEqChange: (callback) => { window.__freeplayerEqHandler = callback; },
         // Appearance (window chrome shade)
         setAppearance: (dark) => api._invoke('setAppearance', { dark }),
+        // Persistent diagnostics (fixed path returned by native host)
+        setDiagnosticsEnabled: (enabled) => api._invoke('setDiagnosticsEnabled', !!enabled),
+        getDiagnosticsPath: () => api._invoke('getDiagnosticsPath'),
+        clearDiagnostics: () => api._invoke('clearDiagnostics'),
+        logDiagnostic: (pluginId, level, message) => api._invoke('logDiagnostic', { pluginId, level, message }),
         // First-run onboarding
         finishOnboarding: () => api._invoke('finishOnboarding'),
         // Plugins

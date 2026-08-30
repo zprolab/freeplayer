@@ -1,0 +1,12 @@
+{
+  "id": "diagnostics-log",
+  "name": "Detailed Diagnostics Log",
+  "version": "1.0.0",
+  "description": "Keeps a detailed, human-readable playback and bridge log for troubleshooting.",
+  "author": "zprolab",
+  "apiVersion": 1,
+  "main": "main.js",
+  "activationEvents": ["track:changed", "playback:changed"],
+  "permissions": [],
+  "settings": []
+}

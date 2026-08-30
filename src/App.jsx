@@ -19,6 +19,10 @@ import { audioEngine } from './audio/audioEngine';
 import { createRegistry } from './plugins/registry';
 import { createMetadataRegistry } from './plugins/metadataRegistry';
 import { BUILTIN_PLUGINS } from './plugins/builtin';
+import diagnosticsManifest from './plugins/builtin/diagnostics/manifest.json';
+import * as diagnosticsMain from './plugins/builtin/diagnostics/main.js';
+import managedManifest from './plugins/builtin/managed/manifest.json';
+import * as managedMain from './plugins/builtin/managed/main.js';
 import { createLoader } from './plugins/loader';
 import { createPluginApi } from './plugins/api';
 import { createEventBus } from './plugins/hooks';
@@ -76,7 +80,7 @@ async function getPluginRuntime() {
         get: (key) => window.freeplayer.getSetting(`plugin.${key}`),
         set: (key, value) => window.freeplayer.setSetting({ key: `plugin.${key}`, value: JSON.stringify(value) }),
       },
-      log: (id, level, msg) => console.warn(`[plugin:${id}]`, level, msg),
+      log: (id, level, msg) => { console.warn(`[plugin:${id}]`, level, msg); window.freeplayer?.logDiagnostic?.(id, level, msg); },
       events: null, // provided by App via window.__fpRuntimeState (Step 5b)
     }),
     onDenied: (pluginId, key) => console.warn(`[plugin:${pluginId}] permission denied: ${key}`),
@@ -85,14 +89,21 @@ async function getPluginRuntime() {
     listPlugins: () => window.freeplayer.listPlugins(),
     readFile: (pluginId, relPath) => window.freeplayer.readPluginFile(pluginId, relPath),
     loader,
-    log: (id, level, msg) => console.warn(`[plugin:${id}]`, level, msg),
+    log: (id, level, msg) => { console.warn(`[plugin:${id}]`, level, msg); window.freeplayer?.logDiagnostic?.(id, level, msg); },
     getSetting: (k) => window.freeplayer.getSetting(k),
     setSetting: (data) => window.freeplayer.setSetting(data),
     uninstallPlugin: (id) => window.freeplayer.uninstallPlugin(id),
   });
   for (const b of BUILTIN_PLUGINS) registry.registerBuiltin(b);
+  registry.registerBuiltin({ id: 'diagnostics-log', manifestRaw: diagnosticsManifest, builtin: true, module: diagnosticsMain });
+  registry.registerBuiltin({ id: 'managed-library', manifestRaw: managedManifest, builtin: true, module: managedMain });
   await registry.discover();
   await registry.restoreState();
+  // FPMLIB is the default storage mode; the plugin toggle below can disable it.
+  if (!pluginRuntime && !(await window.freeplayer.getSetting('managed_library_enabled'))) {
+    await registry.enable('managed-library', []);
+    await window.freeplayer.setSetting({ key: 'managed_library_enabled', value: '1' });
+  }
   const meta = createMetadataRegistry({
     registry,
     getSetting: (k) => window.freeplayer.getSetting(k),
