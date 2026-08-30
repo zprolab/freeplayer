@@ -668,6 +668,33 @@ enum Database {
         d["totalPlays"] = r3.first?["c"] ?? 0
         let r4 = runTracksQuery("SELECT COUNT(DISTINCT track_id) AS c FROM play_history", [])
         d["uniqueTracks"] = r4.first?["c"] ?? 0
+        // Keep the response shape aligned with the Stats view. Older builds
+        // returned only the four summary counters, which made the renderer
+        // dereference missing arrays and turn the whole page black.
+        let r5 = runTracksQuery("SELECT COALESCE(SUM(duration_seconds), 0) AS t FROM play_history", [])
+        d["totalTime"] = r5.first?["t"] ?? 0
+        d["uniqueTracksPlayed"] = d["uniqueTracks"] ?? 0
+        d["topTracks"] = runTracksQuery("""
+            SELECT t.id, t.title, t.artist,
+                   COUNT(h.id) AS play_count,
+                   COALESCE(SUM(h.duration_seconds), 0) AS total_listen_time
+            FROM play_history h JOIN tracks t ON t.id = h.track_id
+            GROUP BY h.track_id ORDER BY play_count DESC, total_listen_time DESC LIMIT 20
+            """, [])
+        d["topArtists"] = runTracksQuery("""
+            SELECT t.artist,
+                   COUNT(h.id) AS play_count,
+                   COALESCE(SUM(h.duration_seconds), 0) AS total_listen_time
+            FROM play_history h JOIN tracks t ON t.id = h.track_id
+            GROUP BY t.artist ORDER BY play_count DESC, total_listen_time DESC LIMIT 20
+            """, [])
+        d["dailyStats"] = runTracksQuery("""
+            SELECT date(started_at) AS date,
+                   COALESCE(SUM(duration_seconds), 0) AS total_time,
+                   COUNT(*) AS plays
+            FROM play_history GROUP BY date(started_at)
+            ORDER BY date DESC LIMIT 30
+            """, [])
         return d
     }
 

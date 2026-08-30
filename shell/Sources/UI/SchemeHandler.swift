@@ -88,6 +88,8 @@ final class SchemeHandler: NSObject, WKURLSchemeHandler {
             task.didFailWithError(NSError(domain: "FreePlayerShell", code: 400))
             return
         }
+        let rangeHeader = task.request.value(forHTTPHeaderField: "Range") ?? "none"
+        DebugLog.file("MEDIA_REQUEST url=\(url.absoluteString) range=\(rangeHeader)")
 
         // ── web scheme — bundled web assets ──
         // macOS registers "app"; iOS must avoid the reserved app:// scheme and
@@ -149,12 +151,14 @@ final class SchemeHandler: NSObject, WKURLSchemeHandler {
         // points outside the library is rejected (S3d). Q9: media:// serves audio
         // only, so an extension allowlist is cheap defense in depth on top.
         guard Paths.isPathInLibrary(path), Paths.isAudioFile(path) else {
+            DebugLog.file("MEDIA_REJECT path=\(path) reason=outside-library-or-unsupported-format")
             task.didFailWithError(NSError(domain: "FreePlayerShell", code: 403,
                                           userInfo: [NSLocalizedDescriptionKey: "outside library"]))
             return
         }
 
         guard let fh = FileHandle(forReadingAtPath: path) else {
+            DebugLog.file("MEDIA_OPEN_FAILED path=\(path)")
             task.didFailWithError(NSError(domain: NSPOSIXErrorDomain, code: Int(ENOENT),
                                           userInfo: [NSLocalizedDescriptionKey: path]))
             return
@@ -248,6 +252,7 @@ final class SchemeHandler: NSObject, WKURLSchemeHandler {
         }
         headers["Content-Length"] = "\(length)"
         let response = HTTPURLResponse(url: url, statusCode: status, httpVersion: "HTTP/1.1", headerFields: headers)!
+        DebugLog.file("MEDIA_RESPONSE status=\(status) path=\(path) bytes=\(length)")
 
         // Per-task cancellation flag (stop on THIS task must not kill others)
         let stopped = stoppedFlagForTask(task)

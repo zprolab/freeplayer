@@ -62,6 +62,7 @@ enum ImportPipeline {
     /// M12/Q1: termination waits on AppContext.importGroup before closing the DB.
     static func runImport(files: [String], storedLib: String, importMode: String,
                           onMain: @escaping ([String: Any]) -> Void) {
+        DebugLog.file("IMPORT_PIPELINE_START count=\(files.count) library=\(storedLib) mode=\(importMode)")
         let ctx = AppContext.shared
         ctx.importTasks.increment()
         ctx.importGroup.enter()
@@ -88,6 +89,7 @@ enum ImportPipeline {
                 // skipped with a recorded error (defense in depth on the source
                 // paths, which the renderer controls)
                 if !Paths.isAudioFile(filePath) {
+                    DebugLog.file("IMPORT_FILE_SKIP path=\(filePath) reason=not-audio")
                     boxErrors.append(["file": filePath, "error": "not an audio file"])
                     continue
                 }
@@ -95,6 +97,7 @@ enum ImportPipeline {
                 group.enter()
                 extractQ.async {
                     let meta = Metadata.extractAtPath(filePath)
+                    DebugLog.file("IMPORT_METADATA path=\(filePath) success=\(meta != nil) fields=\(meta?.keys.sorted().joined(separator: ",") ?? "none")")
                     lock.lock()
                     prepared.append((filePath, meta))
                     lock.unlock()
@@ -113,6 +116,7 @@ enum ImportPipeline {
                 var skipped = 0
                 for (filePath, meta) in prepared {
                     guard let meta else {
+                        DebugLog.file("IMPORT_FILE_FAIL path=\(filePath) reason=unreadable-audio")
                         boxErrors.append(["file": filePath, "error": "Unreadable audio file"])
                         continue
                     }
@@ -123,6 +127,7 @@ enum ImportPipeline {
                     // S4: belt-and-braces — the sanitized dir must still be inside
                     // the (standardized) library
                     if !Paths.isPathInLibrary(albumDir) {
+                        DebugLog.file("IMPORT_FILE_FAIL path=\(filePath) reason=unsafe-album-path target=\(albumDir)")
                         boxErrors.append(["file": filePath, "error": "unsafe album path"])
                         continue
                     }
@@ -132,6 +137,7 @@ enum ImportPipeline {
                         do {
                             try fm.createDirectory(atPath: albumDir, withIntermediateDirectories: true)
                         } catch {
+                            DebugLog.file("IMPORT_FILE_FAIL path=\(filePath) reason=create-directory error=\(error.localizedDescription)")
                             boxErrors.append(["file": filePath, "error": error.localizedDescription])
                             continue
                         }
@@ -148,6 +154,7 @@ enum ImportPipeline {
                                 try fm.copyItem(atPath: filePath, toPath: targetPath)
                             }
                         } catch {
+                            DebugLog.file("IMPORT_FILE_FAIL path=\(filePath) reason=copy-or-link target=\(targetPath) error=\(error.localizedDescription)")
                             boxErrors.append(["file": filePath, "error": error.localizedDescription])
                             continue
                         }
@@ -158,8 +165,19 @@ enum ImportPipeline {
                     // Paths.isPathInLibrary then allows it (target matches the
                     // record) while still rejecting renderer-planted/tampered links.
                     if exists && (try? fm.attributesOfItem(atPath: targetPath))?[.type] as? FileAttributeType == .typeSymbolicLink {
-                        boxErrors.append(["file": filePath, "error": "target is an existing symlink"])
-                        continue
+                        // Re-importing after a database reset must be able to
+                        // recover links created by our own symlink mode. Accept
+                        // only an existing link that resolves to this exact
+                        // source; a link to another file remains an error.
+                        let resolved = URL(fileURLWithPath: targetPath).resolvingSymlinksInPath().path
+                        let sourceResolved = URL(fileURLWithPath: filePath).resolvingSymlinksInPath().path
+                        if resolved != sourceResolved {
+                            DebugLog.file("IMPORT_FILE_FAIL path=\(filePath) reason=existing-symlink-points-elsewhere target=\(targetPath) resolved=\(resolved)")
+                            boxErrors.append(["file": filePath, "error": "existing symlink points to a different file"])
+                            continue
+                        }
+                        _ = Database.recordSymlink(targetPath, resolved)
+                        DebugLog.file("IMPORT_FILE_REUSE_LINK source=\(filePath) target=\(targetPath)")
                     }
                     if createdLink {
                         let resolvedTarget = URL(fileURLWithPath: targetPath).resolvingSymlinksInPath().path
@@ -197,6 +215,7 @@ enum ImportPipeline {
                     trackData.removeValue(forKey: "artwork")
 
                     tracksToInsert.append(trackData)
+                    DebugLog.file("IMPORT_FILE_READY source=\(filePath) target=\(targetPath) existed=\(exists)")
                     if exists { skipped += 1 } else { imported += 1 }
                 }
 
@@ -212,6 +231,8 @@ enum ImportPipeline {
                     for j in i..<end {
                         let td = tracksToInsert[j]
                         if !Database.insertTrack(td) {
+                            let failedPath = String(describing: td["file_path"] ?? "?")
+                            DebugLog.file("IMPORT_DB_FAIL path=\(failedPath) reason=insert-failed")
                             boxErrors.append(["file": td["file_path"] ?? "?", "error": "database insert failed"])
                             imported -= 1
                         }
@@ -224,6 +245,7 @@ enum ImportPipeline {
                     "skipped": skipped,
                     "errors": boxErrors,
                 ])
+                DebugLog.file("IMPORT_PIPELINE_DONE imported=\(imported) skipped=\(skipped) errors=\(boxErrors.count)")
             }
         }
     }

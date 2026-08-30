@@ -39,6 +39,7 @@ export default function PluginPage({ registry, meta, tracks }) {
   const [openDetail, setOpenDetail] = useState(null); // 详情面板插件 id
   const [detailTab, setDetailTab] = useState('settings');
   const [settingsValues, setSettingsValues] = useState({});
+  const [diagnosticsPath, setDiagnosticsPath] = useState('');
   const [autoFetch, setAutoFetch] = useState({}); // { [pluginId]: boolean }
   const [backfillProgress, setBackfillProgress] = useState(null); // { pluginId, done, total, ok, fail, noMatch }
 
@@ -117,6 +118,11 @@ export default function PluginPage({ registry, meta, tracks }) {
     return () => { cancelled = true; };
   }, [openDetail, plugins]);
 
+  useEffect(() => {
+    if (openDetail !== 'diagnostics-log') return;
+    window.freeplayer?.getDiagnosticsPath?.().then(setDiagnosticsPath).catch(() => {});
+  }, [openDetail]);
+
   const isNew = (p) => !p.perms.enabled && p.perms.granted.length === 0;
 
   function handleSettingChange(p, s, value) {
@@ -192,6 +198,9 @@ export default function PluginPage({ registry, meta, tracks }) {
       } else {
         await registry.disable(p.id);
       }
+      if (p.id === 'diagnostics-log' && window.freeplayer?.setDiagnosticsEnabled) {
+        await window.freeplayer.setDiagnosticsEnabled(enabled);
+      }
       await refresh();
     } catch (err) {
       console.warn(`[plugins] toggle ${p.id}:`, err.message || err);
@@ -201,6 +210,9 @@ export default function PluginPage({ registry, meta, tracks }) {
   async function confirmEnable() {
     try {
       await registry.enable(pendingPlugin.id, pendingGrants);
+      if (pendingPlugin.id === 'diagnostics-log' && window.freeplayer?.setDiagnosticsEnabled) {
+        await window.freeplayer.setDiagnosticsEnabled(true);
+      }
       setOpenDetail(pendingPlugin.id); setDetailTab('settings');
       setPendingPlugin(null);
       await refresh();
@@ -473,6 +485,15 @@ export default function PluginPage({ registry, meta, tracks }) {
                     )}
                   </div>
                 ))}
+                {p.id === 'diagnostics-log' && (
+                  <div className="playback-row">
+                    <div className="playback-label-group">
+                      <span className="playback-label">Log file location</span>
+                      <span className="playback-hint">This fixed location is included in support reports.</span>
+                    </div>
+                    <code className="plugins-dir-path">{diagnosticsPath || '~/Library/Application Support/FreePlayer/diagnostics/freeplayer-diagnostics.log'}</code>
+                  </div>
+                )}
                 {(p.manifest.settings || []).length === 0 && !p.manifest.provides?.lyrics && !p.manifest.provides?.cover && !p.manifest.provides?.metadata && (
                   <p className="plugin-empty">This plugin has no settings.</p>
                 )}

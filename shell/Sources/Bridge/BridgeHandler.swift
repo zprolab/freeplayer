@@ -71,6 +71,7 @@ final class BridgeHandler: NSObject, WKScriptMessageHandler {
                 NSLog("[shell] reply: json encoding failed for %@", mid)
                 return
             }
+            DebugLog.file("BRIDGE_REPLY id=\(mid.int64Value) method=\(method) payload=\(json)")
             webView.evaluateJavaScript("window.freeplayer._resolve(\(mid.int64Value), \(json))")
         }
 
@@ -82,6 +83,7 @@ final class BridgeHandler: NSObject, WKScriptMessageHandler {
                 NSLog("[shell] reject: json encoding failed for %@", mid)
                 return
             }
+            DebugLog.file("BRIDGE_REJECT id=\(mid.int64Value) method=\(method) reason=\(json)")
             webView.evaluateJavaScript("window.freeplayer._reject(\(mid.int64Value), \(json))")
         }
 
@@ -95,13 +97,16 @@ final class BridgeHandler: NSObject, WKScriptMessageHandler {
         }
         if method == "__console" {
             let a = args
-            NSLog("[page %@] %@", (a.first as? String) ?? "log",
-                  Self.redactConsole((a.count > 1 && a[1] is String) ? (a[1] as! String) : ""))
+            let level = (a.first as? String) ?? "log"
+            let message = Self.redactConsole((a.count > 1 && a[1] is String) ? (a[1] as! String) : "")
+            NSLog("[page %@] %@", level, message)
+            DebugLog.file("PAGE level=\(level) message=\(message)")
             return
         }
 
         // M7: verbose IPC logging
         if AppContext.shared.verboseLogging { NSLog("[shell] method=%@", method) }
+        DebugLog.file("BRIDGE method=\(method) args=\(String(describing: args))")
 
         // Everything else goes to the shared generic core (fp + platform layers)
         BridgeBootstrap.install().dispatch(method: method, args: args, idNum: idNum,

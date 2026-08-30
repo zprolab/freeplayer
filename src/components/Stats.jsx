@@ -28,8 +28,17 @@ const Stats = memo(function Stats() {
           window.freeplayer.getPlayHistory(30),
         ]);
         if (cancelled) return;
-        setStats(s);
-        setHistory(h);
+        // Normalize responses from older shells as well as the full stats
+        // shape. Missing arrays must never crash rendering of the whole app.
+        setStats({
+          totalTime: s?.totalTime ?? 0,
+          totalPlays: s?.totalPlays ?? 0,
+          uniqueTracksPlayed: s?.uniqueTracksPlayed ?? s?.uniqueTracks ?? 0,
+          topTracks: Array.isArray(s?.topTracks) ? s.topTracks : [],
+          topArtists: Array.isArray(s?.topArtists) ? s.topArtists : [],
+          dailyStats: Array.isArray(s?.dailyStats) ? s.dailyStats : [],
+        });
+        setHistory(Array.isArray(h) ? h : []);
       } catch (err) {
         if (!cancelled) setError(err.message || 'Failed to load statistics');
       } finally {
