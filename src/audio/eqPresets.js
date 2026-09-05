@@ -4,13 +4,30 @@ export const EQ_MAX = 12;
 export const EQ_STEP = 0.5;
 
 export const EQ_PRESETS = [
-  { name: '平坦', values: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0] },
-  { name: '低音增强', values: [6, 6, 5, 3.5, 2, 0, 0, 0, 0, 0] },
-  { name: '人声清晰', values: [0, 0, 0, 0, 0, 3, 3, 3, 2, 0] },
-  { name: '古典', values: [3, 3, 2, 0, 0, 0, 0, 1.5, 2, 3] },
-  { name: '摇滚', values: [5, 5, 4, 2, 0, 0, 1, 3, 4.5, 5] },
-  { name: '流行', values: [0.5, 1, 1.5, 2.5, 3, 3, 2.5, 1.5, 1, 0.5] },
+  { name: 'Flat', values: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0] },
+  { name: 'Bass Boost', values: [6, 6, 5, 3.5, 2, 0, 0, 0, 0, 0] },
+  { name: 'Vocal', values: [0, 0, 0, 0, 0, 3, 3, 3, 2, 0] },
+  { name: 'Classical', values: [3, 3, 2, 0, 0, 0, 0, 1.5, 2, 3] },
+  { name: 'Rock', values: [5, 5, 4, 2, 0, 0, 1, 3, 4.5, 5] },
+  { name: 'Pop', values: [0.5, 1, 1.5, 2.5, 3, 3, 2.5, 1.5, 1, 0.5] },
 ];
+
+/* Preset identity is its name (persisted in the DB and matched by the UI),
+   so renames ship with this map: states saved under the old Chinese names
+   normalize on load instead of decaying into an unmatched preset. */
+const EQ_LEGACY_PRESET_NAMES = {
+  '平坦': 'Flat',
+  '低音增强': 'Bass Boost',
+  '人声清晰': 'Vocal',
+  '古典': 'Classical',
+  '摇滚': 'Rock',
+  '流行': 'Pop',
+  '自定义': 'Custom',
+};
+
+export function normalizePreset(name) {
+  return EQ_LEGACY_PRESET_NAMES[name] ?? name;
+}
 
 export function sliderFrac(value, min = EQ_MIN, max = EQ_MAX) {
   return (value - min) / (max - min);

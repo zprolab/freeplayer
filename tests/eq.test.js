@@ -21,7 +21,7 @@ describe('EQ presets data', () => {
   });
 
   it('flat preset is all zeros', () => {
-    const flat = EQ_PRESETS.find((p) => p.name === '平坦');
+    const flat = EQ_PRESETS.find((p) => p.name === 'Flat');
     expect(flat.values.every((v) => v === 0)).toBe(true);
   });
 

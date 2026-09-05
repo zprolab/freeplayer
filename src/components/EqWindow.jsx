@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import {
-  EQ_BANDS, EQ_MIN, EQ_MAX, EQ_STEP, EQ_PRESETS, sliderFrac,
+  EQ_BANDS, EQ_MIN, EQ_MAX, EQ_STEP, EQ_PRESETS, sliderFrac, normalizePreset,
   eqOctaveAt, eqResponseDb,
 } from '../audio/eqPresets';
 import ToggleSwitch from './ToggleSwitch';
@@ -56,15 +56,16 @@ function buildScope(gains) {
 
 export default function EqWindow() {
   const [enabled, setEnabled] = useState(false);
-  const [preset, setPreset] = useState('平坦');
+  const [preset, setPreset] = useState('Flat');
   const [gains, setGains] = useState(() => EQ_PRESETS[0].values.slice());
-  const stateRef = useRef({ enabled: false, preset: '平坦', gains: EQ_PRESETS[0].values.slice() });
+  const stateRef = useRef({ enabled: false, preset: 'Flat', gains: EQ_PRESETS[0].values.slice() });
   const commitTimer = useRef(null);
   stateRef.current = { enabled, preset, gains };
 
   const push = useCallback((next) => {
     setEnabled(next.enabled);
-    setPreset(next.preset);
+    // States saved by older builds carry Chinese preset names.
+    setPreset(normalizePreset(next.preset));
     setGains(next.gains.slice());
   }, []);
 
@@ -96,7 +97,7 @@ export default function EqWindow() {
     const v = parseFloat(e.target.value);
     const g = gains.slice();
     g[i] = v;
-    commit({ enabled, preset: '自定义', gains: g });
+    commit({ enabled, preset: 'Custom', gains: g });
   };
 
   const handlePreset = (p) => {
@@ -107,13 +108,21 @@ export default function EqWindow() {
     commit({ enabled: next, preset, gains });
   };
 
+  // Double-click a fader slot: reset that band to 0 dB.
+  const handleResetBand = (i) => () => {
+    if (gains[i] === 0) return;
+    const g = gains.slice();
+    g[i] = 0;
+    commit({ enabled, preset: 'Custom', gains: g });
+  };
+
   const scope = useMemo(() => buildScope(gains), [gains]);
 
   const sum = gains.reduce((a, v) => a + Math.abs(v), 0);
   const live = enabled && sum >= 0.5;
   const status = enabled
-    ? (sum < 0.5 ? '生效中 · 平坦' : `生效中 · ${preset}`)
-    : '已旁路';
+    ? (sum < 0.5 ? 'Active · Flat' : `Active · ${preset}`)
+    : 'Bypassed';
   const grid = GRID_DB.map((db) => ({ db, y: dbToY(db) }));
   // Cap and rail-fill positions come from the same dB → pixel mapping the
   // curve uses, so a column's cap always sits on the curve.
@@ -131,12 +140,12 @@ export default function EqWindow() {
     >
       <header className="eq-header">
         <div className="eq-heading">
-          <h1 className="eq-title">均衡器</h1>
+          <h1 className="eq-title">Equalizer</h1>
           <span className={`eq-badge${enabled ? ' eq-badge--on' : ''}`}>{status}</span>
         </div>
         <div className="eq-enable">
-          <span>启用</span>
-          <ToggleSwitch checked={enabled} onChange={handleToggle} label="启用均衡器" />
+          <span>Enable</span>
+          <ToggleSwitch checked={enabled} onChange={handleToggle} label="Enable equalizer" />
         </div>
       </header>
 
@@ -175,7 +184,7 @@ export default function EqWindow() {
                   <span className={`eq-readout${hot ? ' eq-readout--hot' : ''}`}>
                     {dbText(gains[i])}
                   </span>
-                  <div className="eq-slot">
+                  <div className="eq-slot" onDoubleClick={handleResetBand(i)}>
                     <span className="eq-rail" aria-hidden="true" />
                     <span className="eq-fill" style={fillStyle} aria-hidden="true" />
                     <span
@@ -191,7 +200,7 @@ export default function EqWindow() {
                       step={EQ_STEP}
                       value={gains[i]}
                       onChange={handleSlider(i)}
-                      aria-label={`${freq} 赫兹频段增益`}
+                      aria-label={`${freq} Hz band gain`}
                       aria-valuetext={dbText(gains[i])}
                     />
                   </div>
