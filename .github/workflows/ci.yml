@@ -18,7 +18,7 @@ jobs:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v5
         with:
           node-version: 22
@@ -33,7 +33,7 @@ jobs:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v5
         with:
           node-version: 22
@@ -62,7 +62,7 @@ jobs:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v5
         with:
           node-version: 22
@@ -85,7 +85,7 @@ jobs:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v5
         with:
           node-version: 22
@@ -97,3 +97,26 @@ jobs:
         run: pnpm build:iphone --iphone --simulator
         env:
           SIM_DEST: generic/platform=iOS Simulator
+
+  ios-device:
+    name: iOS device build (Release, unsigned)
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Install XcodeGen
+        run: brew install xcodegen
+      # Exercise the exact path the release workflow ships (generic device,
+      # Release, unsigned, no ipa packaging) on every push — release.yml only
+      # runs at tag time, and a broken device build otherwise surfaces there.
+      - name: Build iPad (device, Release)
+        run: pnpm build:ipad --ipad --no-simulator
+      - name: Build iPhone (device, Release)
+        run: pnpm build:iphone --iphone --no-simulator
