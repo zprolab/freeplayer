@@ -10,6 +10,7 @@ import ImportModal from './components/ImportModal';
 import Settings from './components/Settings';
 import PluginPage from './components/PluginPage';
 import PlaylistModal from './components/PlaylistModal';
+import EqWindow from './components/EqWindow';
 import { usePlayer, VIEWS } from './context/PlayerContext';
 import { usePlayback } from './hooks/usePlayback';
 import { useLibrary } from './hooks/useLibrary';
@@ -125,6 +126,7 @@ export default function App() {
   } = usePlaylists();
 
   const [pluginRuntime, setPluginRuntime] = useState(null);
+  const [eqPanelOpen, setEqPanelOpen] = useState(false);
   const meta = pluginRuntime?.meta;
 
   useAutoMeta(state.currentTrack, meta, dispatch);
@@ -505,7 +507,13 @@ useEffect(() => {
         playMode={state.playMode}
         onPlayModeChange={(m) => dispatch({ type: 'SET_PLAY_MODE', payload: m })}
         eqEnabled={state.eqEnabled}
-        onOpenEq={() => window.freeplayer?.openEq?.()}
+        onOpenEq={() => {
+          // iOS is a single-window app: the EQ renders in a sheet instead of
+          // a native window (openEq is a no-op there).
+          window.freeplayer?.getPlatform?.()
+            .then((p) => (p === 'ios' ? setEqPanelOpen(true) : window.freeplayer?.openEq?.()))
+            .catch(() => window.freeplayer?.openEq?.());
+        }}
       />
 
       <MobileTabBar
@@ -533,6 +541,19 @@ useEffect(() => {
             handleUpdatePlaylistTracks
           }
         />
+      )}
+
+      {eqPanelOpen && (
+        <div className="eq-overlay" onClick={() => setEqPanelOpen(false)}>
+          <div className="eq-sheet" onClick={(e) => e.stopPropagation()}>
+            <button className="btn-icon eq-sheet-close" onClick={() => setEqPanelOpen(false)} aria-label="Close equalizer">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
+                <path d="M6 6l12 12M18 6L6 18" />
+              </svg>
+            </button>
+            <EqWindow />
+          </div>
+        </div>
       )}
     </div>
   );

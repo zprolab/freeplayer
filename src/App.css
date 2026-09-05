@@ -3930,6 +3930,45 @@ input[type="range"]::-webkit-slider-thumb {
   outline-offset: 1px;
 }
 
+/* ── In-app EQ sheet (iOS) ──
+   iOS is a single-window app with no native EQ window, so EqWindow renders
+   in a modal sheet; macOS keeps the separate native window via openEq. */
+.eq-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  animation: fadeIn 0.15s ease;
+}
+.eq-sheet {
+  position: relative;
+  width: 100%;
+  max-width: 620px;
+  max-height: 80vh;
+  overflow-y: auto;
+  background: var(--gl-content-bg);
+  border-radius: var(--gl-radius-lg);
+  box-shadow: var(--gl-shadow-xl);
+  animation: slideUp 0.2s ease;
+}
+/* embedded: no hidden-titlebar traffic lights to clear */
+.eq-sheet .eq-root {
+  min-height: auto;
+  padding-top: 12px;
+}
+.eq-sheet-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 1;
+  background: var(--gl-white);
+  border: 1px solid var(--gl-border);
+}
+
 /* ── Equalizer entry button ── */
 .eq-btn {
   display: inline-flex; align-items: center; justify-content: center;
