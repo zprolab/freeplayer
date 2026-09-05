@@ -100,12 +100,14 @@ export class AudioEngine {
         // Normalize it so the graph gain node is the only volume control
         // and volume can never be double-applied.
         audioElement.volume = 1;
-        this.sourceNode.connect(this.analyser);
-        this.analyser.connect(this.eqFilters[0]);
+        this.sourceNode.connect(this.eqFilters[0]);
         for (let i = 1; i < this.eqFilters.length; i++) {
           this.eqFilters[i - 1].connect(this.eqFilters[i]);
         }
-        this.eqFilters[this.eqFilters.length - 1].connect(this.gainNode);
+        // Analyser sits AFTER the EQ chain so the visualizer shows the
+        // spectrum the user actually hears, EQ included.
+        this.eqFilters[this.eqFilters.length - 1].connect(this.analyser);
+        this.analyser.connect(this.gainNode);
         this.gainNode.connect(this.ctx.destination);
         this.connectedElement = audioElement;
       }

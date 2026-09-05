@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { EQ_PRESETS, EQ_MIN, EQ_MAX, sliderFrac } from '../src/audio/eqPresets';
+import { EQ_PRESETS, EQ_MIN, EQ_MAX, sliderFrac, eqResponseDb, eqOctaveAt } from '../src/audio/eqPresets';
 import { AudioEngine } from '../src/audio/audioEngine';
 
 describe('EQ presets data', () => {
@@ -29,6 +29,35 @@ describe('EQ presets data', () => {
     expect(sliderFrac(-12)).toBe(0);
     expect(sliderFrac(0)).toBe(0.5);
     expect(sliderFrac(12)).toBe(1);
+  });
+});
+
+describe('EQ response curve model', () => {
+  it('eqOctaveAt centers band i exactly on octave i', () => {
+    EQ_PRESETS[0].values.forEach((_, i) => {
+      expect(eqOctaveAt((i + 0.5) / EQ_PRESETS[0].values.length)).toBeCloseTo(i, 10);
+    });
+  });
+
+  it('a single band peaks at its own gain and falls off with distance', () => {
+    const gains = [0, 0, 0, 0, 0, 6, 0, 0, 0, 0];
+    expect(eqResponseDb(gains, 5)).toBeCloseTo(6, 10);
+    const near = eqResponseDb(gains, 6);
+    expect(near).toBeGreaterThan(0);
+    expect(near).toBeLessThan(6);
+    expect(eqResponseDb(gains, 9)).toBeLessThan(near);
+  });
+
+  it('flat preset is silent everywhere', () => {
+    for (let x = 0; x <= 1; x += 0.1) {
+      expect(Math.abs(eqResponseDb([0, 0, 0, 0, 0, 0, 0, 0, 0, 0], eqOctaveAt(x)))).toBeLessThan(1e-9);
+    }
+  });
+
+  it('response is symmetric in log-frequency', () => {
+    const gains = [0, 0, 0, 0, 0, 0, 0, 4, 0, 0];
+    const oct = 7;
+    expect(eqResponseDb(gains, oct + 0.5)).toBeCloseTo(eqResponseDb(gains, oct - 0.5), 10);
   });
 });
 
@@ -99,7 +128,7 @@ describe('AudioEngine EQ', () => {
     expect(engine.eqFilters).toBeNull();
   });
 
-  it('wires EQ chain as sole analyser→gain path (no parallel edge)', () => {
+  it('wires EQ chain as sole source→analyser path (no parallel edge)', () => {
     const elA = {};
     const elB = { src: 'b' };
     engine.connect(elA);
@@ -109,12 +138,14 @@ describe('AudioEngine EQ', () => {
 
     engine.connect(elB);
 
-    expect(analyserConnect).toHaveBeenCalledWith(engine.eqFilters[0]);
-    expect(analyserConnect).not.toHaveBeenCalledWith(engine.gainNode);
+    // source → EQ×10 → analyser → gain → destination: the analyser is
+    // downstream of the EQ so the visualizer shows the audible spectrum.
+    expect(analyserConnect).toHaveBeenCalledWith(engine.gainNode);
+    expect(analyserConnect).not.toHaveBeenCalledWith(engine.eqFilters[0]);
     engine.eqFilters.slice(0, -1).forEach((f, i) => {
       expect(filterConnects[i]).toHaveBeenCalledWith(engine.eqFilters[i + 1]);
     });
-    expect(filterConnects[9]).toHaveBeenCalledWith(engine.gainNode);
+    expect(filterConnects[9]).toHaveBeenCalledWith(engine.analyser);
     expect(gainConnect).toHaveBeenCalledWith(engine.ctx.destination);
   });
 });

@@ -52,19 +52,6 @@
   /* ── Dialogs / popups — single shared width ── */
   --gl-dialog-width: 680px;
 
-  /* ── Equalizer window (hardware rack, monochrome + brand accent) ── */
-  --gl-eq-bg: #101013;
-  --gl-eq-surface: #16161b;
-  --gl-eq-border: #2e2e33;
-  --gl-eq-text: #f4f4f6;
-  --gl-eq-text-dim: #9b9ba3;
-  --gl-eq-text-faint: #66666e;
-  --gl-eq-track: #3a3a40;
-  --gl-eq-bezel: rgba(255, 255, 255, 0.05);
-  --gl-eq-glow: rgba(255, 255, 255, 0.16);
-  --gl-eq-accent-glow: rgba(226, 67, 41, 0.55);
-  --gl-eq-chip: #1d1d22;
-
   /* ── Typography ── */
   --font-ui: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
   --font-mono: 'JetBrains Mono', 'Fira Code', 'SF Mono', 'Cascadia Code', 'Consolas', monospace;
@@ -3693,103 +3680,254 @@ input[type="range"]::-webkit-slider-thumb {
 .seg-control-btn--active { background: var(--gl-orange); color: #fff; }
 .seg-control--disabled { opacity: 0.45; pointer-events: none; }
 
-/* ── Equalizer window ── */
+/* ── Equalizer window ──────────────────────────────────────────────────
+   Follows the main window's design system: light content background,
+   white card, GitLab orange accent, UI font with mono for readouts.
+   Fader caps and the live response curve share one coordinate space —
+   geometry strips (readout / travel / freq) are sized by the React
+   component via --eq-* custom properties. */
 .eq-root {
-  max-width: 580px;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 620px;
   margin: 0 auto;
-  padding: 18px 20px 16px;
   min-height: 100vh;
-  color: var(--gl-eq-text-dim);
+  /* top inset clears the traffic lights of the hidden-titlebar window */
+  padding: 32px 20px 12px;
+  display: flex;
+  flex-direction: column;
+  background: var(--gl-content-bg);
+  color: var(--gl-text-primary);
   font-family: var(--font-ui);
+  font-size: 13px;
   user-select: none;
-  background: var(--gl-eq-bg);
-  box-shadow: inset 0 1px 0 var(--gl-eq-bezel), inset 0 1px 0 rgba(0, 0, 0, 0.55);
 }
-.eq-titlebar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
-.eq-title { font-size: 13px; font-weight: 700; color: var(--gl-eq-text); letter-spacing: 2px; text-transform: uppercase; }
-.eq-led {
-  width: 8px; height: 8px; border-radius: 50%;
-  background: var(--gl-eq-track);
-  box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.55);
-  transition: background 0.15s, box-shadow 0.15s;
+
+/* ── Header: title + status badge + enable toggle ──
+   No -webkit-app-region here: WebKit turns the strip into a window drag
+   area that swallows clicks on the toggle. */
+.eq-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
 }
-.eq-led--on {
-  background: var(--gl-orange);
-  box-shadow: 0 0 6px var(--gl-eq-accent-glow), 0 0 14px var(--gl-eq-accent-glow);
+.eq-heading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
 }
-.eq-toprow {
-  display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;
+.eq-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--gl-text-primary);
+  letter-spacing: -0.01em;
 }
-.eq-state { font-size: 12px; color: var(--gl-eq-text-faint); transition: color 0.15s; }
-.eq-state--on { color: var(--gl-orange); font-weight: 600; }
-.eq-toggle {
-  display: inline-flex; align-items: center; gap: 8px; cursor: pointer; font-size: 12px; color: var(--gl-eq-text-dim);
+.eq-badge {
+  font-size: 11px;
+  font-weight: 500;
+  font-family: var(--font-mono);
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: #f0f0f3;
+  color: var(--gl-text-tertiary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: background 0.15s, color 0.15s;
+}
+.eq-badge--on {
+  background: var(--gl-orange-light);
+  color: var(--gl-orange);
+}
+.eq-enable {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+  font-size: 13px;
+  color: var(--gl-text-secondary);
+}
+
+/* ── Card: response curve + fader columns on one face ── */
+.eq-card {
+  border: 1px solid var(--gl-border);
+  border-radius: var(--gl-radius-md);
+  background: var(--gl-white);
+  box-shadow: var(--gl-shadow-sm);
+  padding: 8px 12px;
+}
+.eq-canvas { position: relative; transition: opacity 0.18s ease; }
+/* bypassed: the face dims but the faders stay usable for pre-adjusting */
+.eq-card--off .eq-canvas { opacity: 0.45; }
+
+/* scope grid + response curve, aligned to the slot band only */
+.eq-scope {
+  position: absolute;
+  top: var(--eq-readout, 16px);
+  left: 0;
+  width: 100%;
+  height: var(--eq-travel, 152px);
+  overflow: hidden;
+  pointer-events: none;
+}
+.eq-grid { stroke: #ececef; stroke-width: 1; }
+.eq-grid--v { stroke: #f2f2f4; }
+.eq-grid--edge { stroke: #e0e0e3; }
+.eq-grid--zero { stroke: #d3d3d8; }
+.eq-scope-line,
+.eq-scope-fill { opacity: 0; transition: opacity 0.18s ease; }
+.eq-scope--live .eq-scope-line,
+.eq-scope--live .eq-scope-fill { opacity: 1; }
+.eq-scope-line {
+  fill: none;
+  stroke: var(--gl-orange);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+.eq-scope-fill { fill: var(--gl-orange-light); }
+
+/* ── Column: value strip / slot / frequency label ── */
+.eq-cols { display: flex; }
+.eq-col {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.eq-readout {
+  height: var(--eq-readout, 16px);
+  line-height: var(--eq-readout, 16px);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  color: var(--gl-text-tertiary);
   transition: color 0.15s;
 }
-.eq-toggle:hover { color: var(--gl-eq-text); }
-.eq-toggle input { display: none; }
-.eq-switch {
-  width: 34px; height: 19px; background: var(--gl-eq-track); border-radius: 10px; position: relative;
-  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.5);
-  transition: background 0.15s;
+.eq-readout--hot { color: var(--gl-orange); font-weight: 600; }
+.eq-col:has(.eq-slot:focus-within) .eq-readout { color: var(--gl-text-primary); }
+.eq-slot {
+  position: relative;
+  width: 100%;
+  height: var(--eq-travel, 152px);
+  cursor: pointer;
+  touch-action: none;
 }
-.eq-switch::after {
-  content: ''; position: absolute; top: 2.5px; left: 3px; width: 14px; height: 14px;
-  border-radius: 50%; background: var(--gl-eq-text-faint);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.55);
-  transition: all 0.15s;
+.eq-rail {
+  position: absolute;
+  left: 50%; top: 0; bottom: 0;
+  width: 4px;
+  transform: translateX(-50%);
+  border-radius: 2px;
+  background: var(--gl-border-light);
 }
-.eq-toggle input:checked + .eq-switch { background: var(--gl-eq-text); }
-.eq-toggle input:checked + .eq-switch::after { left: 17px; background: var(--gl-eq-bg); }
-.eq-slider-area {
-  position: relative; height: 168px; padding: 0 8px;
-  background: var(--gl-eq-surface);
-  border: 1px solid var(--gl-eq-border); border-radius: var(--gl-radius-md);
-  box-shadow: inset 0 1px 0 var(--gl-eq-bezel), inset 0 2px 10px rgba(0, 0, 0, 0.4);
+/* center-to-cap segment, positioned by the component like the cap */
+.eq-fill {
+  position: absolute;
+  left: 50%;
+  width: 4px;
+  transform: translateX(-50%);
+  border-radius: 2px;
+  background: var(--gl-orange);
+  opacity: 0.4;
 }
-.eq-cols {
-  position: absolute; inset: 0; display: flex; justify-content: space-around;
-  align-items: center; padding: 0 12px;
-}
-.eq-col { display: flex; flex-direction: column; align-items: center; gap: 4px; flex: 1; }
-.eq-db { font-size: 10px; font-family: var(--font-mono); color: var(--gl-eq-text-faint); height: 12px; transition: color 0.15s; }
-.eq-db--hot { color: var(--gl-orange); font-weight: 700; }
-.eq-slider-wrap { position: relative; width: 22px; height: 118px; }
-.eq-slider-input {
-  position: absolute; inset: 0; -webkit-appearance: none; appearance: none;
-  writing-mode: vertical-lr; direction: rtl; background: transparent; cursor: pointer;
-  margin: 0; opacity: 0;
-}
-.eq-slider-track {
-  position: absolute; left: 50%; margin-left: -1.5px; top: 0; bottom: 0; width: 3px;
-  background: var(--gl-eq-track); border-radius: 2px;
-  transition: background 0.15s;
-}
-.eq-slider-wrap:hover .eq-slider-track,
-.eq-slider-wrap:focus-within .eq-slider-track { background: var(--gl-eq-text-faint); }
-.eq-slider-thumb {
-  position: absolute; left: 50%; margin-left: -4px; width: 8px; height: 12px;
-  border-radius: 3px; background: var(--gl-eq-text-faint);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+.eq-cap {
+  position: absolute;
+  left: 50%;
+  z-index: 2;
+  width: 28px;
+  height: var(--eq-thumb, 14px);
+  transform: translateX(-50%);
+  border-radius: var(--gl-radius-sm);
+  background: var(--gl-white);
+  border: 1px solid #c9c9ce;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
   pointer-events: none;
-  transition: transform 0.12s ease, box-shadow 0.12s ease, background 0.12s ease;
+  transition: border-color 0.12s, box-shadow 0.12s;
 }
-.eq-slider-thumb--on { background: var(--gl-orange); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.6), 0 0 6px var(--gl-eq-accent-glow); }
-.eq-slider-wrap:hover .eq-slider-thumb,
-.eq-slider-wrap:focus-within .eq-slider-thumb {
-  transform: scale(1.12);
-  box-shadow: 0 0 0 3px var(--gl-eq-glow), 0 1px 2px rgba(0, 0, 0, 0.6);
+.eq-cap::after {
+  content: '';
+  position: absolute;
+  left: 50%; top: 3px; bottom: 3px;
+  width: 2px;
+  transform: translateX(-50%);
+  border-radius: 1px;
+  background: #b9b9c0;
+  transition: background 0.12s;
 }
-.eq-freq { font-size: 10px; color: var(--gl-eq-text-faint); font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.8px; }
-.eq-presets { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+.eq-cap--hot { border-color: var(--gl-orange); }
+.eq-cap--hot::after { background: var(--gl-orange); }
+.eq-slot:hover .eq-cap { border-color: #a9a9b0; }
+.eq-slot:focus-within .eq-cap {
+  border-color: var(--gl-orange);
+  box-shadow: 0 0 0 3px var(--gl-orange-light), 0 1px 3px rgba(0, 0, 0, 0.15);
+}
+.eq-slider {
+  position: absolute;
+  inset: 0;
+  -webkit-appearance: none;
+  appearance: none;
+  writing-mode: vertical-lr;
+  direction: rtl;
+  background: transparent;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+  touch-action: none;
+}
+.eq-freq {
+  height: var(--eq-freq, 14px);
+  line-height: var(--eq-freq, 14px);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--gl-text-tertiary);
+}
+
+/* ── Preset buttons ── */
+.eq-presets {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
 .eq-chip {
-  padding: 5px 16px; font-size: 12px; color: var(--gl-eq-text-dim); background: var(--gl-eq-chip);
-  border: 1px solid var(--gl-eq-border); border-radius: 999px; cursor: pointer; transition: all 0.15s ease;
+  flex: 1 1 0;
+  min-width: 0;
+  height: 26px;
+  padding: 0 8px;
   font-family: var(--font-ui);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--gl-text-secondary);
+  background: var(--gl-white);
+  border: 1px solid var(--gl-border);
+  border-radius: var(--gl-radius-sm);
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: all 0.12s ease;
 }
-.eq-chip:hover { background: var(--gl-eq-surface); color: var(--gl-eq-text); border-color: var(--gl-eq-text-faint); }
+.eq-chip:hover {
+  color: var(--gl-text-primary);
+  background: #f5f5f5;
+  border-color: #ccc;
+}
 .eq-chip--active {
-  background: var(--gl-eq-text); border-color: var(--gl-eq-text); color: var(--gl-eq-bg); font-weight: 600;
+  color: #fff;
+  background: var(--gl-orange);
+  border-color: var(--gl-orange);
+}
+.eq-chip--active:hover {
+  background: var(--gl-orange-hover);
+  border-color: var(--gl-orange-hover);
+}
+.eq-chip:focus-visible {
+  outline: 2px solid var(--gl-orange);
+  outline-offset: 1px;
 }
 
 /* ── Equalizer entry button ── */
