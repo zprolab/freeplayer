@@ -152,6 +152,8 @@ final class BridgeCoreTests: XCTestCase {
             "scanDirectory", "importFiles",
             // platform-delegated from fp layer
             "uploadLrc",
+            // diagnostics plugin
+            "getDiagnosticsPath", "clearDiagnostics", "logDiagnostic", "setDiagnosticsEnabled",
         ]
         XCTAssertEqual(core.registeredMethods, expected)
     }
