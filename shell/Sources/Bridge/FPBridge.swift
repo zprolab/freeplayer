@@ -415,8 +415,11 @@ enum FPBridge {
             }
         }
         while gains.count < 10 { gains.append(NSNumber(value: 0)) }
+        // saveEq stores enabled as "1"/"0"; accept legacy "true" too — the
+        // reader must match the writer or every setEq broadcast reverts it.
+        let enabledRaw = (Database.getSetting(eqKey("enabled"), nil) as? String) ?? "0"
         return [
-            "enabled": (Database.getSetting(eqKey("enabled"), nil) as? String) == "true",
+            "enabled": enabledRaw == "1" || enabledRaw == "true",
             "preset": (Database.getSetting(eqKey("preset"), nil) as? String) ?? "平坦",
             "gains": gains,
         ]
