@@ -14,7 +14,11 @@
 #   --team   <ID>   Apple Developer team ID for code signing
 #
 # Packaging:
-#   --ipa           pack the built .app into an .ipa in shell/release/
+#   --ipa                  pack the built .app into an .ipa in shell/release/
+#
+# Configuration:
+#   --configuration <name> xcodebuild configuration; defaults to Debug for
+#                          --simulator and Release for device builds
 #
 # Examples:
 #   bash scripts/build-ipad.sh --iphone --simulator
@@ -32,6 +36,7 @@ USE_SIMULATOR=0              # default: no-simulator (device)
 DEVICE=""
 TEAM=""
 MAKE_IPA=0
+CONFIGURATION=""             # empty → Debug for simulator, Release for device
 
 # ── parse args ──
 while [ $# -gt 0 ]; do
@@ -43,9 +48,15 @@ while [ $# -gt 0 ]; do
     --device)        DEVICE="$2"; shift 2 ;;
     --team)          TEAM="$2";   shift 2 ;;
     --ipa)           MAKE_IPA=1;  shift ;;
+    --configuration) CONFIGURATION="$2"; shift 2 ;;
     *) echo "unknown arg: $1" >&2; exit 2 ;;
   esac
 done
+
+# Shipped device artifacts default to Release; simulator compile checks to Debug.
+if [ -z "$CONFIGURATION" ]; then
+  if [ "$USE_SIMULATOR" = 1 ]; then CONFIGURATION="Debug"; else CONFIGURATION="Release"; fi
+fi
 
 # ── resolve destination ──
 if [ "$USE_SIMULATOR" = 1 ]; then
@@ -89,31 +100,31 @@ echo "[ios] xcodegen generate..."
 
 # ── 5. build ──
 if [ "$USE_SIMULATOR" = 1 ]; then
-  echo "[ios] building $TARGET for simulator ($DEST)..."
+  echo "[ios] building $TARGET for simulator ($DEST, $CONFIGURATION)..."
   (cd "$SHELL" && xcodebuild -project FreePlayer.xcodeproj -scheme "$TARGET" \
-    -configuration Debug -destination "$DEST" build)
+    -configuration "$CONFIGURATION" -destination "$DEST" build)
 elif [ -n "$DEVICE" ]; then
   SIGN_ARGS=""
   if [ -n "$TEAM" ]; then
     SIGN_ARGS="DEVELOPMENT_TEAM=$TEAM CODE_SIGN_STYLE=Automatic"
   fi
-  echo "[ios] building $TARGET for device $DEVICE${TEAM:+ (team $TEAM)}..."
+  echo "[ios] building $TARGET for device $DEVICE${TEAM:+ (team $TEAM)} ($CONFIGURATION)..."
   # shellcheck disable=SC2086
   (cd "$SHELL" && xcodebuild -project FreePlayer.xcodeproj -scheme "$TARGET" \
-    -configuration Debug -destination "$DEST" -allowProvisioningUpdates \
+    -configuration "$CONFIGURATION" -destination "$DEST" -allowProvisioningUpdates \
     $SIGN_ARGS build)
 else
-  echo "[ios] building $TARGET for generic device (unsigned)..."
+  echo "[ios] building $TARGET for generic device (unsigned, $CONFIGURATION)..."
   (cd "$SHELL" && xcodebuild -project FreePlayer.xcodeproj -scheme "$TARGET" \
-    -configuration Debug -destination "$DEST" \
+    -configuration "$CONFIGURATION" -destination "$DEST" \
     CODE_SIGNING_ALLOWED=NO build)
 fi
 
 # ── 6. locate the product ──
 if [ "$USE_SIMULATOR" = 1 ]; then
-  PRODUCT_DIR="Debug-iphonesimulator"
+  PRODUCT_DIR="$CONFIGURATION-iphonesimulator"
 else
-  PRODUCT_DIR="Debug-iphoneos"
+  PRODUCT_DIR="$CONFIGURATION-iphoneos"
 fi
 APP=$(find "$HOME/Library/Developer/Xcode/DerivedData/FreePlayer-"* \
   -path "*$PRODUCT_DIR/${TARGET}.app" -type d 2>/dev/null | head -1)

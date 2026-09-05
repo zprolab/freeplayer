@@ -48,7 +48,12 @@ targets:
         ENABLE_HARDENED_RUNTIME: "NO"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_GENERATE_ASSET_SYMBOLS: "YES"
-        ENABLE_TESTABILITY: "YES"
+      configs:
+        # Testability injects -enable-testing: fine for Debug, never ship it.
+        Debug:
+          ENABLE_TESTABILITY: "YES"
+        Release:
+          ENABLE_TESTABILITY: "NO"
 
   FreePlayer-iPhone:
     type: application
@@ -91,6 +96,11 @@ targets:
         ENABLE_HARDENED_RUNTIME: "NO"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_GENERATE_ASSET_SYMBOLS: "YES"
+      configs:
+        Debug:
+          ENABLE_TESTABILITY: "YES"
+        Release:
+          ENABLE_TESTABILITY: "NO"
 
   # ── Unit tests (XCTest) ──
   FreePlayerTests:

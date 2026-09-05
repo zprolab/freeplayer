@@ -64,8 +64,8 @@ jobs:
             echo ""
             echo "- macOS build is ad-hoc signed (not notarized): first launch requires right-click → Open, or \`xattr -d com.apple.quarantine <path>\`."
             echo "- macOS 13+ / Apple Silicon only."
-            echo "- iPad \`.ipa\` is an unsigned arm64 device build (no signing team) — sideloadable via a jailbreak, Filza, or your own signing tool."
-            echo "- iPhone \`.ipa\` is an unsigned arm64 device build — same as iPad but for iPhone."
+            echo "- iPad \`.ipa\` is an unsigned Release arm64 device build (no signing team) — sideloadable via a jailbreak, Filza, or your own signing tool."
+            echo "- iPhone \`.ipa\` is an unsigned Release arm64 device build — same as iPad but for iPhone."
           } > /tmp/release-notes.md
 
       # ── publish ──
@@ -74,8 +74,10 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           VER=$(node -p "require('./package.json').version")
+          # iPad ipa is named FreePlayer-$VER-... (TARGET=FreePlayer in
+          # build-ipad.sh); iPhone carries the FreePlayer-iPhone- prefix.
           MAC_ARTIFACTS=$(ls shell/release/FreePlayer-$VER-mac-arm64-* | tr '\n' ' ')
-          IPAD_IPA=$(ls shell/release/FreePlayer-iPad-$VER-ios-arm64-unsigned-* 2>/dev/null || true)
+          IPAD_IPA=$(ls shell/release/FreePlayer-$VER-ios-arm64-unsigned-* 2>/dev/null || true)
           IPHONE_IPA=$(ls shell/release/FreePlayer-iPhone-$VER-ios-arm64-unsigned-* 2>/dev/null || true)
           gh release create "$GITHUB_REF_NAME" \
             --title "FreePlayer $GITHUB_REF_NAME" \
