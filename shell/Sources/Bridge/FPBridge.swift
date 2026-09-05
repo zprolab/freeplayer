@@ -407,7 +407,8 @@ enum FPBridge {
 
     private static func eqKey(_ suffix: String) -> String { "eq.\(suffix)" }
 
-    private static func eqStateDict() -> [String: Any] {
+    // internal (not private): EqSettingsTests round-trips saveEq → eqStateDict
+    static func eqStateDict() -> [String: Any] {
         var gains: [NSNumber] = []
         if let raw = Database.getSetting(eqKey("gains"), nil) as? String {
             for p in raw.components(separatedBy: ",") {
@@ -420,16 +421,16 @@ enum FPBridge {
         let enabledRaw = (Database.getSetting(eqKey("enabled"), nil) as? String) ?? "0"
         return [
             "enabled": enabledRaw == "1" || enabledRaw == "true",
-            "preset": (Database.getSetting(eqKey("preset"), nil) as? String) ?? "平坦",
+            "preset": (Database.getSetting(eqKey("preset"), nil) as? String) ?? "Flat",
             "gains": gains,
         ]
     }
 
-    private static func saveEq(_ d: [String: Any]) {
+    static func saveEq(_ d: [String: Any]) {
         let gains = (d["gains"] as? [Any] ?? []).map { String(format: "%.1f", ($0 as? NSNumber)?.doubleValue ?? 0) }
         let tx = Database.beginTransaction()
         _ = Database.setSetting(eqKey("enabled"), ((d["enabled"] as? NSNumber)?.boolValue ?? false) ? "1" : "0")
-        _ = Database.setSetting(eqKey("preset"), d["preset"] as? String ?? "自定义")
+        _ = Database.setSetting(eqKey("preset"), d["preset"] as? String ?? "Custom")
         _ = Database.setSetting(eqKey("gains"), gains.joined(separator: ","))
         if tx { _ = Database.commitTransaction() }
     }
