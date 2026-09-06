@@ -345,11 +345,12 @@ body {
   padding-bottom: var(--player-height);
 }
 
-/* Unified: the light content card carries its own background so the rounded
-   corner gap shows the dark window chrome (the L-shaped frame) instead of
-   being erased by an identical color underneath */
+/* Unified: the light content card floats over the dark L-frame. Paint the
+   area behind the card with the frame color so the card's rounded top-left
+   corner gap matches — the native window background never shows through
+   the opaque webview, so this must be done in CSS. */
 .ui-mode-unified .main-content {
-  background: transparent;
+  background: var(--gl-sidebar-bg);
 }
 
 .top-bar {
