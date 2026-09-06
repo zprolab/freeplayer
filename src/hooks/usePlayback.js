@@ -48,6 +48,12 @@ export function usePlayback() {
         audioRef.current.src = `media://${encodeURIComponent(track.file_path)}`;
         const gainDb = track.replaygain_gain || 0;
         audioEngine.setGain(gainDb);
+        // Wire the audio graph BEFORE play(): the EQ must sit in the
+        // playback path in every view (not only while a visualizer is
+        // mounted), and re-routing a playing element into the graph
+        // mid-flight audibly hiccups. connect() is a no-op once wired.
+        audioEngine.connect(audioRef.current);
+        audioEngine.resume();
         try {
           await audioRef.current.play();
           const sessionId = await window.freeplayer.playStart(track.id);
@@ -72,6 +78,9 @@ export function usePlayback() {
       return;
     }
     if (audio.paused) {
+      // Same pre-play wiring as playTrack — see the comment there.
+      audioEngine.connect(audio);
+      audioEngine.resume();
       audio.play().catch(console.error);
     } else {
       audio.pause();
@@ -124,7 +133,7 @@ export function usePlayback() {
     const v = Math.min(Math.max(vol, 0), 1);
     audioRef.current.volume = v;
     // Element volume is the fallback; once the Web Audio graph is connected
-    // (Now Playing visualizer) WebKit ignores it, so the engine's gain node
+    // (wired at play start) WebKit ignores it, so the engine's gain node
     // carries the user volume from then on.
     audioEngine.setVolume(v);
     dispatch({ type: 'SET_VOLUME', payload: v });
@@ -175,7 +184,13 @@ export function usePlayback() {
     };
     const onDurationChange = () => dispatch({ type: 'SET', payload: { duration: audio.duration || 0 } });
     const onEnded = () => playHandlersRef.current.handleNext();
-    const onPlay = () => dispatch({ type: 'SET_IS_PLAYING', payload: true });
+    const onPlay = () => {
+      // Belt-and-braces for play paths that bypass the handlers above
+      // (repeat-one, other tabs): the graph must exist on every play.
+      audioEngine.connect(audio);
+      audioEngine.resume();
+      dispatch({ type: 'SET_IS_PLAYING', payload: true });
+    };
     const onPause = () => dispatch({ type: 'SET_IS_PLAYING', payload: false });
     const onError = () => {
       const err = audio.error;
