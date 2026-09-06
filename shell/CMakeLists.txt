@@ -22,6 +22,13 @@ set(SWIFT_SOURCES
   Sources/Bridge/BridgeHandler.swift
   Sources/Bridge/BridgeScript.swift
   Sources/Bridge/FPBridge.swift
+  Sources/Bridge/FPBridge+EQ.swift
+  Sources/Bridge/FPBridge+Import.swift
+  Sources/Bridge/FPBridge+Media.swift
+  Sources/Bridge/FPBridge+Network.swift
+  Sources/Bridge/FPBridge+Playback.swift
+  Sources/Bridge/FPBridge+Playlists.swift
+  Sources/Bridge/FPBridge+Tracks.swift
   Sources/Bridge/HttpClient.swift
   Sources/Bridge/ImportPipeline.swift
   Sources/UI/AppContext.swift
