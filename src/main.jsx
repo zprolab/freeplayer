@@ -3,7 +3,7 @@ import App from './App';
 import EqWindow from './components/EqWindow';
 import OnboardingPage from './components/OnboardingPage';
 import { PlayerProvider } from './context/PlayerContext';
-import './App.css';
+import './styles/index.css';
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
 const view = new URLSearchParams(window.location.search).get('view');

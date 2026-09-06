@@ -1,0 +1,26 @@
+/* Toggle Switch */
+.fp-toggle { position: relative; display: inline-block; width: 58px; height: 30px; flex-shrink: 0; vertical-align: middle; }
+.fp-toggle input { opacity: 0; width: 0; height: 0; position: absolute; }
+.fp-toggle-track { position: absolute; inset: 0; border-radius: 4px; background: #d1d1d6; transition: background 0.2s; }
+.fp-toggle-symbol { position: absolute; top: 0; height: 100%; width: 26px; display: flex; align-items: center; justify-content: center; color: #fff; opacity: 0.9; pointer-events: none; transition: opacity 0.15s; }
+.fp-toggle-symbol svg { width: 13px; height: 13px; }
+.fp-toggle-symbol--x { right: 3px; }
+.fp-toggle-symbol--o { left: 3px; opacity: 0; }
+.fp-toggle-thumb { position: absolute; top: 4px; left: 4px; width: 22px; height: 22px; border-radius: 2px; background: #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25); transition: transform 0.2s; }
+.fp-toggle input:checked + .fp-toggle-track { background: #e24329; }
+.fp-toggle input:checked + .fp-toggle-track + .fp-toggle-symbol--x { opacity: 0; }
+.fp-toggle input:checked + .fp-toggle-track + .fp-toggle-symbol--x + .fp-toggle-symbol--o { opacity: 0.9; }
+.fp-toggle input:checked + .fp-toggle-track + .fp-toggle-symbol--x + .fp-toggle-symbol--o + .fp-toggle-thumb { transform: translateX(28px); }
+.fp-toggle input:disabled + .fp-toggle-track { opacity: 0.45; }
+.fp-toggle input:disabled + .fp-toggle-track + .fp-toggle-symbol { opacity: 0.3; }
+.fp-toggle input:disabled + .fp-toggle-track + .fp-toggle-symbol + .fp-toggle-symbol { opacity: 0.3; }
+.fp-toggle input:disabled + .fp-toggle-track + .fp-toggle-symbol + .fp-toggle-symbol + .fp-toggle-thumb { opacity: 0.45; }
+
+/* Segmented Control */
+.seg-control { display: inline-flex; border: 1px solid #dbdbdb; border-radius: 4px; background: #fff; overflow: hidden; height: 30px; box-sizing: border-box; }
+.seg-control-btn { border: none; background: transparent; padding: 0 14px; font-family: var(--font-ui); font-size: 12px; font-weight: 500; color: var(--gl-text-secondary); cursor: pointer; border-left: 1px solid var(--gl-border); border-radius: 2px; transition: background 0.15s, color 0.15s; margin-left: -1px; }
+.seg-control-btn:first-child { border-left: none; margin-left: 0; }
+.seg-control-btn:hover { background: var(--gl-border-light); }
+.seg-control-btn--active { background: var(--gl-orange); color: #fff; }
+.seg-control--disabled { opacity: 0.45; pointer-events: none; }
+

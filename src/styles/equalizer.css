@@ -1,0 +1,301 @@
+/* ── Equalizer window ──────────────────────────────────────────────────
+   Follows the main window's design system: light content background,
+   white card, GitLab orange accent, UI font with mono for readouts.
+   Fader caps and the live response curve share one coordinate space —
+   geometry strips (readout / travel / freq) are sized by the React
+   component via --eq-* custom properties. */
+.eq-root {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 620px;
+  margin: 0 auto;
+  min-height: 100vh;
+  /* top inset clears the traffic lights of the hidden-titlebar window */
+  padding: 32px 20px 12px;
+  display: flex;
+  flex-direction: column;
+  background: var(--gl-content-bg);
+  color: var(--gl-text-primary);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  user-select: none;
+}
+
+/* ── Header: title + status badge + enable toggle ──
+   No -webkit-app-region here: WebKit turns the strip into a window drag
+   area that swallows clicks on the toggle. */
+.eq-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+.eq-heading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.eq-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--gl-text-primary);
+  letter-spacing: -0.01em;
+}
+.eq-badge {
+  font-size: 11px;
+  font-weight: 500;
+  font-family: var(--font-mono);
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: #f0f0f3;
+  color: var(--gl-text-tertiary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: background 0.15s, color 0.15s;
+}
+.eq-badge--on {
+  background: var(--gl-orange-light);
+  color: var(--gl-orange);
+}
+.eq-enable {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+  font-size: 13px;
+  color: var(--gl-text-secondary);
+}
+
+/* ── Card: response curve + fader columns on one face ── */
+.eq-card {
+  border: 1px solid var(--gl-border);
+  border-radius: var(--gl-radius-md);
+  background: var(--gl-white);
+  box-shadow: var(--gl-shadow-sm);
+  padding: 8px 12px;
+}
+.eq-canvas { position: relative; transition: opacity 0.18s ease; }
+/* bypassed: the face dims but the faders stay usable for pre-adjusting */
+.eq-card--off .eq-canvas { opacity: 0.45; }
+
+/* scope grid + response curve, aligned to the slot band only */
+.eq-scope {
+  position: absolute;
+  top: var(--eq-readout, 16px);
+  left: 0;
+  width: 100%;
+  height: var(--eq-travel, 152px);
+  overflow: hidden;
+  pointer-events: none;
+}
+.eq-grid { stroke: #ececef; stroke-width: 1; }
+.eq-grid--v { stroke: #f2f2f4; }
+.eq-grid--edge { stroke: #e0e0e3; }
+.eq-grid--zero { stroke: #d3d3d8; }
+.eq-scope-line,
+.eq-scope-fill { opacity: 0; transition: opacity 0.18s ease; }
+.eq-scope--live .eq-scope-line,
+.eq-scope--live .eq-scope-fill { opacity: 1; }
+.eq-scope-line {
+  fill: none;
+  stroke: var(--gl-orange);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+.eq-scope-fill { fill: var(--gl-orange-light); }
+
+/* ── Column: value strip / slot / frequency label ── */
+.eq-cols { display: flex; }
+.eq-col {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.eq-readout {
+  height: var(--eq-readout, 16px);
+  line-height: var(--eq-readout, 16px);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  color: var(--gl-text-tertiary);
+  transition: color 0.15s;
+}
+.eq-readout--hot { color: var(--gl-orange); font-weight: 600; }
+.eq-col:has(.eq-slot:focus-within) .eq-readout { color: var(--gl-text-primary); }
+.eq-slot {
+  position: relative;
+  width: 100%;
+  height: var(--eq-travel, 152px);
+  cursor: pointer;
+  touch-action: none;
+}
+.eq-rail {
+  position: absolute;
+  left: 50%; top: 0; bottom: 0;
+  width: 4px;
+  transform: translateX(-50%);
+  border-radius: 2px;
+  background: var(--gl-border-light);
+}
+/* center-to-cap segment, positioned by the component like the cap */
+.eq-fill {
+  position: absolute;
+  left: 50%;
+  width: 4px;
+  transform: translateX(-50%);
+  border-radius: 2px;
+  background: var(--gl-orange);
+  opacity: 0.4;
+}
+.eq-cap {
+  position: absolute;
+  left: 50%;
+  z-index: 2;
+  width: 28px;
+  height: var(--eq-thumb, 14px);
+  transform: translateX(-50%);
+  border-radius: var(--gl-radius-sm);
+  background: var(--gl-white);
+  border: 1px solid #c9c9ce;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+  pointer-events: none;
+  transition: border-color 0.12s, box-shadow 0.12s;
+}
+.eq-cap::after {
+  content: '';
+  position: absolute;
+  left: 50%; top: 3px; bottom: 3px;
+  width: 2px;
+  transform: translateX(-50%);
+  border-radius: 1px;
+  background: #b9b9c0;
+  transition: background 0.12s;
+}
+.eq-cap--hot { border-color: var(--gl-orange); }
+.eq-cap--hot::after { background: var(--gl-orange); }
+.eq-slot:hover .eq-cap { border-color: #a9a9b0; }
+.eq-slot:focus-within .eq-cap {
+  border-color: var(--gl-orange);
+  box-shadow: 0 0 0 3px var(--gl-orange-light), 0 1px 3px rgba(0, 0, 0, 0.15);
+}
+.eq-slider {
+  position: absolute;
+  inset: 0;
+  -webkit-appearance: none;
+  appearance: none;
+  writing-mode: vertical-lr;
+  direction: rtl;
+  background: transparent;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+  touch-action: none;
+}
+.eq-freq {
+  height: var(--eq-freq, 14px);
+  line-height: var(--eq-freq, 14px);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--gl-text-tertiary);
+}
+
+/* ── Preset buttons ── */
+.eq-presets {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+.eq-chip {
+  flex: 1 1 0;
+  min-width: 0;
+  height: 26px;
+  padding: 0 8px;
+  font-family: var(--font-ui);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--gl-text-secondary);
+  background: var(--gl-white);
+  border: 1px solid var(--gl-border);
+  border-radius: var(--gl-radius-sm);
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: all 0.12s ease;
+}
+.eq-chip:hover {
+  color: var(--gl-text-primary);
+  background: #f5f5f5;
+  border-color: #ccc;
+}
+.eq-chip--active {
+  color: #fff;
+  background: var(--gl-orange);
+  border-color: var(--gl-orange);
+}
+.eq-chip--active:hover {
+  background: var(--gl-orange-hover);
+  border-color: var(--gl-orange-hover);
+}
+.eq-chip:focus-visible {
+  outline: 2px solid var(--gl-orange);
+  outline-offset: 1px;
+}
+
+/* ── In-app EQ sheet (iOS) ──
+   iOS is a single-window app with no native EQ window, so EqWindow renders
+   in a modal sheet; macOS keeps the separate native window via openEq. */
+.eq-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  animation: fadeIn 0.15s ease;
+}
+.eq-sheet {
+  position: relative;
+  width: 100%;
+  max-width: 620px;
+  max-height: 80vh;
+  overflow-y: auto;
+  background: var(--gl-content-bg);
+  border-radius: var(--gl-radius-lg);
+  box-shadow: var(--gl-shadow-xl);
+  animation: slideUp 0.2s ease;
+}
+/* embedded: no hidden-titlebar traffic lights to clear */
+.eq-sheet .eq-root {
+  min-height: auto;
+  padding-top: 12px;
+}
+.eq-sheet-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 1;
+  background: var(--gl-white);
+  border: 1px solid var(--gl-border);
+}
+
+/* ── Equalizer entry button ── */
+.eq-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 30px; height: 30px; border-radius: var(--gl-radius-sm);
+  background: transparent; border: 1px solid var(--gl-border);
+  color: var(--gl-text-tertiary); cursor: pointer;
+  transition: all 0.12s;
+  font-family: var(--font-ui);
+}
+.eq-btn:hover { color: var(--gl-text-primary); border-color: var(--gl-border-dark); background: var(--gl-border-light); }
+.eq-btn--active { color: var(--gl-orange); border-color: var(--gl-orange); }
+

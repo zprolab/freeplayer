@@ -1,0 +1,239 @@
+/* ═══════════════════════════════════════════════════════════════════
+   Responsive — 平板/手机（spec: 2026-08-11-responsive-design.md）
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* MobileTabBar: 桌面与平板隐藏 */
+.mobile-tabbar {
+  display: none;
+}
+
+@media (max-width: 767px) {
+  /* The native iPhone shell draws edge-to-edge; reserve the notch and home
+     indicator areas without changing the desktop/iPad layout. */
+  .app { padding-top: env(safe-area-inset-top, 0px); }
+  .mobile-tabbar {
+    display: flex;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: calc(56px + env(safe-area-inset-bottom, 0px));
+    background: var(--gl-white);
+    border-top: 1px solid var(--gl-border);
+    z-index: 200;
+    justify-content: space-around;
+    align-items: center;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  .mobile-tabbar-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    background: none;
+    border: none;
+    color: var(--gl-text-tertiary);
+    font-size: 10px;
+    padding: 6px 12px;
+    cursor: pointer;
+    min-width: 56px;
+  }
+  .mobile-tabbar-item--active {
+    color: var(--gl-orange);
+  }
+  .mobile-tabbar-icon svg {
+    width: 20px;
+    height: 20px;
+  }
+  .mobile-tabbar-label {
+    white-space: nowrap;
+  }
+
+  /* 侧栏隐藏 → 底部标签栏替代 */
+  .sidebar { display: none; }
+
+  /* PlayerBar 改为贴底（侧栏消失）+ 让出标签栏高度 */
+  .player-bar {
+    left: 0;
+    bottom: calc(56px + env(safe-area-inset-bottom, 0px));
+  }
+
+  /* 主内容让出底部两段（player + tabbar） */
+  .main-content {
+    padding-bottom: calc(var(--player-height) + 56px + env(safe-area-inset-bottom, 0px));
+  }
+}
+
+/* 播放列表 chips：桌面与平板隐藏 */
+.playlist-chips {
+  display: none;
+}
+
+@media (max-width: 767px) {
+  .playlist-chips {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    padding: 10px 16px;
+    -webkit-overflow-scrolling: touch;
+    flex-shrink: 0;
+  }
+  .playlist-chip {
+    flex-shrink: 0;
+    background: var(--gl-bg-elevated, rgba(255,255,255,0.06));
+    border: 1px solid var(--gl-border-light);
+    border-radius: 16px;
+    color: var(--gl-text-secondary);
+    font-size: 12px;
+    padding: 6px 14px;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .playlist-chip--active {
+    background: var(--gl-orange);
+    border-color: var(--gl-orange);
+    color: #fff;
+  }
+}
+
+/* Top bar 手机适配：Import 纯图标 + 搜索框占满 */
+@media (max-width: 767px) {
+  .top-bar {
+    height: auto;
+    min-height: 108px;
+    padding: 10px 12px 12px;
+    flex-wrap: wrap;
+    align-content: center;
+    row-gap: 10px;
+  }
+  .top-bar-left {
+    order: 1;
+    flex: 0 0 100%;
+    width: 100%;
+    min-width: 0;
+    gap: 8px;
+  }
+  .top-bar-right {
+    order: 2;
+    flex: 0 0 100%;
+    width: 100%;
+    min-width: 0;
+    gap: 8px;
+  }
+}
+
+/* 曲目列表：表 → 卡片行（方案 B 紧凑行） */
+@media (max-width: 767px) {
+  .data-table {
+    border-collapse: separate;
+    border-spacing: 0 8px;
+  }
+  .data-table thead { display: none; }
+  .data-table tbody { display: block; }
+  .data-table tr {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    background: var(--gl-bg-elevated, #f0f0f3);
+    border-radius: 10px;
+    margin: 0 12px 8px;
+    padding: 8px 12px;
+  }
+  .data-table tr.track-row--active {
+    background: var(--gl-blue-light) !important;
+  }
+  .data-table tr.track-row:hover {
+    background: #e7e7eb;
+  }
+  .data-table td { border: none; padding: 2px 0; }
+
+  /* 隐藏专辑/日期列 */
+  .data-table td.cell-album,
+  .data-table td.cell-date { display: none; }
+
+  /* 两行布局：行1 = 序号+标题+时长/操作；行2 = 艺人 */
+  .data-table td.cell-index { order: 1; width: 24px; min-width: 24px; flex: 0 0 auto; }
+  .data-table td.cell-title { order: 2; flex: 1; min-width: 0; }
+  .data-table td.cell-duration { order: 3; flex: 0 0 auto; margin-left: 8px; }
+  .data-table td.cell-action { order: 4; flex: 0 0 auto; margin-left: 4px; }
+  .data-table td.cell-artist {
+    order: 5;
+    flex-basis: 100%;
+    padding-left: 32px; /* 对齐标题缩进 */
+    font-size: 12px;
+    color: var(--gl-text-tertiary);
+  }
+
+  /* 触控行高 + 标题字号 */
+  .data-table tr { min-height: calc(56px + env(safe-area-inset-bottom, 0px)); }
+  .data-table .track-title { font-size: 14px; }
+  .data-table .cell-action .btn-icon { width: 36px; height: 36px; }
+}
+
+/* PlayerBar：更大的触控目标，紧凑布局 */
+@media (max-width: 767px) {
+  .player-bar { height: auto; min-height: var(--player-height); }
+  .player-progress-track { height: 4px; }
+  .player-progress-track:hover { height: 4px; margin-top: 0; }
+  .player-inner { padding: 6px 10px; gap: 6px; }
+  .player-track-info { flex: 0 1 112px; min-width: 0; width: auto; max-width: 112px; gap: 7px; }
+  .player-cover { width: 40px; height: 40px; }
+  .player-controls { gap: 4px; min-width: 116px; }
+  .player-controls .ctrl-btn { width: 38px; height: 38px; }
+  .player-controls .ctrl-btn--play { width: 44px; height: 44px; }
+  .player-title { font-size: 13px; }
+  .player-artist { font-size: 11px; }
+  /* 手机下收窄 EQ/播放模式/时间，仅隐藏音量条 */
+  .player-extras { width: auto; min-width: 0; flex: 0 0 auto; gap: 3px; }
+  .player-time { display: none; }
+  .play-mode-btns { gap: 0; }
+  .volume-control { display: none; }
+}
+
+/* Modal：手机下全宽适配并盖过底部 Tab Bar */
+@media (max-width: 767px) {
+  .modal { width: 100% !important; max-width: 94vw !important; }
+  .modal-overlay { padding: 12px; z-index: 300; }
+}
+
+/* Now Playing：手机纵向堆叠（cover 置顶居中，歌词面板下方可滚动） */
+@media (max-width: 767px) {
+  .now-playing { padding: 12px; }
+  .np-overview {
+    grid-template-columns: 1fr;
+    gap: 16px;
+    margin: 0;
+  }
+  .np-left {
+    align-items: center;
+    text-align: center;
+    width: 100%;
+  }
+  .np-cover { width: min(70vw, 320px); height: min(70vw, 320px); }
+  .np-info {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
+  }
+  .np-lyrics-pane { width: 100%; max-height: 45vh; }
+  .np-lyrics-pane .lyrics-container { min-height: 0; max-height: 45vh; }
+  .np-scope { min-height: 60vh; }
+}
+
+/* Settings / Plugins / Stats：手机防溢出 */
+@media (max-width: 767px) {
+  .settings { padding: 12px; }
+  .settings-section { padding: 14px; }
+  .playback-row { flex-wrap: wrap; gap: 8px; }
+  .volume-setting { width: 100%; }
+  .import-mode-options { flex-direction: column; }
+  .plugins-page { padding: 12px; }
+  .stats-grid { grid-template-columns: 1fr; }
+  .stats-cards { grid-template-columns: 1fr; }
+}
+
+/* 平板/小窗口：侧栏收窄（768–1023px），≥1024px 保持桌面布局 */
+@media (min-width: 768px) and (max-width: 1023px) {
+  :root { --sidebar-width: 180px; }
+}

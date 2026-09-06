@@ -1,0 +1,31 @@
+/* FreePlayer styles — split of the former App.css.
+   Order is load-bearing (cascade): keep @imports in this exact sequence. */
+
+@import './tokens.css';
+@import './base.css';
+@import './app-shell.css';
+@import './sidebar.css';
+@import './main-content.css';
+@import './buttons.css';
+@import './data-table.css';
+@import './player-bar.css';
+@import './now-playing.css';
+@import './stats.css';
+@import './modal.css';
+@import './empty-state.css';
+@import './overlay-menu.css';
+@import './scrollbar.css';
+@import './selection.css';
+@import './range.css';
+@import './edit-form.css';
+@import './settings.css';
+@import './play-mode.css';
+@import './sidebar-playlists.css';
+@import './playlist-submenu.css';
+@import './lyrics.css';
+@import './immersive.css';
+@import './controls.css';
+@import './equalizer.css';
+@import './plugins.css';
+@import './onboarding.css';
+@import './responsive.css';

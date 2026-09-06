@@ -1,0 +1,37 @@
+/* ═══════════════════════════════════════════════════════════════════
+   Play Mode Buttons — PlayerBar (compact)
+   ═══════════════════════════════════════════════════════════════════ */
+
+.play-mode-btns {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+}
+
+.play-mode-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 26px;
+  border: none;
+  background: transparent;
+  color: var(--gl-text-tertiary);
+  cursor: pointer;
+  border-radius: var(--gl-radius-sm);
+  transition: color 0.12s, background 0.12s;
+}
+
+.play-mode-btn:hover {
+  color: var(--gl-text-secondary);
+  background: var(--gl-border-light);
+}
+
+.play-mode-btn--active {
+  color: var(--gl-orange);
+}
+
+.play-mode-btn--active:hover {
+  color: var(--gl-orange-hover);
+}
+

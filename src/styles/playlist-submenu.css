@@ -1,0 +1,29 @@
+/* ═══════════════════════════════════════════════════════════════════
+   Playlist Submenu
+   ═══════════════════════════════════════════════════════════════════ */
+
+.context-menu-divider {
+  height: 1px;
+  background: var(--gl-border-light);
+  margin: 4px;
+}
+
+.submenu-empty {
+  padding: 8px 12px;
+  font-size: 12px;
+  color: var(--gl-text-tertiary);
+}
+
+.submenu-new {
+  color: var(--gl-orange);
+}
+
+.submenu-new:hover {
+  background: var(--gl-orange-light) !important;
+  color: var(--gl-orange-hover) !important;
+}
+
+.playlist-submenu {
+  min-width: 180px;
+}
+

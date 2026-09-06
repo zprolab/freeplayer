@@ -1,0 +1,46 @@
+/* ═══════════════════════════════════════════════════════════════════
+   App Shell
+   ═══════════════════════════════════════════════════════════════════ */
+
+.app {
+  display: flex;
+  height: 100%;
+  overflow: hidden;
+}
+
+.app-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  gap: 16px;
+  background: var(--gl-darker);
+  color: var(--gl-text-inverse);
+}
+
+.loading-spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid var(--gl-border-dark);
+  border-top-color: var(--gl-text-inverse);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
+.loading-logo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 8px;
+}
+
+.loading-text {
+  font-size: 13px;
+  color: var(--gl-text-tertiary);
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+

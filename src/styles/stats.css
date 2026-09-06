@@ -1,0 +1,166 @@
+/* ═══════════════════════════════════════════════════════════════════
+   Stats View
+   ═══════════════════════════════════════════════════════════════════ */
+
+.stats {
+  padding: 24px;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.stats-loading {
+  display: flex;
+  justify-content: center;
+  padding: 80px 0;
+}
+
+/* Stat cards */
+.stats-cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin-bottom: 32px;
+}
+
+.stat-card {
+  background: var(--gl-white);
+  border: 1px solid var(--gl-border);
+  border-radius: var(--gl-radius-md);
+  padding: 20px;
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  transition: box-shadow 0.15s ease;
+}
+
+.stat-card:hover {
+  box-shadow: var(--gl-shadow-sm);
+}
+
+.stat-card-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--gl-radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.stat-card-icon--time {
+  background: var(--gl-orange-light);
+  color: var(--gl-orange);
+}
+
+.stat-card-icon--plays {
+  background: var(--gl-blue-light);
+  color: var(--gl-blue);
+}
+
+.stat-card-icon--unique {
+  background: var(--gl-green-light);
+  color: var(--gl-green);
+}
+
+.stat-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.stat-card-value {
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--gl-text-primary);
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+
+.stat-card-label {
+  font-size: 12px;
+  color: var(--gl-text-secondary);
+}
+
+/* Stats grid */
+.stats-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  margin-bottom: 24px;
+}
+
+.stats-panel {
+  background: var(--gl-white);
+  border: 1px solid var(--gl-border);
+  border-radius: var(--gl-radius-md);
+  overflow: hidden;
+}
+
+.stats-panel--full {
+  grid-column: 1 / -1;
+  margin-bottom: 20px;
+}
+
+.panel-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--gl-text-primary);
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--gl-border);
+  letter-spacing: -0.01em;
+}
+
+.panel-empty {
+  padding: 40px 20px;
+  text-align: center;
+  color: var(--gl-text-tertiary);
+  font-size: 13px;
+}
+
+/* Daily chart */
+.daily-chart {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  padding: 20px 20px 4px;
+  height: 160px;
+}
+
+.chart-bar-group {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  height: 100%;
+}
+
+.chart-bar-wrapper {
+  flex: 1;
+  width: 100%;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.chart-bar {
+  width: 70%;
+  max-width: 24px;
+  background: var(--gl-blue);
+  border-radius: 3px 3px 0 0;
+  min-height: 2px;
+  transition: background 0.12s;
+}
+
+.chart-bar:hover {
+  background: var(--gl-purple);
+}
+
+.chart-label {
+  font-size: 9px;
+  color: var(--gl-text-tertiary);
+  text-align: center;
+  white-space: nowrap;
+  writing-mode: horizontal-tb;
+}
+

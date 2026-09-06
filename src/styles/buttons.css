@@ -1,0 +1,67 @@
+/* ═══════════════════════════════════════════════════════════════════
+   Buttons
+   ═══════════════════════════════════════════════════════════════════ */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: var(--gl-radius-sm);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: all 0.12s ease;
+  white-space: nowrap;
+  -webkit-app-region: no-drag;
+}
+
+.btn-primary {
+  background: var(--gl-orange);
+  color: #fff;
+  border-color: var(--gl-orange);
+}
+
+.btn-primary:hover {
+  background: var(--gl-orange-hover);
+  border-color: var(--gl-orange-hover);
+}
+
+.btn-secondary {
+  background: var(--gl-white);
+  color: var(--gl-text-primary);
+  border-color: var(--gl-border);
+}
+
+.btn-secondary:hover {
+  background: #f5f5f5;
+  border-color: #ccc;
+}
+
+.btn-lg {
+  padding: 10px 24px;
+  font-size: 14px;
+  border-radius: var(--gl-radius-md);
+}
+
+.btn-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  border-radius: var(--gl-radius-sm);
+  color: var(--gl-text-secondary);
+  transition: background 0.12s, color 0.12s;
+}
+
+.btn-icon:hover {
+  background: var(--gl-border-light);
+  color: var(--gl-text-primary);
+}
+

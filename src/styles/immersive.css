@@ -1,0 +1,466 @@
+/* ═══════════════════════════════════════════════════════════════════
+   Immersive Mode — Full-window Lyrics Experience
+   ═══════════════════════════════════════════════════════════════════ */
+
+.immersive-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 500;
+  display: flex;
+  flex-direction: column;
+  animation: immersiveIn 0.35s cubic-bezier(0.22, 0.1, 0, 1);
+  overflow: hidden;
+}
+
+@keyframes immersiveIn {
+  from { opacity: 0; transform: scale(1.02); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+/* Background layer with dynamic color */
+.immersive-bg {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  background: #0d0d10;
+}
+.immersive-bg-img {
+  position: absolute;
+  inset: -40px;
+  width: calc(100% + 80px);
+  height: calc(100% + 80px);
+  object-fit: cover;
+  filter: blur(48px) brightness(0.65) saturate(1.15);
+  transform: scale(1.05);
+  pointer-events: none;
+}
+.immersive-bg-tint {
+  position: absolute;
+  inset: 0;
+  background: rgba(10, 10, 13, 0.42);
+}
+.immersive-bg-glow {
+  position: absolute;
+  inset: 0;
+  transition: background 1.2s ease;
+}
+.immersive-bg-glow--fallback {
+  background:
+    radial-gradient(ellipse 80% 60% at 50% 40%, rgba(226, 67, 41, 0.28) 0%, transparent 70%),
+    radial-gradient(ellipse 50% 80% at 20% 20%, rgba(226, 67, 41, 0.16) 0%, transparent 60%),
+    radial-gradient(ellipse 40% 60% at 80% 80%, rgba(226, 67, 41, 0.10) 0%, transparent 50%);
+}
+
+/* ── Top bar ── */
+
+.immersive-top {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 24px 28px 0;
+  flex-shrink: 0;
+}
+
+.immersive-cover-wrap {
+  width: 64px;
+  height: 64px;
+  border-radius: 6px;
+  overflow: hidden;
+  flex-shrink: 0;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.immersive-cover {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.immersive-cover--spin {
+  animation: coverSpin 20s linear infinite;
+}
+
+.immersive-cover-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 255, 255, 0.1);
+}
+
+.immersive-track-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.immersive-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.9);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  letter-spacing: -0.01em;
+}
+
+.immersive-artist {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.45);
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.immersive-top-spacer {
+  flex: 1;
+}
+
+/* ── Zoom controls ── */
+
+.immersive-zoom {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--gl-radius-sm);
+  padding: 2px;
+}
+
+.immersive-zoom-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.45);
+  cursor: pointer;
+  border-radius: 3px;
+  transition: color 0.15s, background 0.15s;
+}
+
+.immersive-zoom-btn:hover:not(:disabled) {
+  color: rgba(255, 255, 255, 0.85);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.immersive-zoom-btn:disabled {
+  opacity: 0.2;
+  cursor: default;
+}
+
+.immersive-zoom-label {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.35);
+  min-width: 36px;
+  text-align: center;
+}
+
+/* ── Close button ── */
+
+.immersive-close-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(255, 255, 255, 0.5);
+  cursor: pointer;
+  border-radius: 50%;
+  transition: color 0.15s, background 0.15s, border-color 0.15s;
+}
+
+.immersive-close-btn:hover {
+  color: rgba(255, 255, 255, 0.9);
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+/* ── Lyrics center ── */
+
+.immersive-lyrics {
+  position: relative;
+  z-index: 2;
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 40px 0;
+  scroll-behavior: smooth;
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0%,
+    rgba(0, 0, 0, 1) 10%,
+    rgba(0, 0, 0, 1) 90%,
+    transparent 100%
+  );
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0%,
+    rgba(0, 0, 0, 1) 10%,
+    rgba(0, 0, 0, 1) 90%,
+    transparent 100%
+  );
+}
+
+.immersive-line {
+  display: flex;
+  align-items: baseline;
+  gap: 18px;
+  padding: 6px 48px;
+  transition: all 0.5s cubic-bezier(0.25, 0.1, 0.25, 1);
+}
+
+.immersive-time {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.1);
+  width: 40px;
+  flex-shrink: 0;
+  text-align: right;
+  font-family: var(--font-mono);
+  transition: color 0.5s cubic-bezier(0.25, 0.1, 0.25, 1);
+}
+
+.immersive-text {
+  font-family: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei",
+    "Noto Sans CJK SC", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-weight: 400;
+  color: rgba(255, 255, 255, 0.2);
+  line-height: 1.55;
+  letter-spacing: 0.02em;
+  transition: all 0.5s cubic-bezier(0.25, 0.1, 0.25, 1);
+}
+
+/* Past */
+.immersive-line--past .immersive-text {
+  color: rgba(255, 255, 255, 0.12);
+}
+
+.immersive-line--past .immersive-time {
+  color: rgba(255, 255, 255, 0.04);
+}
+
+/* Distant future */
+.immersive-line--distant .immersive-text {
+  color: rgba(255, 255, 255, 0.06);
+}
+
+.immersive-line--distant .immersive-time {
+  /* Same dimming level as the distant lyric text */
+  color: rgba(255, 255, 255, 0.06);
+}
+
+/* Active line — the centerpiece */
+.immersive-line--active {
+  padding-top: 14px;
+  padding-bottom: 14px;
+}
+
+.immersive-line--active .immersive-text {
+  color: var(--np-accent);
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  text-shadow: 0 0 48px rgba(226, 67, 41, 0.25),
+               0 0 12px rgba(226, 67, 41, 0.1);
+  line-height: 1.4;
+}
+
+.immersive-line--active .immersive-time {
+  font-size: 12px;
+  color: rgba(226, 67, 41, 0.55);
+  font-weight: 500;
+}
+
+/* Active line side indicator */
+.immersive-line--active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 50%;
+  background: linear-gradient(to bottom, transparent, var(--np-accent) 30%, var(--np-accent) 70%, transparent);
+  border-radius: 0 3px 3px 0;
+  opacity: 0.7;
+}
+
+.immersive-line {
+  position: relative;
+}
+
+/* No lyrics */
+.immersive-no-lyrics {
+  position: relative;
+  z-index: 2;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 40px;
+}
+
+.immersive-no-lyrics-cover {
+  width: 160px;
+  height: 160px;
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5);
+  margin-bottom: 16px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.immersive-no-lyrics-cover-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.immersive-no-lyrics-cover-p {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 255, 255, 0.08);
+}
+
+.immersive-no-lyrics-title {
+  font-size: 22px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.8);
+  letter-spacing: -0.02em;
+  margin: 0;
+}
+
+.immersive-no-lyrics-artist {
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.35);
+  font-weight: 500;
+  margin: 0;
+}
+
+.immersive-no-lyrics-msg {
+  font-size: 16px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.25);
+  margin-top: 16px;
+}
+
+.immersive-no-lyrics-hint {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.15);
+  text-align: center;
+  max-width: 360px;
+  line-height: 1.6;
+}
+
+.immersive-no-lyrics-hint code {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  background: rgba(255, 255, 255, 0.06);
+  padding: 1px 6px;
+  border-radius: 3px;
+  color: rgba(255, 255, 255, 0.3);
+}
+
+/* ── Bottom bar: progress + controls ── */
+
+.immersive-bottom {
+  position: relative;
+  z-index: 2;
+  flex-shrink: 0;
+  padding: 0 48px 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.immersive-progress-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.immersive-progress-bar {
+  height: 4px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 2px;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  transition: height 0.15s;
+}
+
+.immersive-progress-bar:hover {
+  height: 6px;
+}
+
+.immersive-progress-fill {
+  height: 100%;
+  background: linear-gradient(to right, rgba(226, 67, 41, 0.8), var(--np-accent));
+  border-radius: inherit;
+  transition: width 0.2s linear;
+}
+
+.immersive-time-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.25);
+}
+
+.immersive-controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 32px;
+}
+
+.immersive-ctrl-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  border: none;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.5);
+  cursor: pointer;
+  border-radius: 50%;
+  transition: color 0.15s, background 0.15s, transform 0.15s;
+}
+
+.immersive-ctrl-btn:hover {
+  color: rgba(255, 255, 255, 0.85);
+  background: rgba(255, 255, 255, 0.06);
+  transform: scale(1.06);
+}
+
+.immersive-ctrl-btn--play {
+  width: 72px;
+  height: 72px;
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3);
+}
+
+.immersive-ctrl-btn--play:hover {
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+  transform: scale(1.08);
+}
+

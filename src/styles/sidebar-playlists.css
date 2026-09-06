@@ -1,0 +1,55 @@
+/* ═══════════════════════════════════════════════════════════════════
+   Sidebar Playlists
+   ═══════════════════════════════════════════════════════════════════ */
+
+.sidebar-playlists {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  -webkit-app-region: no-drag;
+}
+
+.sidebar-playlists-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 22px 2px;
+}
+
+.sidebar-playlists-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: #8c8c93;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.sidebar-playlists-add {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: none;
+  background: transparent;
+  color: #8c8c93;
+  cursor: pointer;
+  border-radius: var(--gl-radius-sm);
+  transition: color 0.12s, background 0.12s;
+}
+
+.sidebar-playlists-add:hover {
+  color: #d4d4d8;
+  background: var(--gl-sidebar-hover);
+}
+
+.sidebar-playlists-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px 10px 8px;
+  overflow-y: auto;
+  flex: 1;
+}
+

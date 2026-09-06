@@ -1,0 +1,161 @@
+/* ═══════════════════════════════════════════════════════════════════
+   Main Content Area
+   ═══════════════════════════════════════════════════════════════════ */
+
+.main-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  height: 100%;
+  background: var(--gl-content-bg);
+  padding-bottom: var(--player-height);
+}
+
+/* Unified: the light content card floats over the dark L-frame. Paint the
+   area behind the card with the frame color so the card's rounded top-left
+   corner gap matches — the native window background never shows through
+   the opaque webview, so this must be done in CSS. */
+.ui-mode-unified .main-content {
+  background: var(--gl-sidebar-bg);
+}
+
+.top-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 24px;
+  height: var(--topbar-height);
+  min-height: var(--topbar-height);
+  background: var(--gl-white);
+  color: var(--gl-text-primary);
+  border-bottom: 1px solid var(--gl-border);
+  -webkit-app-region: drag;
+  gap: 16px;
+}
+
+/* Unified mode: top bar joins the dark sidebar frame */
+.ui-mode-unified .top-bar {
+  background: var(--gl-sidebar-bg);
+  color: var(--gl-text-inverse);
+  border-bottom: none;
+}
+
+.top-bar-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.page-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--gl-text-primary);
+  letter-spacing: -0.01em;
+}
+
+.ui-mode-unified .page-title {
+  color: var(--gl-text-inverse);
+}
+
+.track-count-badge {
+  font-size: 11px;
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: var(--gl-blue-light);
+  color: var(--gl-blue);
+  font-family: var(--font-mono);
+}
+
+.ui-mode-unified .track-count-badge {
+  background: rgba(31, 117, 203, 0.14);
+  color: #8ab8f0;
+}
+
+.top-bar-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  -webkit-app-region: no-drag;
+}
+
+/* ── Search ── */
+
+.search-box {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.search-icon {
+  position: absolute;
+  left: 10px;
+  color: var(--gl-text-tertiary);
+  pointer-events: none;
+}
+
+.search-input {
+  width: 240px;
+  height: 32px;
+  padding: 0 32px 0 32px;
+  border: 1px solid var(--gl-border);
+  border-radius: var(--gl-radius-sm);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  color: var(--gl-text-primary);
+  background: var(--gl-white);
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.search-input::placeholder {
+  color: var(--gl-text-tertiary);
+}
+
+.ui-mode-unified .search-input {
+  border-color: var(--gl-border-dark);
+  color: var(--gl-text-inverse);
+  background: var(--gl-bg-elevated, rgba(255, 255, 255, 0.05));
+}
+
+.ui-mode-unified .search-input::placeholder {
+  color: rgba(255, 255, 255, 0.35);
+}
+
+.search-input:focus {
+  border-color: var(--gl-blue);
+  box-shadow: 0 0 0 3px rgba(31, 117, 203, 0.15);
+}
+
+.search-clear {
+  position: absolute;
+  right: 6px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--gl-text-tertiary);
+  display: flex;
+  align-items: center;
+  padding: 4px;
+  border-radius: 3px;
+}
+
+.search-clear:hover {
+  color: var(--gl-text-primary);
+  background: var(--gl-border-light);
+}
+
+.content-area {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  position: relative;
+}
+
+.ui-mode-unified .content-area {
+  border-top-left-radius: 14px;
+  /* background stays fixed while the content scrolls */
+  background: var(--gl-content-bg);
+}
+

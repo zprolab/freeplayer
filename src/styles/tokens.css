@@ -1,0 +1,64 @@
+/* ═══════════════════════════════════════════════════════════════════
+   FreePlayer — GitLab-Inspired Design System
+   ═══════════════════════════════════════════════════════════════════ */
+
+:root {
+  /* ── Core palette ── */
+  --gl-dark: #292b2f;
+  --gl-darker: #1f1f23;
+  --gl-darkest: #17171a;
+  --gl-sidebar-bg: #292b2f;
+  --gl-sidebar-hover: #34363b;
+  --gl-sidebar-active: #3a3c42;
+  --gl-content-bg: #fafafa;
+  --gl-white: #ffffff;
+  --gl-card-bg: #ffffff;
+
+  /* ── Text ── */
+  --gl-text-primary: #303030;
+  --gl-text-secondary: #737278;
+  --gl-text-tertiary: #999999;
+  --gl-text-inverse: #ceced0;
+
+  /* ── Borders ── */
+  --gl-border: #dbdbdb;
+  --gl-border-light: #e8e8e8;
+  --gl-border-dark: #3a3c42;
+
+  /* ── Accent colors ── */
+  --gl-orange: #e24329;
+  --gl-orange-hover: #c5361f;
+  --gl-orange-light: rgba(226, 67, 41, 0.08);
+  --gl-blue: #1f75cb;
+  --gl-blue-hover: #1a5ca1;
+  --gl-blue-light: rgba(31, 117, 203, 0.08);
+  --gl-green: #108548;
+  --gl-green-light: rgba(16, 133, 72, 0.08);
+  --gl-purple: #6e49ec;
+  --gl-red: #dd2c2c;
+  --gl-red-light: rgba(221, 44, 44, 0.08);
+
+  /* ── Shadows ── */
+  --gl-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.06);
+  --gl-shadow-md: 0 2px 8px rgba(0, 0, 0, 0.08);
+  --gl-shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.12);
+  --gl-shadow-xl: 0 16px 48px rgba(0, 0, 0, 0.16);
+
+  /* ── Radii ── */
+  --gl-radius-sm: 4px;
+  --gl-radius-md: 6px;
+  --gl-radius-lg: 8px;
+
+  /* ── Dialogs / popups — single shared width ── */
+  --gl-dialog-width: 680px;
+
+  /* ── Typography ── */
+  --font-ui: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', 'SF Mono', 'Cascadia Code', 'Consolas', monospace;
+
+  /* ── Layout ── */
+  --sidebar-width: 220px;
+  --player-height: 72px;
+  --topbar-height: calc(56px + env(safe-area-inset-bottom, 0px));
+}
+

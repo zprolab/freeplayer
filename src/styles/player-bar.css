@@ -1,0 +1,229 @@
+/* ═══════════════════════════════════════════════════════════════════
+   Player Bar
+   ═══════════════════════════════════════════════════════════════════ */
+
+.player-bar {
+  position: fixed;
+  bottom: 0;
+  left: var(--sidebar-width);
+  right: 0;
+  height: var(--player-height);
+  background: var(--gl-white);
+  border-top: 1px solid var(--gl-border);
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+}
+
+.player-bar--active {
+  border-top-color: var(--gl-border);
+}
+
+/* Progress track (thin line at top of player bar) */
+.player-progress-track {
+  height: 3px;
+  background: var(--gl-border-light);
+  cursor: pointer;
+  position: relative;
+  flex-shrink: 0;
+}
+
+.player-progress-track:hover {
+  height: 5px;
+  margin-top: -1px;
+}
+
+.player-progress-fill {
+  height: 100%;
+  background: var(--gl-orange);
+  border-radius: 0 2px 2px 0;
+  transition: width 0.15s linear;
+  position: relative;
+}
+
+.player-bar--active .player-progress-track:hover .player-progress-fill {
+  background: var(--gl-orange-hover);
+}
+
+.player-progress-thumb {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 10px;
+  height: 10px;
+  background: var(--gl-orange);
+  border-radius: 50%;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+
+.player-progress-track:hover .player-progress-thumb {
+  opacity: 1;
+}
+
+.player-inner {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  padding: 0 20px;
+  gap: 16px;
+}
+
+/* Track info (left) */
+.player-track-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 240px;
+  min-width: 180px;
+  max-width: 280px;
+}
+
+.player-cover {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--gl-radius-sm);
+  overflow: hidden;
+  flex-shrink: 0;
+  background: #f0f0f3;
+}
+
+.cover-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.cover-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--gl-text-tertiary);
+  background: #f0f0f3;
+}
+
+.player-meta {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.player-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--gl-text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.player-title--empty {
+  color: var(--gl-text-tertiary);
+  font-weight: 400;
+}
+
+.player-artist {
+  font-size: 11px;
+  color: var(--gl-text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Controls (center) */
+.player-controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  flex: 1;
+}
+
+.ctrl-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: transparent;
+  color: var(--gl-text-secondary);
+  cursor: pointer;
+  border-radius: var(--gl-radius-sm);
+  transition: color 0.12s, background 0.12s;
+}
+
+.ctrl-btn:hover {
+  color: var(--gl-text-primary);
+  background: var(--gl-border-light);
+}
+
+.ctrl-btn--play {
+  width: 40px;
+  height: 40px;
+  background: var(--gl-text-primary);
+  color: #fff;
+  border-radius: 50%;
+}
+
+.ctrl-btn--play:hover {
+  background: #000;
+  color: #fff;
+}
+
+/* Extras (right) */
+.player-extras {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 350px;
+  min-width: 320px;
+  justify-content: flex-end;
+}
+
+.player-time {
+  font-size: 11px;
+  color: var(--gl-text-tertiary);
+  white-space: nowrap;
+  letter-spacing: 0.02em;
+}
+
+.volume-control {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.volume-icon {
+  color: var(--gl-text-tertiary);
+  flex-shrink: 0;
+}
+
+.volume-slider {
+  -webkit-appearance: none;
+  width: 80px;
+  min-width: 60px;
+  flex-shrink: 0;
+  height: 4px;
+  background: var(--gl-border-light);
+  border-radius: 2px;
+  outline: none;
+  cursor: pointer;
+}
+
+.volume-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--gl-text-secondary);
+  cursor: pointer;
+  transition: background 0.12s;
+}
+
+.volume-slider::-webkit-slider-thumb:hover {
+  background: var(--gl-text-primary);
+}
+

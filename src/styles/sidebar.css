@@ -1,0 +1,189 @@
+/* ═══════════════════════════════════════════════════════════════════
+   Sidebar
+   ═══════════════════════════════════════════════════════════════════ */
+
+.sidebar {
+  width: var(--sidebar-width);
+  min-width: var(--sidebar-width);
+  height: 100%;
+  background: var(--gl-sidebar-bg);
+  display: flex;
+  flex-direction: column;
+  -webkit-app-region: drag;
+  padding-top: 40px;
+  border-right: 1px solid var(--gl-border-dark);
+}
+
+/* Unified mode: sidebar + top bar melt into one seamless L-shaped frame */
+.ui-mode-unified .sidebar {
+  border-right: none;
+}
+
+.sidebar-header {
+  padding: 0 16px 16px;
+  -webkit-app-region: drag;
+}
+
+.sidebar-logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--gl-text-inverse);
+  padding: 8px 0;
+}
+
+.sidebar-logo svg {
+  color: var(--gl-orange);
+  flex-shrink: 0;
+}
+
+.sidebar-title {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: #d4d4d8;
+}
+
+.sidebar-nav {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0 10px;
+  -webkit-app-region: no-drag;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: var(--gl-radius-sm);
+  border: none;
+  background: transparent;
+  color: var(--gl-text-inverse);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease;
+  width: 100%;
+  text-align: left;
+  -webkit-app-region: no-drag;
+}
+
+.nav-item:hover {
+  background: var(--gl-sidebar-hover);
+}
+
+.nav-item--active {
+  background: var(--gl-sidebar-active);
+  color: #ffffff;
+}
+
+.nav-item--active .nav-icon {
+  color: var(--gl-orange);
+}
+
+.nav-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  color: #8c8c93;
+  transition: color 0.12s ease;
+}
+
+.nav-label {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.nav-badge {
+  background: var(--gl-sidebar-hover);
+  color: #9d9da3;
+  font-size: 11px;
+  font-weight: 500;
+  padding: 1px 6px;
+  border-radius: 10px;
+  font-family: var(--font-mono);
+  min-width: 20px;
+  text-align: center;
+}
+
+.sidebar-footer {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 10px;
+  border-top: 1px solid var(--gl-border-dark);
+  -webkit-app-region: no-drag;
+}
+
+/* Sidebar collapsed: icon-only rail (48px via --sidebar-width cascade) */
+.app--sidebar-collapsed {
+  /* 72px: wide enough to fully contain the macOS traffic lights (~12-70px
+     from the window's left edge) so they stay over the rail when collapsed */
+  --sidebar-width: 72px;
+}
+
+.app--sidebar-collapsed .sidebar-title,
+.app--sidebar-collapsed .nav-label,
+.app--sidebar-collapsed .nav-badge,
+.app--sidebar-collapsed .sidebar-playlists {
+  display: none;
+}
+
+.app--sidebar-collapsed .sidebar-logo {
+  justify-content: center;
+  padding: 8px 0;
+}
+
+.app--sidebar-collapsed .sidebar-header {
+  padding: 0 0 8px;
+}
+
+.app--sidebar-collapsed .nav-item {
+  justify-content: center;
+  padding: 8px;
+}
+
+.sidebar-footer .nav-item {
+  flex: 1;
+}
+
+.sidebar-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
+  border: none;
+  border-radius: var(--gl-radius-sm);
+  background: transparent;
+  color: #8c8c93;
+  cursor: pointer;
+  transition: color 0.12s, background 0.12s;
+}
+
+.sidebar-toggle:hover {
+  color: #d4d4d8;
+  background: var(--gl-sidebar-hover);
+}
+
+.app--sidebar-collapsed .sidebar-footer {
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 0;
+}
+
+.app--sidebar-collapsed .sidebar-footer .nav-item {
+  width: 100%;
+  padding: 8px 0;
+}
+

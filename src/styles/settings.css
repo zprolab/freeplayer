@@ -1,0 +1,369 @@
+/* ═══════════════════════════════════════════════════════════════════
+   Settings Page
+   ═══════════════════════════════════════════════════════════════════ */
+
+.settings {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 24px 24px 40px;
+}
+
+.settings-section {
+  background: var(--gl-white);
+  border: 1px solid var(--gl-border);
+  border-radius: var(--gl-radius-md);
+  padding: 20px;
+  margin-bottom: 16px;
+}
+
+.settings-section--danger {
+  border-color: var(--gl-red);
+}
+
+.section-header {
+  margin-bottom: 16px;
+}
+
+.section-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--gl-text-primary);
+  margin-bottom: 2px;
+  letter-spacing: -0.01em;
+}
+
+.section-title--danger {
+  color: var(--gl-red);
+}
+
+.section-desc {
+  font-size: 12px;
+  color: var(--gl-text-secondary);
+  line-height: 1.5;
+}
+
+/* Import mode radio cards */
+.import-mode-options {
+  display: flex;
+  gap: 12px;
+}
+
+.import-mode-card {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px;
+  border: 2px solid var(--gl-border);
+  border-radius: var(--gl-radius-md);
+  cursor: pointer;
+  background: transparent;
+  transition: border-color 0.15s ease, background 0.15s ease;
+  font-family: var(--font-ui);
+  text-align: left;
+}
+
+.import-mode-card:hover {
+  border-color: #ccc;
+}
+
+.import-mode-card--selected {
+  border-color: var(--gl-orange);
+  background: var(--gl-orange-light);
+}
+
+.import-mode-card--selected:hover {
+  border-color: var(--gl-orange-hover);
+}
+
+.import-mode-radio {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 2px solid var(--gl-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: border-color 0.15s ease;
+}
+
+.import-mode-card--selected .import-mode-radio {
+  border-color: var(--gl-orange);
+}
+
+.import-mode-radio-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--gl-orange);
+  transform: scale(0);
+  transition: transform 0.15s ease;
+}
+
+.import-mode-card--selected .import-mode-radio-dot {
+  transform: scale(1);
+}
+
+.import-mode-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--gl-text-primary);
+  margin-bottom: 1px;
+}
+
+.import-mode-hint {
+  font-size: 11px;
+  color: var(--gl-text-secondary);
+}
+
+/* Library directory display */
+.library-dir-display {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  background: #fafafa;
+  border: 1px solid var(--gl-border-light);
+  border-radius: var(--gl-radius-sm);
+}
+
+.library-dir-icon {
+  color: var(--gl-text-tertiary);
+  flex-shrink: 0;
+}
+
+.library-dir-path {
+  font-size: 12px;
+  color: var(--gl-text-primary);
+  font-family: var(--font-mono);
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.library-dir-empty {
+  font-size: 12px;
+  color: var(--gl-text-tertiary);
+  flex: 1;
+}
+
+/* Playback settings row */
+.playback-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 0;
+}
+
+.playback-row + .playback-row {
+  border-top: 1px solid var(--gl-border-light);
+}
+
+.settings-error {
+  color: var(--gl-red);
+  font-size: 12px;
+  margin: 4px 0 10px;
+}
+
+/* About / legal */
+.about-info {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+.about-brand {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 8px;
+}
+.brand-tile {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #1f1f23;
+  border-radius: 20%;
+  overflow: hidden;
+}
+.about-row {
+  display: flex;
+  gap: 10px;
+  font-size: 13px;
+}
+.about-label {
+  color: var(--gl-text-tertiary);
+  width: 70px;
+  flex-shrink: 0;
+}
+.about-value {
+  color: var(--gl-text-primary);
+}
+.about-statement {
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--gl-text-secondary);
+  margin: 4px 0 0;
+}
+.about-actions {
+  display: flex;
+  gap: 8px;
+}
+.legal-text {
+  max-height: 55vh;
+  overflow: auto;
+  font-size: 11px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+  background: var(--gl-bg-elevated, rgba(255,255,255,0.04));
+  border: 1px solid var(--gl-border-light);
+  border-radius: 6px;
+  padding: 12px;
+  margin: 0 0 14px;
+  color: var(--gl-text-secondary);
+}
+
+.playback-label-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.playback-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--gl-text-primary);
+}
+
+.playback-hint {
+  font-size: 11px;
+  color: var(--gl-text-tertiary);
+}
+
+/* Volume slider row */
+.volume-setting {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.volume-setting input[type="range"] {
+  width: 100px;
+}
+
+.volume-value {
+  font-size: 12px;
+  font-family: var(--font-mono);
+  color: var(--gl-text-secondary);
+  width: 32px;
+  text-align: right;
+}
+
+/* Danger zone */
+.danger-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.danger-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.danger-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--gl-text-primary);
+}
+
+.danger-hint {
+  font-size: 11px;
+  color: var(--gl-text-tertiary);
+}
+
+.btn-danger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: var(--gl-radius-sm);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  border: 1px solid var(--gl-red);
+  background: transparent;
+  color: var(--gl-red);
+  transition: background 0.12s, color 0.12s;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.btn-danger:hover {
+  background: var(--gl-red);
+  color: #fff;
+}
+
+/* Reset confirmation dialog */
+.confirm-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 250;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: fadeIn 0.15s ease;
+}
+
+.confirm-dialog {
+  background: var(--gl-white);
+  border-radius: var(--gl-radius-lg);
+  box-shadow: var(--gl-shadow-xl);
+  width: var(--gl-dialog-width);
+  padding: 24px;
+  animation: slideUp 0.2s ease;
+}
+
+.confirm-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--gl-text-primary);
+  margin-bottom: 8px;
+}
+
+.confirm-message {
+  font-size: 13px;
+  color: var(--gl-text-secondary);
+  line-height: 1.6;
+  margin-bottom: 20px;
+}
+
+.confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.confirm-dialog .perm-list {
+  margin-bottom: 20px;
+}
+
+/* Import mode badge in import modal */
+.import-mode-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  padding: 3px 10px;
+  border-radius: 10px;
+  background: var(--gl-blue-light);
+  color: var(--gl-blue);
+  font-family: var(--font-mono);
+}
+
