@@ -42,6 +42,8 @@ export default function PluginPage({ registry, meta, tracks }) {
   const [diagnosticsPath, setDiagnosticsPath] = useState('');
   const [autoFetch, setAutoFetch] = useState({}); // { [pluginId]: boolean }
   const [backfillProgress, setBackfillProgress] = useState(null); // { pluginId, done, total, ok, fail, noMatch }
+  const [seen, setSeen] = useState({}); // { [pluginId]: true } — user opened the detail
+  const [seenLoaded, setSeenLoaded] = useState(false);
 
   // Auto-fetch switches (plugin.<id>.autoFetch, default off) for provider
   // plugins — each backend controls its own missing-metadata auto-fetch.
@@ -123,7 +125,43 @@ export default function PluginPage({ registry, meta, tracks }) {
     window.freeplayer?.getDiagnosticsPath?.().then(setDiagnosticsPath).catch(() => {});
   }, [openDetail]);
 
-  const isNew = (p) => !p.perms.enabled && p.perms.granted.length === 0;
+  // "Never enabled" — the grants-dialog condition. Independent of seen: a
+  // viewed-but-never-enabled plugin must still get the grants dialog.
+  const neverEnabled = (p) => !p.perms.enabled && p.perms.granted.length === 0;
+  // NEW badge/banner: never enabled AND not viewed yet. seenLoaded gates the
+  // derivation so a remount doesn't flash the banner before settings load.
+  const isNew = (p) => neverEnabled(p) && seenLoaded && !seen[p.id];
+
+  // Persisted per plugin (plugin_seen_<id>): opening the detail marks it seen,
+  // otherwise the banner reappears on every page switch (settings are the
+  // only memory that survives PluginPage remounts).
+  function markSeen(id) {
+    if (seen[id]) return;
+    setSeen((s) => ({ ...s, [id]: true }));
+    window.freeplayer.setSetting({ key: `plugin_seen_${id}`, value: '1' }).catch(() => {});
+  }
+
+  function openPlugin(id) {
+    setOpenDetail(id);
+    setDetailTab('settings');
+    markSeen(id);
+  }
+
+  useEffect(() => {
+    let cancelled = false;
+    setSeenLoaded(false);
+    (async () => {
+      const entries = await Promise.all(plugins.map(async (p) => {
+        try {
+          return [p.id, (await window.freeplayer.getSetting(`plugin_seen_${p.id}`)) === '1'];
+        } catch { return [p.id, false]; }
+      }));
+      if (cancelled) return;
+      setSeen(Object.fromEntries(entries));
+      setSeenLoaded(true);
+    })();
+    return () => { cancelled = true; };
+  }, [plugins]);
 
   function handleSettingChange(p, s, value) {
     setSettingsValues((v) => ({ ...v, [p.id]: { ...(v[p.id] || {}), [s.key]: value } }));
@@ -135,11 +173,8 @@ export default function PluginPage({ registry, meta, tracks }) {
     setRefreshing(true);
     try {
       await registry.refresh();
-      setPlugins([...registry.getPlugins()].sort((a, b) => {
-        const order = { NEW: 0, incompatible: 1, error: 2, enabled: 3, active: 3, disabled: 4 };
-        // NEW 置顶：perms.enabled=false 且未授权过
-        return Number(isNew(a)) - Number(isNew(b)) || order[a.status] - order[b.status] || a.id.localeCompare(b.id);
-      }));
+      // Sorting happens at render (isNew reads the live seen state).
+      setPlugins([...registry.getPlugins()]);
     } finally {
       setRefreshing(false);
     }
@@ -176,7 +211,7 @@ export default function PluginPage({ registry, meta, tracks }) {
   async function handleToggle(p, enabled) {
     try {
       if (enabled) {
-        if (isNew(p)) {
+        if (neverEnabled(p)) {
           // Default: read-level grants only. http is deliberately NOT
           // pre-checked — an http grant can reach localhost/LAN services, so
           // the user should opt in explicitly after reviewing what the plugin
@@ -235,6 +270,11 @@ export default function PluginPage({ registry, meta, tracks }) {
   }
 
   const noticePlugins = plugins.filter(isNew);
+  const sorted = [...plugins].sort((a, b) => {
+    const order = { NEW: 0, incompatible: 1, error: 2, enabled: 3, active: 3, disabled: 4 };
+    // NEW first: never enabled and not yet viewed
+    return Number(isNew(a)) - Number(isNew(b)) || order[a.status] - order[b.status] || a.id.localeCompare(b.id);
+  });
   return (
     <div className="plugins-page">
       <div className="page-header">
@@ -245,11 +285,28 @@ export default function PluginPage({ registry, meta, tracks }) {
         {noticePlugins.length > 0 && (
           <div className="plugins-notice">
             <span>{noticePlugins.length} new plugin{noticePlugins.length > 1 ? 's' : ''} found</span>
-            <button className="btn btn-secondary" onClick={() => setOpenDetail(noticePlugins[0].id)}>View</button>
+            <button className="btn btn-secondary" onClick={() => openPlugin(noticePlugins[0].id)}>View</button>
+            <button
+              className="plugins-notice-dismiss"
+              onClick={() => {
+                const next = { ...seen };
+                noticePlugins.forEach((p) => {
+                  next[p.id] = true;
+                  window.freeplayer.setSetting({ key: `plugin_seen_${p.id}`, value: '1' }).catch(() => {});
+                });
+                setSeen(next);
+              }}
+              aria-label="Dismiss new-plugin notices"
+              title="Mark all as seen"
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
+                <path d="M6 6l12 12M18 6L6 18" />
+              </svg>
+            </button>
           </div>
         )}
-        {plugins.map((p) => (
-          <div key={p.id} className={`plugin-card${isNew(p) ? ' plugin-card--new' : ''}`} onClick={() => { setOpenDetail(p.id); setDetailTab('settings'); }}>
+        {sorted.map((p) => (
+          <div key={p.id} className={`plugin-card${isNew(p) ? ' plugin-card--new' : ''}`} onClick={() => openPlugin(p.id)}>
             <div className="plugin-card-avatar">
               {(() => {
                 const { svg, img } = renderableIcon(p.manifest.icon);

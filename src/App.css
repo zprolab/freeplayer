@@ -4011,6 +4011,22 @@ input[type="range"]::-webkit-slider-thumb {
   font-size: 13px;
   color: var(--gl-blue);
 }
+/* text left, View + dismiss grouped right */
+.plugins-notice .btn { margin-left: auto; }
+.plugins-notice-dismiss {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: var(--gl-radius-sm);
+  background: transparent;
+  color: var(--gl-blue);
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.plugins-notice-dismiss:hover { background: rgba(31, 117, 203, 0.12); }
 
 .plugin-card {
   display: flex;
