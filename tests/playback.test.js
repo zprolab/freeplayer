@@ -121,7 +121,11 @@ vi.mock('../src/context/PlayerContext', () => ({
 }));
 
 vi.mock('../src/audio/audioEngine', () => ({
-  audioEngine: { setGain: vi.fn(), setVolume: vi.fn(), dispose: vi.fn() },
+  audioEngine: {
+    setGain: vi.fn(), setVolume: vi.fn(), dispose: vi.fn(),
+    // the graph wires (idempotently) at play start — see usePlayback
+    connect: vi.fn(), resume: vi.fn(),
+  },
 }));
 
 import { usePlayer } from '../src/context/PlayerContext';
@@ -137,6 +141,8 @@ function reset() {
   audioEngine.setGain.mockClear();
   audioEngine.setVolume.mockClear();
   audioEngine.dispose.mockClear();
+  audioEngine.connect.mockClear();
+  audioEngine.resume.mockClear();
 }
 
 function makeAudio() {
@@ -179,6 +185,20 @@ beforeEach(() => {
 });
 
 describe('usePlayback session lifecycle', () => {
+  it('wires the audio graph before play() so the EQ is in every play path', async () => {
+    const calls = [];
+    audioEngine.connect.mockImplementation(() => calls.push('connect'));
+    const audio = makeAudio();
+    audio.play.mockImplementation(async () => calls.push('play'));
+    mount({ audio });
+    await handlers.playTrack(tracks[0]);
+    // connect must precede play: routing a playing element into the graph
+    // mid-flight audibly hiccups (and the EQ would otherwise be bypassed
+    // in views without a mounted visualizer).
+    expect(calls).toEqual(['connect', 'play']);
+    expect(audioEngine.resume).toHaveBeenCalled();
+  });
+
   it('playTrack ends the previous session before starting a new one', async () => {
     window.freeplayer.playStart = vi.fn(async () => 42);
     mount();
