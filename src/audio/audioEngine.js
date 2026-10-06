@@ -213,11 +213,11 @@ export class AudioEngine {
     this.ctx = null;
     // Idempotent and safe to call on an app-lifetime singleton (StrictMode /
     // HMR remounts): later setGain/setVolume/applyEq calls record pending
-    // values and no-op until connect() rebuilds the graph.
-    if (typeof document !== 'undefined') {
-      document.removeEventListener('pointerdown', this._unlock);
-      document.removeEventListener('keydown', this._unlock);
-    }
+    // values and no-op until connect() rebuilds the graph. The document
+    // unlock listeners are process-lifetime (registered once in the
+    // constructor) and are deliberately NOT removed here — dispose runs on
+    // every unmount, and tearing them down would permanently lose the
+    // "any interaction resumes the AudioContext" behaviour after a remount.
   }
 }
 
