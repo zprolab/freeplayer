@@ -231,6 +231,7 @@ enum Database {
          file_path TEXT NOT NULL UNIQUE, file_name TEXT NOT NULL, file_size INTEGER DEFAULT 0,
          file_format TEXT, bitrate INTEGER, sample_rate INTEGER, channels INTEGER,
          cover_path TEXT, replaygain_gain REAL DEFAULT 0, replaygain_peak REAL DEFAULT 0,
+         meta_source TEXT, cover_source TEXT, lyrics_source TEXT,
          imported_at DATETIME DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP);
         CREATE TABLE IF NOT EXISTS play_history (
          id INTEGER PRIMARY KEY AUTOINCREMENT, track_id INTEGER NOT NULL,
@@ -268,6 +269,13 @@ enum Database {
         _ = sqlite3_exec(db, "ALTER TABLE tracks ADD COLUMN replaygain_gain REAL DEFAULT 0", nil, nil, nil)
         _ = sqlite3_exec(db, "ALTER TABLE tracks ADD COLUMN replaygain_peak REAL DEFAULT 0", nil, nil, nil)
         _ = sqlite3_exec(db, "ALTER TABLE tracks ADD COLUMN lrc_path TEXT", nil, nil, nil)
+        // Provenance of the track's metadata: 'file' when the audio file itself
+        // carried the value, 'filename' when it was derived from the file name,
+        // 'sidecar' for a .lrc next to the audio, 'plugin' for an online
+        // fill-in and 'user' for a manual edit. NULL = not recorded yet.
+        _ = sqlite3_exec(db, "ALTER TABLE tracks ADD COLUMN meta_source TEXT", nil, nil, nil)
+        _ = sqlite3_exec(db, "ALTER TABLE tracks ADD COLUMN cover_source TEXT", nil, nil, nil)
+        _ = sqlite3_exec(db, "ALTER TABLE tracks ADD COLUMN lyrics_source TEXT", nil, nil, nil)
         NSLog("[db] tracks open ok: %@", path)
         return true
     }
@@ -443,8 +451,8 @@ enum Database {
         runTracksExec(
             "INSERT INTO tracks (title, artist, album, track_number, disc_number, genre, year,"
             + " duration, file_path, file_name, file_size, file_format, bitrate, sample_rate,"
-            + " channels, cover_path, replaygain_gain, replaygain_peak)"
-            + " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+            + " channels, cover_path, replaygain_gain, replaygain_peak, meta_source, cover_source)"
+            + " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
             + " ON CONFLICT(file_path) DO UPDATE SET"
             + " title = excluded.title, artist = excluded.artist, album = excluded.album,"
             + " track_number = excluded.track_number, disc_number = excluded.disc_number,"
@@ -452,7 +460,12 @@ enum Database {
             + " file_name = excluded.file_name, file_size = excluded.file_size,"
             + " file_format = excluded.file_format, bitrate = excluded.bitrate,"
             + " sample_rate = excluded.sample_rate, channels = excluded.channels,"
-            + " cover_path = excluded.cover_path,"
+            // A re-import that finds no artwork in the file keeps the cover an
+            // online fill-in stored earlier: the file is the baseline, but it
+            // only replaces a value it actually has something to say about.
+            + " cover_path = COALESCE(excluded.cover_path, tracks.cover_path),"
+            + " cover_source = COALESCE(excluded.cover_source, tracks.cover_source),"
+            + " meta_source = excluded.meta_source,"
             + " replaygain_gain = excluded.replaygain_gain, replaygain_peak = excluded.replaygain_peak,"
             + " updated_at = CURRENT_TIMESTAMP",
             [t["title"] ?? "", t["artist"] ?? "Unknown Artist", t["album"] ?? "Unknown Album",
@@ -462,7 +475,16 @@ enum Database {
              t["file_size"] ?? 0, t["file_format"] ?? NSNull(),
              t["bitrate"] ?? NSNull(), t["sample_rate"] ?? NSNull(),
              t["channels"] ?? NSNull(), t["cover_path"] ?? NSNull(),
-             t["replaygain_gain"] ?? 0, t["replaygain_peak"] ?? 0])
+             t["replaygain_gain"] ?? 0, t["replaygain_peak"] ?? 0,
+             t["meta_source"] ?? NSNull(), t["cover_source"] ?? NSNull()])
+    }
+
+    /// Row id for an imported file path, for post-insert work (lyrics
+    /// materialization) that needs the id the insert just assigned.
+    static func getTrackIdByPath(_ path: String) -> Int64? {
+        let rows = runTracksQuery("SELECT id FROM tracks WHERE file_path = ?", [path])
+        guard let v = rows.first?["id"], !(v is NSNull) else { return nil }
+        return (v as? NSNumber)?.int64Value
     }
 
     /// Columns `updateTrack` may write. The field dictionary arrives over the
@@ -470,10 +492,11 @@ enum Database {
     /// interpolated straight into the UPDATE statement (`{"a = 1, title": "x"}`
     /// → arbitrary SQL expressions/subqueries). Allowlist both the injection
     /// sink and the columns the UI is meant to edit; mirrors the plugin api's
-    /// UPDATE_WHITELIST in src/plugins/api.js.
+    /// UPDATE_WHITELIST in src/plugins/api.js. `meta_source` is the provenance
+    /// stamp (user / plugin) written alongside a metadata edit.
     private static let updatableTrackColumns: Set<String> = [
         "title", "artist", "album", "genre", "year",
-        "track_number", "disc_number",
+        "track_number", "disc_number", "meta_source",
     ]
 
     @discardableResult
@@ -636,15 +659,28 @@ enum Database {
 
     // MARK: - LRC (tracks DB)
 
+    /// Record the track's lyrics file. `source` says where the lyrics came
+    /// from ('file' embedded in the audio, 'sidecar' next to it, 'plugin' from
+    /// an online backend); passing a nil path clears both the reference and
+    /// the recorded source, since there is nothing left to describe.
     @discardableResult
-    static func setTrackLrc(_ trackId: Int64, _ lrcPath: String?) -> Bool {
-        runTracksExec("UPDATE tracks SET lrc_path = ? WHERE id = ?", [lrcPath ?? NSNull(), NSNumber(value: trackId)])
+    static func setTrackLrc(_ trackId: Int64, _ lrcPath: String?, source: String? = nil) -> Bool {
+        // Build the provenance value as an explicit Any: `lrcPath == nil ?
+        // NSNull() : (source ?? NSNull())` hands bindParam an Optional, which
+        // it stringifies into the column as "Optional(\"plugin\")".
+        var sourceValue: Any = NSNull()
+        if lrcPath != nil, let source { sourceValue = source }
+        return runTracksExec("UPDATE tracks SET lrc_path = ?, lyrics_source = ? WHERE id = ?",
+                [lrcPath ?? NSNull(), sourceValue, NSNumber(value: trackId)])
     }
 
+    /// Record the track's cover file; see setTrackLrc for the source contract.
     @discardableResult
-    static func setTrackCover(_ trackId: Int64, _ coverPath: String?) -> Bool {
-        runTracksExec("UPDATE tracks SET cover_path = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-                [coverPath ?? NSNull(), NSNumber(value: trackId)])
+    static func setTrackCover(_ trackId: Int64, _ coverPath: String?, source: String? = nil) -> Bool {
+        var sourceValue: Any = NSNull()
+        if coverPath != nil, let source { sourceValue = source }
+        return runTracksExec("UPDATE tracks SET cover_path = ?, cover_source = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                [coverPath ?? NSNull(), sourceValue, NSNumber(value: trackId)])
     }
 
     static func getTrackLrc(_ trackId: Int64) -> String? {
@@ -653,9 +689,23 @@ enum Database {
         return v as? String
     }
 
+    static func getTrackLyricsSource(_ trackId: Int64) -> String? {
+        let rows = runTracksQuery("SELECT lyrics_source FROM tracks WHERE id = ?", [NSNumber(value: trackId)])
+        guard let v = rows.first?["lyrics_source"], !(v is NSNull) else { return nil }
+        return v as? String
+    }
+
+    /// Provenance of the track's title/artist/album fields.
+    @discardableResult
+    static func setTrackMetaSource(_ trackId: Int64, _ source: String?) -> Bool {
+        runTracksExec("UPDATE tracks SET meta_source = ? WHERE id = ?",
+                [source ?? NSNull(), NSNumber(value: trackId)])
+    }
+
     @discardableResult
     static func clearTrackLrc(_ trackId: Int64) -> Bool {
-        runTracksExec("UPDATE tracks SET lrc_path = NULL WHERE id = ?", [NSNumber(value: trackId)])
+        runTracksExec("UPDATE tracks SET lrc_path = NULL, lyrics_source = NULL WHERE id = ?",
+                [NSNumber(value: trackId)])
     }
 
     static func countTracksWithCover(_ coverPath: String) -> Int64 {

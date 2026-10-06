@@ -320,4 +320,88 @@ final class DatabaseTests: XCTestCase {
         XCTAssertEqual(positions, [0, 1])
         Database.close()
     }
+
+    // MARK: - provenance (file baseline bookkeeping)
+
+    private func trackRow(_ id: Int64) -> [String: Any]? {
+        Database.getTrackById(id) as? [String: Any]
+    }
+
+    func testTrackSourcesAreRecordedAndCleared() {
+        openTracksDb()
+        Database.insertTrack([
+            "title": "Song", "artist": "Artist", "album": "Album", "duration": 100,
+            "file_path": "/lib/song.mp3", "file_name": "song.mp3", "file_format": "mp3",
+            "cover_path": "/lib/.covers/cover.jpg", "cover_source": "file",
+            "meta_source": "file",
+        ])
+        guard let id = Database.getTrackIdByPath("/lib/song.mp3") else {
+            XCTFail("insert did not land"); Database.close(); return
+        }
+        XCTAssertEqual(trackRow(id)?["meta_source"] as? String, "file")
+        XCTAssertEqual(trackRow(id)?["cover_source"] as? String, "file")
+
+        // An online backend's cover/lyrics rewrite the reference AND record
+        // where the new value came from.
+        _ = Database.setTrackCover(id, "/lib/.covers/cover-\(id).jpg", source: "plugin")
+        _ = Database.setTrackLrc(id, "/lib/song.\(id).lrc", source: "plugin")
+        XCTAssertEqual(trackRow(id)?["cover_source"] as? String, "plugin")
+        XCTAssertEqual(Database.getTrackLyricsSource(id), "plugin")
+
+        // Clearing the value clears its provenance with it — there is nothing
+        // left for a source to describe.
+        _ = Database.setTrackCover(id, nil)
+        _ = Database.setTrackLrc(id, nil)
+        XCTAssertNil(trackRow(id)?["cover_source"] as? String)
+        XCTAssertNil(Database.getTrackLyricsSource(id))
+        XCTAssertNil(Database.getTrackLrc(id))
+        Database.close()
+    }
+
+    func testUpdateTrackStampsProvenance() {
+        openTracksDb()
+        insertTrack("Original", "/lib/song.mp3")
+        guard let id = Database.getTrackIdByPath("/lib/song.mp3") else {
+            XCTFail("track insert failed"); Database.close(); return
+        }
+        // The online fill-in carries its stamp through the same allowlisted call.
+        Database.updateTrack(id, ["title": "Fetched", "meta_source": "plugin"])
+        XCTAssertEqual(trackRow(id)?["title"] as? String, "Fetched")
+        XCTAssertEqual(trackRow(id)?["meta_source"] as? String, "plugin")
+        // A manual edit stamps itself, and a file baseline can be restored.
+        Database.updateTrack(id, ["title": "Hand Edited", "meta_source": "user"])
+        XCTAssertEqual(trackRow(id)?["meta_source"] as? String, "user")
+        Database.setTrackMetaSource(id, "file")
+        XCTAssertEqual(trackRow(id)?["meta_source"] as? String, "file")
+        Database.close()
+    }
+
+    func testReimportKeepsAnOnlineCoverButPrefersEmbeddedArtwork() {
+        openTracksDb()
+        insertTrack("Song", "/lib/song.mp3")
+        guard let id = Database.getTrackIdByPath("/lib/song.mp3") else {
+            XCTFail("track insert failed"); Database.close(); return
+        }
+        _ = Database.setTrackCover(id, "/lib/.covers/cover-\(id).jpg", source: "plugin")
+
+        // Re-import of a file without artwork: the baseline has nothing to say
+        // about the cover, so the online one survives (pre-fix: NULL).
+        insertTrackWithCover(id: id, coverPath: NSNull(), coverSource: NSNull())
+        XCTAssertEqual(trackRow(id)?["cover_path"] as? String, "/lib/.covers/cover-\(id).jpg")
+        XCTAssertEqual(trackRow(id)?["cover_source"] as? String, "plugin")
+
+        // Re-import of a file that does embed artwork: the file wins.
+        insertTrackWithCover(id: id, coverPath: "/lib/.covers/cover.jpg", coverSource: "file")
+        XCTAssertEqual(trackRow(id)?["cover_path"] as? String, "/lib/.covers/cover.jpg")
+        XCTAssertEqual(trackRow(id)?["cover_source"] as? String, "file")
+        Database.close()
+    }
+
+    private func insertTrackWithCover(id: Int64, coverPath: Any, coverSource: Any) {
+        Database.insertTrack([
+            "title": "Song", "artist": "Artist", "album": "Album", "duration": 100,
+            "file_path": "/lib/song.mp3", "file_name": "song.mp3", "file_format": "mp3",
+            "cover_path": coverPath, "cover_source": coverSource, "meta_source": "file",
+        ])
+    }
 }
