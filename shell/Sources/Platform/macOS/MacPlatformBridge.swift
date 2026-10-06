@@ -61,6 +61,11 @@ struct MacPlatformBridge: PlatformBridge {
         panel.title = "Select Library Directory"
         if panel.runModal() == .OK, let dir = panel.url?.path {
             _ = Database.setSetting("library_dir", dir)
+            // Launch opened the tracks DB from defaultTracksDbPath(), which
+            // falls back to Application Support before library_dir exists.
+            // Repoint it now, or this session's imports go to the fallback DB
+            // and vanish on the next launch (which opens <library>/tracks.db).
+            Database.switchTracksDb(libraryDir: dir)
             reply(["canceled": false, "path": dir, "libraryDir": dir])
         } else {
             reply(["canceled": true])

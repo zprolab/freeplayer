@@ -272,6 +272,29 @@ enum Database {
         return true
     }
 
+    /// Repoint the tracks DB at `libraryDir` after the library location is
+    /// chosen or changed at runtime. Launch opens the DB once from
+    /// `defaultTracksDbPath()`, which falls back to Application Support when
+    /// `library_dir` is not set yet — so without this, a first-run onboarding
+    /// session imported into the fallback DB while the next launch opened
+    /// `<library>/tracks.db` and the tracks looked lost.
+    static func switchTracksDb(libraryDir: String) {
+        guard !libraryDir.isEmpty else { return }
+        let path = (libraryDir as NSString).appendingPathComponent("tracks.db")
+        if gTracksDb != nil, gTracksDbPath == path { return }
+        if let old = gTracksDb {
+            var tries = 0
+            while sqlite3_close(old) == SQLITE_BUSY, tries < 50 {
+                tries += 1
+                usleep(100_000)
+            }
+            gTracksDb = nil
+            gTracksDbPath = nil
+        }
+        _ = openTracksDb(path)
+        migrateToSplitDb()
+    }
+
     /// P: Migrate tracks data from the pre-split single config DB into the tracks DB.
     ///
     /// The split shipped without a call site, and the original migration bailed
