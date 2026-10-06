@@ -127,13 +127,12 @@ enum Metadata {
         }
     }
 
-    // Decode an ID3v2 text frame. Encoding byte: 0=ISO-8859-1 (often actually
-    // GBK for CJK tags), 1=UTF-16 w/ BOM, 2=UTF-16BE, 3=UTF-8.
-    private static func decodeId3Text(_ p: UnsafePointer<UInt8>, _ len: UInt32) -> String {
-        if len == 0 { return "" }
-        let enc = p[0]
-        let text = p + 1
-        var textLen = Int(len) - 1
+    // Decode an ID3v2 string body given its encoding byte. Encoding:
+    // 0=ISO-8859-1 (often actually GBK for CJK tags), 1=UTF-16 w/ BOM,
+    // 2=UTF-16BE, 3=UTF-8.
+    private static func decodeId3String(_ text: UnsafePointer<UInt8>, _ len: Int, _ enc: UInt8) -> String {
+        var textLen = len
+        if textLen <= 0 { return "" }
         if enc == 0 {
             var high = 0
             for i in 0..<textLen where text[i] > 0x7F { high += 1 }
@@ -154,6 +153,76 @@ enum Metadata {
             return String(bytes: UnsafeBufferPointer(start: text, count: textLen), encoding: .utf16BigEndian) ?? ""
         }
         return String(bytes: UnsafeBufferPointer(start: text, count: textLen), encoding: .utf8) ?? ""
+    }
+
+    /// Decode an ID3v2 text frame (encoding byte + text).
+    private static func decodeId3Text(_ p: UnsafePointer<UInt8>, _ len: UInt32) -> String {
+        if len == 0 { return "" }
+        return decodeId3String(p + 1, Int(len) - 1, p[0])
+    }
+
+    /// Advance `i` past a NUL-terminated string body. UTF-16 bodies terminate
+    /// on a 2-byte NUL, so those are scanned two bytes at a time — scanning
+    /// byte-wise would stop at the high byte of any ASCII UTF-16 character.
+    private static func skipTerminator(_ p: UnsafePointer<UInt8>, _ len: Int, _ i: inout Int, _ enc: UInt8) {
+        if enc == 1 || enc == 2 {
+            while i + 1 < len {
+                if p[i] == 0 && p[i + 1] == 0 { i += 2; return }
+                i += 2
+            }
+            i = len
+            return
+        }
+        while i < len {
+            if p[i] == 0 { i += 1; return }
+            i += 1
+        }
+    }
+
+    /// ID3 USLT (unsynchronized lyrics): encoding(1) | language(3) |
+    /// content descriptor (terminated) | lyrics text.
+    private static func decodeId3USLT(_ p: UnsafePointer<UInt8>, _ len: UInt32) -> String? {
+        let n = Int(len)
+        guard n > 5 else { return nil }
+        let enc = p[0]
+        var i = 4
+        skipTerminator(p, n, &i, enc)
+        guard i < n else { return nil }
+        let text = decodeId3String(p + i, n - i, enc)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return text.isEmpty ? nil : text
+    }
+
+    /// ID3 SYLT (synchronized lyrics): encoding(1) | language(3) |
+    /// timestamp format(1) | content type(1) | descriptor (terminated) |
+    /// (text (terminated) + timestamp u32 BE ms)*. Rendered as LRC so the
+    /// player's existing parser reads it exactly like a sidecar file.
+    private static func decodeId3SYLT(_ p: UnsafePointer<UInt8>, _ len: UInt32) -> String? {
+        let n = Int(len)
+        guard n > 6 else { return nil }
+        let enc = p[0]
+        var i = 6
+        skipTerminator(p, n, &i, enc)
+        var lines: [String] = []
+        while i + 4 <= n {
+            let start = i
+            skipTerminator(p, n, &i, enc)
+            if i > n { break }
+            var end = enc == 1 || enc == 2 ? i - 2 : i - 1
+            if end < start { end = start }
+            guard i + 4 <= n else { break }
+            let ms = (UInt32(p[i]) << 24) | (UInt32(p[i + 1]) << 16)
+                | (UInt32(p[i + 2]) << 8) | UInt32(p[i + 3])
+            i += 4
+            let text = decodeId3String(p + start, end - start, enc)
+                .replacingOccurrences(of: "\n", with: " ")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            if text.isEmpty { continue }
+            let total = Int(ms / 1000)
+            let centis = Int((ms % 1000) / 10)
+            lines.append(String(format: "[%02d:%02d.%02d]%@", total / 60, total % 60, centis, text))
+        }
+        return lines.isEmpty ? nil : lines.joined(separator: "\n")
     }
 
     // Parse ID3v2 (v2.3/v2.4) text frames from an MP3 file.
@@ -199,22 +268,81 @@ enum Metadata {
                 }
                 let frame = p + 10
                 if frame + Int(size) > end { break }
-                if size > 0, id.hasPrefix("T") {
-                    let value = decodeId3Text(frame, size)
-                    switch id {
-                    case "TIT2": tags["title"] = value
-                    case "TPE1": tags["artist"] = value
-                    case "TALB": tags["album"] = value
-                    case "TYER", "TDRC": tags["year"] = value
-                    case "TCON": tags["genre"] = value
-                    case "TRCK": tags["track"] = value
-                    case "TPOS": tags["disc"] = value
-                    default: break
+                if size > 0 {
+                    if id == "USLT" {
+                        if let lyrics = decodeId3USLT(frame, size) { tags["lyrics"] = lyrics }
+                    } else if id == "SYLT" {
+                        // Unsynced lyrics win when both frames are present.
+                        if tags["lyrics"] == nil, let lyrics = decodeId3SYLT(frame, size) {
+                            tags["lyrics"] = lyrics
+                        }
+                    } else if id.hasPrefix("T") {
+                        let value = decodeId3Text(frame, size)
+                        switch id {
+                        case "TIT2": tags["title"] = value
+                        case "TPE1": tags["artist"] = value
+                        case "TALB": tags["album"] = value
+                        case "TYER", "TDRC": tags["year"] = value
+                        case "TCON": tags["genre"] = value
+                        case "TRCK": tags["track"] = value
+                        case "TPOS": tags["disc"] = value
+                        default: break
+                        }
                     }
                 }
                 p = frame + Int(size)
             }
             return tags.isEmpty ? nil : tags
+        }
+    }
+
+    // MARK: - File baseline: lyrics + cover
+
+    /// Vorbis comment keys that carry lyrics, most specific first: `LYRICS` is
+    /// the usual convention, `UNSYNCEDLYRICS` is what foobar2000 writes.
+    private static let vorbisLyricsKeys = ["lyrics", "unsyncedlyrics", "unsynced lyrics"]
+
+    /// Pick lyrics out of a FLAC Vorbis comment block.
+    static func lyricsFromVorbisTags(_ tags: [String: String]) -> String? {
+        for key in vorbisLyricsKeys {
+            if let v = tags[key], !v.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                return v
+            }
+        }
+        return nil
+    }
+
+    /// Lyrics carried by the file itself, for the formats AVFoundation hides
+    /// (FLAC Vorbis comments) or file layouts it does not map (ID3 USLT/SYLT).
+    /// M4A/©lyr and ID3-through-AVFoundation are read in extractAsync, which
+    /// has the asset loaded.
+    static func readEmbeddedLyrics(atPath path: String) -> String? {
+        switch (path as NSString).pathExtension.lowercased() {
+        case "flac": return parseFlacVorbisComments(path).flatMap(lyricsFromVorbisTags)
+        case "mp3": return parseId3v2(path)?["lyrics"]
+        default: return nil
+        }
+    }
+
+    /// Materialize embedded artwork at the album's shared
+    /// `.covers/cover.jpg` and return the path to record. The import pipeline
+    /// and the "reset from file" flow both use this, so a track keeps one
+    /// cover path whichever way the file's artwork is (re)applied.
+    static func writeEmbeddedCover(_ data: Data, audioPath: String) -> String? {
+        let dir = ((audioPath as NSString).deletingLastPathComponent as NSString)
+            .appendingPathComponent(".covers")
+        let fm = FileManager.default
+        if !fm.fileExists(atPath: dir) {
+            try? fm.createDirectory(atPath: dir, withIntermediateDirectories: true)
+        }
+        let coverPath = (dir as NSString).appendingPathComponent("cover.jpg")
+        if fm.fileExists(atPath: coverPath) { return coverPath }
+        do {
+            try data.write(to: URL(fileURLWithPath: coverPath), options: .atomic)
+            return coverPath
+        } catch {
+            NSLog("[metadata] cover write failed: %@", "\(error)")
+            return nil
         }
     }
 
@@ -279,6 +407,30 @@ enum Metadata {
             if let v = id3["disc"] { discNo = Int(v) ?? 0 }
         }
 
+        // Did the FILE itself carry readable tags? This is what separates a
+        // real embedded baseline ("file") from the filename-derived fallback
+        // below — the renderer records it so an online fill-in can be told
+        // apart from what the audio file says.
+        let hasFileTags = (vorbis?.isEmpty == false) || (id3?.isEmpty == false)
+            || title != nil || artist != nil || album != nil
+
+        // Embedded lyrics. FLAC Vorbis comments and ID3 USLT/SYLT come from the
+        // manual parsers (AVFoundation hides/mangles them); M4A ©lyr and any
+        // ID3 lyrics AVFoundation does surface arrive through identifiers.
+        var embeddedLyrics = readEmbeddedLyrics(atPath: path)
+        if embeddedLyrics == nil, let allMeta = try? await asset.load(.metadata) {
+            for it in allMeta {
+                guard let ident = it.identifier,
+                      ident == .iTunesMetadataLyrics || ident == .id3MetadataUnsynchronizedLyric
+                else { continue }
+                if let s = try? await it.load(.stringValue),
+                   !s.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    embeddedLyrics = s
+                    break
+                }
+            }
+        }
+
         let baseName = (path as NSString).lastPathComponent
         if title == nil || title!.isEmpty {
             title = cleanAudioStem(((baseName as NSString).deletingPathExtension))
@@ -335,14 +487,24 @@ enum Metadata {
             "bitrate": bitrateKbps != 0 ? NSNumber(value: bitrateKbps) : NSNull(),
             "sample_rate": sampleRate != 0 ? NSNumber(value: sampleRate) : NSNull(),
             "channels": channels != 0 ? NSNumber(value: channels) : NSNull(),
+            // Provenance of the baseline: where each value came from, so the
+            // UI can say "from file" and an online fill-in is distinguishable.
+            // Cover/lyrics sources are stamped by the writer (import pipeline /
+            // reset flow) once the value is actually persisted.
+            "meta_source": hasFileTags ? "file" : "filename",
+            "cover_source": NSNull(),
+            "lyrics": embeddedLyrics ?? NSNull(),
+            "lyrics_source": embeddedLyrics != nil ? "file" : NSNull(),
         ]
 
         // Cover art
         for it in meta where it.commonKey == .commonKeyArtwork {
             if let artwork = (try? await it.load(.value)) as? Data, artwork.count > 0 {
                 out["artwork"] = artwork
+                out["cover_source"] = "file"
             } else if let d = (try? await it.load(.value)) as? [String: Any], let artwork = d["data"] as? Data, artwork.count > 0 {
                 out["artwork"] = artwork
+                out["cover_source"] = "file"
             }
             break
         }
