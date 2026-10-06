@@ -202,4 +202,39 @@ final class BridgeCoreTests: XCTestCase {
 
         AppContext.shared.bridgeCore = nil
     }
+
+    // ── setSetting allowlist: keys the renderer legitimately persists ──
+
+    func testSetSettingAcceptsRendererPersistedKeys() {
+        let tmp = FileManager.default.temporaryDirectory
+            .appendingPathComponent("fp_bridge_\(UUID().uuidString)")
+        let dbPath = tmp.appendingPathComponent("config.db").path
+        XCTAssertTrue(Database.open(dbPath))
+        defer {
+            Database.close()
+            try? FileManager.default.removeItem(at: tmp)
+        }
+        let core = BridgeCore()
+        FPBridge.registerAll(into: core)
+        func setSetting(_ key: String, _ value: String) -> Any? {
+            let payload: [String: Any] = ["key": key, "value": value]
+            var result: Any?
+            core.dispatch(method: "setSetting", args: [payload], idNum: 1,
+                          reply: { _, obj in result = obj },
+                          reject: { _, _ in })
+            return result
+        }
+        // The NEW-badge viewed marker (plugin_seen_<id>) and the sidebar
+        // collapse flag are written by the UI; both were rejected before, so
+        // the marker never persisted and the banner kept reappearing.
+        XCTAssertEqual(setSetting("plugin_seen_lrclib", "1") as? Bool, true)
+        XCTAssertEqual(Database.getSetting("plugin_seen_lrclib", nil), "1")
+        XCTAssertEqual(setSetting("sidebar_collapsed", "1") as? Bool, true)
+        XCTAssertEqual(Database.getSetting("sidebar_collapsed", nil), "1")
+        XCTAssertEqual(setSetting("plugin_perms_lrclib", "{}") as? Bool, true)
+        // The library trust anchor stays native-only.
+        XCTAssertEqual(setSetting("library_dir", "/tmp/evil") as? Bool, false)
+        // Unscoped/unknown keys remain rejected.
+        XCTAssertEqual(setSetting("arbitrary_key", "x") as? Bool, false)
+    }
 }

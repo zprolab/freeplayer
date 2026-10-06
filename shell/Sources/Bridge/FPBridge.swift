@@ -43,11 +43,16 @@ enum FPBridge {
             let plain: Set<String> = [
                 "volume", "tray_enabled", "tray_notify", "start_hidden",
                 "start_on_boot", "default_volume", "default_visualizer",
-                "mono_font", "ui_mode",
+                "mono_font", "ui_mode", "sidebar_collapsed",
             ]
+            // plugin_seen_<id> is the NEW-badge viewed marker written by
+            // PluginPage. It is not under the `plugin.` prefix, so omitting it
+            // made every mark-seen write fail silently and the "N new plugin
+            // found" banner reappeared on each remount.
             if plain.contains(key)
                 || key.hasPrefix("plugin.")
                 || key.hasPrefix("plugin_perms_")
+                || key.hasPrefix("plugin_seen_")
                 || key.hasPrefix("meta.") {
                 let value = d["value"] as? String ?? "\(d["value"] ?? "")"
                 call.reply(Database.setSetting(key, value))
