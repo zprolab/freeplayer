@@ -26,9 +26,13 @@ const Library = memo(function Library({
   const [visibleCount, setVisibleCount] = useState(PAGE);
   const sentinelRef = useRef(null);
 
+  // Reset paging when the QUERY changes (sort/filter/playlist), not on every
+  // tracks identity change: SET_TRACK_FIELDS produces a fresh tracks array on
+  // any auto-fetch cover/metadata patch, and keying on `tracks` collapsed a
+  // scrolled list back to page 1 mid-browse.
   useEffect(() => {
     setVisibleCount(PAGE);
-  }, [tracks]);
+  }, [sortBy, sortDir, activePlaylistId]);
 
   useEffect(() => {
     const sentinel = sentinelRef.current;
