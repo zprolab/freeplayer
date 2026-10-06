@@ -243,9 +243,12 @@ export default function ImportModal({ onClose, onComplete, importMode }) {
           {step === 'confirm' && (
             <>
               <button className="btn btn-secondary" onClick={() => {
-                setStep('select-source');
+                // Reopen the picker directly: resetting to 'select-source' left
+                // the modal on a step whose only content is "Select a folder…"
+                // with no button that could open one (the auto-start effect is
+                // one-shot), a dead end.
                 setFiles([]);
-                startedRef.current = false;
+                handleSelectSource();
               }}>Back</button>
               <button className="btn btn-secondary" onClick={onClose}>Cancel</button>
               <button className="btn btn-primary" onClick={handleImport}>
