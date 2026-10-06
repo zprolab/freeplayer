@@ -18,6 +18,20 @@ final class NavGate: NSObject, WKNavigationDelegate {
         return pa == pb
     }
 
+    /// The single policy both transports share: a main-frame navigation is
+    /// allowed only to the bundled UI (`app` on macOS, `fpapp` on iOS) or, for
+    /// dev binaries, the origin the shell was configured to load. Anything else
+    /// (https://…, file://…, data:…) is a bridge-hijack vector and is blocked.
+    static func allowsMainFrame(_ url: URL?) -> Bool {
+        guard let url else { return false }
+        if url.scheme == "app" || url.scheme == "fpapp" { return true }
+        let bundled = Bundle.main.bundlePath.hasSuffix(".app")
+        if !bundled, let main = AppContext.shared.mainLoadURL, sameOrigin(url, main) {
+            return true
+        }
+        return false
+    }
+
     func webView(_ webView: WKWebView,
                  decidePolicyFor navigationAction: WKNavigationAction,
                  decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
@@ -30,12 +44,7 @@ final class NavGate: NSObject, WKNavigationDelegate {
             decisionHandler(.allow); return
         }
         let url = navigationAction.request.url
-        if url?.scheme == "app" {
-            decisionHandler(.allow)
-            return
-        }
-        let bundled = Bundle.main.bundlePath.hasSuffix(".app")
-        if !bundled, let main = AppContext.shared.mainLoadURL, url.map({ NavGate.sameOrigin($0, main) }) == true {
+        if NavGate.allowsMainFrame(url) {
             decisionHandler(.allow)
             return
         }

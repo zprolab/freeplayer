@@ -96,7 +96,29 @@ final class WebViewController: UIViewController, WKNavigationDelegate {
         }
     }
 
-    // MARK: - WKNavigationDelegate diagnostics
+    // MARK: - WKNavigationDelegate
+
+    // S1 (iOS parity): macOS installs NavGate, but this controller is its own
+    // navigationDelegate and had no policy method — WKWebView's default .allow
+    // let any script (or a future XSS) navigate the main frame to an attacker
+    // page while the freeplayer bridge user script + handler stayed attached,
+    // handing it the full native surface. Only the bundled fpapp:// UI (or the
+    // dev origin for non-bundled builds) may be the main frame.
+    func webView(_ webView: WKWebView,
+                 decidePolicyFor navigationAction: WKNavigationAction,
+                 decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
+        guard let frame = navigationAction.targetFrame else {
+            decisionHandler(.cancel); return
+        }
+        guard frame.isMainFrame else {
+            decisionHandler(.allow); return
+        }
+        if NavGate.allowsMainFrame(navigationAction.request.url) {
+            decisionHandler(.allow); return
+        }
+        diag("blocked main-frame navigation to \(navigationAction.request.url?.absoluteString ?? "?")")
+        decisionHandler(.cancel)
+    }
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         diag("didFinish: \(webView.url?.absoluteString ?? "?")")
