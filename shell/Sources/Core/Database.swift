@@ -354,7 +354,19 @@ enum Database {
 
         let tables = ["tracks", "playlists", "playlist_tracks", "play_history"]
         for table in tables {
-            let sql = "INSERT INTO main.\(table) SELECT * FROM legacy.\(table)"
+            // Copy the columns BOTH schemas have. A bare `SELECT *` only works
+            // while the two are column-for-column identical: the moment this
+            // build adds a column (lrc_path, then the *_source trio) a legacy
+            // file written by an older version has fewer values than the
+            // destination has columns, the INSERT fails, and the migration
+            // silently copies NOTHING — the user's library looks wiped.
+            let columns = sharedColumns(table, dest: dest)
+            guard !columns.isEmpty else {
+                NSLog("[db] migration skipped %@: no shared columns", table)
+                continue
+            }
+            let list = columns.joined(separator: ", ")
+            let sql = "INSERT INTO main.\(table) (\(list)) SELECT \(list) FROM legacy.\(table)"
             if sqlite3_exec(dest, sql, nil, nil, &err) != SQLITE_OK {
                 NSLog("[db] migration copy failed for %@: %s", table, err.map { String(cString: $0) } ?? "?")
                 if let err { sqlite3_free(err) }
@@ -372,6 +384,26 @@ enum Database {
         }
         _ = sqlite3_exec(dest, "DETACH DATABASE legacy; PRAGMA foreign_keys=ON;", nil, nil, nil)
         NSLog("[db] migration complete")
+    }
+
+    /// Column names present in both `main.<table>` and the attached
+    /// `legacy.<table>`, in destination order. Used by migrateToSplitDb so the
+    /// copy never depends on the two schemas being identical.
+    private static func sharedColumns(_ table: String, dest: OpaquePointer?) -> [String] {
+        func columnNames(_ pragma: String) -> [String] {
+            var stmt: OpaquePointer?
+            guard sqlite3_prepare_v2(dest, pragma, -1, &stmt, nil) == SQLITE_OK else { return [] }
+            defer { sqlite3_finalize(stmt) }
+            var names: [String] = []
+            while sqlite3_step(stmt) == SQLITE_ROW {
+                if let name = sqlite3_column_text(stmt, 1) {
+                    names.append(String(cString: name))
+                }
+            }
+            return names
+        }
+        let legacy = Set(columnNames("PRAGMA legacy.table_info(\(table))"))
+        return columnNames("PRAGMA main.table_info(\(table))").filter { legacy.contains($0) }
     }
 
     static func close() {
