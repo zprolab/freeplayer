@@ -442,12 +442,23 @@ enum Database {
              t["replaygain_gain"] ?? 0, t["replaygain_peak"] ?? 0])
     }
 
+    /// Columns `updateTrack` may write. The field dictionary arrives over the
+    /// renderer bridge, so its KEYS are untrusted input that used to be
+    /// interpolated straight into the UPDATE statement (`{"a = 1, title": "x"}`
+    /// → arbitrary SQL expressions/subqueries). Allowlist both the injection
+    /// sink and the columns the UI is meant to edit; mirrors the plugin api's
+    /// UPDATE_WHITELIST in src/plugins/api.js.
+    private static let updatableTrackColumns: Set<String> = [
+        "title", "artist", "album", "genre", "year",
+        "track_number", "disc_number",
+    ]
+
     @discardableResult
     static func updateTrack(_ id: Int64, _ fields: [String: Any]) -> Bool {
         var sets: [String] = []
         var vals: [Any] = []
         for (k, v) in fields {
-            guard k != "id", k != "imported_at" else { continue }
+            guard updatableTrackColumns.contains(k) else { continue }
             sets.append("\(k) = ?")
             vals.append(v)
         }

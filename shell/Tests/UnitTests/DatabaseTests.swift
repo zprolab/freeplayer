@@ -273,4 +273,25 @@ final class DatabaseTests: XCTestCase {
         XCTAssertNil(Database.symlinkTarget("/lib/nonexistent.mp3"))
         Database.close()
     }
+
+    // MARK: - updateTrack allowlist (SQL-injection guard)
+
+    func testUpdateTrackIgnoresNonWhitelistedAndInjectedKeys() {
+        openTracksDb()
+        insertTrack("Original", "/lib/original.mp3")
+        guard let trackId = Database.getAllTracks("", "imported_at", "ASC").first?["id"] as? Int64 else {
+            XCTFail("track insert failed"); Database.close(); return
+        }
+        // A whitelisted column updates; an un-whitelisted column and a key that
+        // is a SQL fragment must be ignored rather than interpolated.
+        Database.updateTrack(trackId, [
+            "title": "Renamed",
+            "file_path": "/lib/evil.mp3",
+            "title = (SELECT file_path FROM tracks)": "x",
+        ])
+        let track = Database.getTrackById(trackId) as? [String: Any]
+        XCTAssertEqual(track?["title"] as? String, "Renamed")
+        XCTAssertEqual(track?["file_path"] as? String, "/lib/original.mp3")
+        Database.close()
+    }
 }
