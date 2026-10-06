@@ -229,7 +229,12 @@ export default function App() {
   useEffect(() => {
     const MODES = ['waveform', 'spectrogram', 'off'];
     const onKey = (e) => {
-      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+      // Don't hijack keys aimed at a control: Space on a focused SELECT opens
+      // the dropdown (and used to also toggle playback), on a BUTTON it
+      // activates the button. Editable content is excluded too.
+      const tag = e.target.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || tag === 'BUTTON'
+          || e.target.isContentEditable) return;
       if (e.key === ' ' || e.code === 'Space') {
         e.preventDefault();
         togglePlayPause();
