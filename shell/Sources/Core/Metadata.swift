@@ -72,59 +72,100 @@ enum Metadata {
         return nil
     }
 
-    // Parse FLAC VORBIS_COMMENT block manually (AVFoundation hides these tags).
-    // Returns nil if the file isn't a FLAC / has no comments.
-    private static func parseFlacVorbisComments(_ path: String) -> [String: String]? {
+    // Parse the FLAC metadata blocks AVFoundation does not surface: the
+    // VORBIS_COMMENT block (tags, incl. LYRICS) and the PICTURE block (cover
+    // art). One pass over the block headers; every read is bounded by the
+    // bytes actually present, so a crafted file cannot make it spin.
+    private static func parseFlacBlocks(_ path: String) -> (tags: [String: String]?, picture: Data?) {
         guard let data = try? Data(contentsOf: URL(fileURLWithPath: path), options: .mappedIfSafe),
-              data.count >= 4, Array(data.prefix(4)) == [0x66, 0x4C, 0x61, 0x43] /* "fLaC" */ else { return nil }
-        return data.withUnsafeBytes { (raw: UnsafeRawBufferPointer) -> [String: String]? in
-            guard let base = raw.baseAddress else { return nil }
+              data.count >= 4, Array(data.prefix(4)) == [0x66, 0x4C, 0x61, 0x43] /* "fLaC" */ else {
+            return (nil, nil)
+        }
+        return data.withUnsafeBytes { (raw: UnsafeRawBufferPointer) -> ([String: String]?, Data?) in
+            guard let base = raw.baseAddress else { return (nil, nil) }
             var p = base.assumingMemoryBound(to: UInt8.self) + 4
             var remaining = data.count - 4
+            var tags: [String: String]?
+            var picture: Data?
+            var pictureType = -1
             while remaining >= 4 {
                 let blockHeader = p[0]
                 let type = Int(blockHeader & 0x7f)
                 let len = (UInt32(p[1]) << 16) | (UInt32(p[2]) << 8) | UInt32(p[3])
                 p += 4; remaining -= 4
-                if remaining < Int(len) { return nil }
+                if remaining < Int(len) { break }
                 if type == 4 { // VORBIS_COMMENT
-                    var c = p
-                    var cRem = Int(len)
-                    // vendor string (4-byte LE length + data)
-                    if cRem < 4 { return nil }
-                    let vendorLen = UInt32(c[0]) | (UInt32(c[1]) << 8) | (UInt32(c[2]) << 16) | (UInt32(c[3]) << 24)
-                    c += 4; cRem -= 4
-                    if cRem < Int(vendorLen) { return nil }
-                    c += Int(vendorLen); cRem -= Int(vendorLen)
-                    if cRem < 4 { return nil }
-                    let count = UInt32(c[0]) | (UInt32(c[1]) << 8) | (UInt32(c[2]) << 16) | (UInt32(c[3]) << 24)
-                    c += 4; cRem -= 4
-                    var tags: [String: String] = [:]
-                    // Bound by remaining bytes, not the file-declared `count`:
-                    // a crafted FLAC can claim 0xFFFFFFFF comments over a short
-                    // block, and `where cRem >= 4` turned every remaining
-                    // iteration into a no-op spin (~4.3B) — an import hang.
-                    for _ in 0..<count {
-                        if cRem < 4 { break }
-                        let clen = UInt32(c[0]) | (UInt32(c[1]) << 8) | (UInt32(c[2]) << 16) | (UInt32(c[3]) << 24)
-                        c += 4; cRem -= 4
-                        if cRem < Int(clen) { break }
-                        guard let entry = String(bytes: UnsafeBufferPointer(start: c, count: Int(clen)), encoding: .utf8) else {
-                            c += Int(clen); cRem -= Int(clen); continue
-                        }
-                        c += Int(clen); cRem -= Int(clen)
-                        if let eq = entry.range(of: "=") {
-                            let key = entry[..<eq.lowerBound].lowercased()
-                            let value = String(entry[eq.upperBound...])
-                            if !key.isEmpty && !value.isEmpty { tags[key] = value }
-                        }
+                    tags = parseVorbisCommentBlock(p, Int(len)) ?? tags
+                } else if type == 6 { // PICTURE
+                    if let (art, kind) = parseFlacPictureBlock(p, Int(len)),
+                       picture == nil || (kind == 3 && pictureType != 3) {
+                        // Prefer the front cover (type 3); otherwise the first
+                        // picture the file offers.
+                        picture = art
+                        pictureType = kind
                     }
-                    return tags.isEmpty ? nil : tags
                 }
                 p += Int(len); remaining -= Int(len)
             }
-            return nil
+            return (tags, picture)
         }
+    }
+
+    /// VORBIS_COMMENT block body: vendor string, then length-prefixed
+    /// "KEY=value" entries (all lengths 4-byte little-endian).
+    private static func parseVorbisCommentBlock(_ p: UnsafePointer<UInt8>, _ len: Int) -> [String: String]? {
+        var c = p
+        var cRem = len
+        // vendor string (4-byte LE length + data)
+        if cRem < 4 { return nil }
+        let vendorLen = UInt32(c[0]) | (UInt32(c[1]) << 8) | (UInt32(c[2]) << 16) | (UInt32(c[3]) << 24)
+        c += 4; cRem -= 4
+        if cRem < Int(vendorLen) { return nil }
+        c += Int(vendorLen); cRem -= Int(vendorLen)
+        if cRem < 4 { return nil }
+        let count = UInt32(c[0]) | (UInt32(c[1]) << 8) | (UInt32(c[2]) << 16) | (UInt32(c[3]) << 24)
+        c += 4; cRem -= 4
+        var tags: [String: String] = [:]
+        // Bound by remaining bytes, not the file-declared `count`: a crafted
+        // FLAC can claim 0xFFFFFFFF comments over a short block, and
+        // `where cRem >= 4` turned every remaining iteration into a no-op spin
+        // (~4.3B) — an import hang.
+        for _ in 0..<count {
+            if cRem < 4 { break }
+            let clen = UInt32(c[0]) | (UInt32(c[1]) << 8) | (UInt32(c[2]) << 16) | (UInt32(c[3]) << 24)
+            c += 4; cRem -= 4
+            if cRem < Int(clen) { break }
+            guard let entry = String(bytes: UnsafeBufferPointer(start: c, count: Int(clen)), encoding: .utf8) else {
+                c += Int(clen); cRem -= Int(clen); continue
+            }
+            c += Int(clen); cRem -= Int(clen)
+            if let eq = entry.range(of: "=") {
+                let key = entry[..<eq.lowerBound].lowercased()
+                let value = String(entry[eq.upperBound...])
+                if !key.isEmpty && !value.isEmpty { tags[key] = value }
+            }
+        }
+        return tags.isEmpty ? nil : tags
+    }
+
+    /// PICTURE block body (all fields big-endian): picture type(4) |
+    /// MIME(4+len) | description(4+len) | width(4) height(4) depth(4)
+    /// colors(4) | data length(4) | data. Returns the image bytes and the
+    /// picture type, or nil when the block is malformed.
+    private static func parseFlacPictureBlock(_ p: UnsafePointer<UInt8>, _ len: Int) -> (Data, Int)? {
+        func u32(_ at: Int) -> Int? {
+            guard at >= 0, at + 4 <= len else { return nil }
+            return Int((UInt32(p[at]) << 24) | (UInt32(p[at + 1]) << 16)
+                | (UInt32(p[at + 2]) << 8) | UInt32(p[at + 3]))
+        }
+        guard let kind = u32(0), let mimeLen = u32(4) else { return nil }
+        var cursor = 8 + mimeLen
+        guard let descLen = u32(cursor) else { return nil }
+        cursor += 4 + descLen
+        guard cursor + 16 <= len, let dataLen = u32(cursor + 16), dataLen > 0 else { return nil }
+        cursor += 20
+        guard cursor + dataLen <= len else { return nil }
+        return (Data(bytes: p + cursor, count: dataLen), kind)
     }
 
     // Decode an ID3v2 string body given its encoding byte. Encoding:
@@ -318,10 +359,18 @@ enum Metadata {
     /// has the asset loaded.
     static func readEmbeddedLyrics(atPath path: String) -> String? {
         switch (path as NSString).pathExtension.lowercased() {
-        case "flac": return parseFlacVorbisComments(path).flatMap(lyricsFromVorbisTags)
+        case "flac": return parseFlacBlocks(path).tags.flatMap(lyricsFromVorbisTags)
         case "mp3": return parseId3v2(path)?["lyrics"]
         default: return nil
         }
+    }
+
+    /// Cover art carried by the file itself, for the one layout AVFoundation
+    /// does not expose: a FLAC PICTURE block (MP3 APIC and M4A covr arrive
+    /// through AVFoundation's commonKeyArtwork in extractAsync).
+    static func readEmbeddedCover(atPath path: String) -> Data? {
+        guard (path as NSString).pathExtension.lowercased() == "flac" else { return nil }
+        return parseFlacBlocks(path).picture
     }
 
     /// Materialize embedded artwork at the album's shared
@@ -375,9 +424,10 @@ enum Metadata {
             return nil
         }
 
-        // FLAC: pull Vorbis comments manually (AVFoundation hides them)
+        // FLAC: pull the Vorbis comment + PICTURE blocks manually
+        // (AVFoundation surfaces neither)
         let ext = (path as NSString).pathExtension.lowercased()
-        let vorbis = ext == "flac" ? parseFlacVorbisComments(path) : nil
+        let vorbis = ext == "flac" ? parseFlacBlocks(path).tags : nil
         let id3 = ext == "mp3" ? parseId3v2(path) : nil // handles GBK/CJK tags AVFoundation mangles
 
         var title = await firstValue(meta, .commonKeyTitle)
@@ -497,16 +547,25 @@ enum Metadata {
             "lyrics_source": embeddedLyrics != nil ? "file" : NSNull(),
         ]
 
-        // Cover art
+        // Cover art. AVFoundation exposes APIC (MP3) and covr (M4A) but not a
+        // FLAC PICTURE block — without the manual read, a tagged FLAC looked
+        // like it had no artwork and an online backend "filled in" a cover the
+        // file already carried.
+        var artworkData: Data?
         for it in meta where it.commonKey == .commonKeyArtwork {
             if let artwork = (try? await it.load(.value)) as? Data, artwork.count > 0 {
-                out["artwork"] = artwork
-                out["cover_source"] = "file"
+                artworkData = artwork
             } else if let d = (try? await it.load(.value)) as? [String: Any], let artwork = d["data"] as? Data, artwork.count > 0 {
-                out["artwork"] = artwork
-                out["cover_source"] = "file"
+                artworkData = artwork
             }
             break
+        }
+        if artworkData == nil, ext == "flac" {
+            artworkData = readEmbeddedCover(atPath: path)
+        }
+        if let artworkData {
+            out["artwork"] = artworkData
+            out["cover_source"] = "file"
         }
         return out
     }

@@ -182,14 +182,90 @@ final class MetadataTests: XCTestCase {
         XCTAssertNil(Metadata.readEmbeddedLyrics(atPath: (tmpDir as NSString).appendingPathComponent("Song.m4a")))
     }
 
+    // MARK: - Embedded cover (file baseline)
+
+    func testReadEmbeddedCoverPrefersTheFrontCoverPicture() throws {
+        let dir = try tempDir("fp_flac_cover")
+        let icon = [UInt8](repeating: 0x11, count: 8)
+        let front = [UInt8](repeating: 0xAB, count: 64)
+        // An icon picture (type 1) before the front cover (type 3) — the front
+        // cover is what a player is meant to show.
+        let path = (dir as NSString).appendingPathComponent("Cover.flac")
+        try flacBlocks([
+            (type: 4, body: vorbisBody(["ARTIST=Someone", "LYRICS=[00:01.00]hi"])),
+            (type: 6, body: pictureBody(type: 1, mime: "image/png", data: icon)),
+            (type: 6, body: pictureBody(type: 3, mime: "image/jpeg", data: front)),
+        ]).write(to: URL(fileURLWithPath: path))
+
+        XCTAssertEqual(Metadata.readEmbeddedCover(atPath: path), Data(front))
+        // The same file's Vorbis comments still parse: one pass reads both.
+        XCTAssertEqual(Metadata.readEmbeddedLyrics(atPath: path), "[00:01.00]hi")
+    }
+
+    func testReadEmbeddedCoverFallsBackToTheOnlyPicture() throws {
+        let dir = try tempDir("fp_flac_cover2")
+        let only = [UInt8](repeating: 0x7F, count: 32)
+        let path = (dir as NSString).appendingPathComponent("Other.flac")
+        try flacBlocks([(type: 6, body: pictureBody(type: 4, mime: "image/jpeg", data: only))])
+            .write(to: URL(fileURLWithPath: path))
+        XCTAssertEqual(Metadata.readEmbeddedCover(atPath: path), Data(only))
+    }
+
+    func testReadEmbeddedCoverRejectsMalformedAndWrongFormats() throws {
+        let dir = try tempDir("fp_flac_cover3")
+        // A picture whose declared data length runs past the block.
+        let oversized: [UInt8] = be32(3) + be32(0) + be32(0)
+            + be32(0) + be32(0) + be32(0) + be32(0) + be32(999) + [0x01, 0x02]
+        let badPath = (dir as NSString).appendingPathComponent("Bad.flac")
+        try flacBlocks([(type: 6, body: oversized)]).write(to: URL(fileURLWithPath: badPath))
+        XCTAssertNil(Metadata.readEmbeddedCover(atPath: badPath))
+
+        // The same bytes under a non-FLAC extension (MP3/M4A artwork comes from
+        // AVFoundation, not from this parser).
+        let mp3Path = (dir as NSString).appendingPathComponent("Cover.mp3")
+        try flacBlocks([(type: 6, body: pictureBody(type: 3, mime: "image/jpeg", data: [0xAA]))])
+            .write(to: URL(fileURLWithPath: mp3Path))
+        XCTAssertNil(Metadata.readEmbeddedCover(atPath: mp3Path))
+
+        // Not a FLAC at all.
+        let junkPath = (dir as NSString).appendingPathComponent("Junk.flac")
+        try Data([0x00, 0x01, 0x02, 0x03, 0x04, 0x05]).write(to: URL(fileURLWithPath: junkPath))
+        XCTAssertNil(Metadata.readEmbeddedCover(atPath: junkPath))
+    }
+
     // MARK: - Fixture builders
+
+    private func tempDir(_ tag: String) throws -> String {
+        let dir = NSTemporaryDirectory() + "\(tag)_\(UUID().uuidString)"
+        try FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
+        addTeardownBlock { try? FileManager.default.removeItem(atPath: dir) }
+        return dir
+    }
 
     private func le32(_ v: UInt32) -> [UInt8] {
         [UInt8(v & 0xff), UInt8((v >> 8) & 0xff), UInt8((v >> 16) & 0xff), UInt8((v >> 24) & 0xff)]
     }
 
-    /// Minimal FLAC: "fLaC" + one last VORBIS_COMMENT block.
-    private func flacFile(comments: [String]) -> Data {
+    private func be32(_ v: UInt32) -> [UInt8] {
+        [UInt8((v >> 24) & 0xff), UInt8((v >> 16) & 0xff), UInt8((v >> 8) & 0xff), UInt8(v & 0xff)]
+    }
+
+    /// A FLAC stream header followed by the given metadata blocks; only the
+    /// last block carries the last-block flag.
+    private func flacBlocks(_ blocks: [(type: Int, body: [UInt8])]) -> Data {
+        var out: [UInt8] = Array("fLaC".utf8)
+        for (i, block) in blocks.enumerated() {
+            let last = i == blocks.count - 1
+            let len = block.body.count
+            out += [UInt8(block.type | (last ? 0x80 : 0x00)),
+                    UInt8((len >> 16) & 0xff), UInt8((len >> 8) & 0xff), UInt8(len & 0xff)]
+            out += block.body
+        }
+        return Data(out)
+    }
+
+    /// VORBIS_COMMENT body: vendor string + length-prefixed KEY=value entries.
+    private func vorbisBody(_ comments: [String]) -> [UInt8] {
         var block: [UInt8] = []
         let vendor = Array("test".utf8)
         block += le32(UInt32(vendor.count)); block += vendor
@@ -198,12 +274,24 @@ final class MetadataTests: XCTestCase {
             let bytes = Array(c.utf8)
             block += le32(UInt32(bytes.count)); block += bytes
         }
-        var out: [UInt8] = Array("fLaC".utf8)
-        let len = block.count
-        // 0x84 = last-block flag | type 4 (VORBIS_COMMENT), 3-byte BE length
-        out += [0x84, UInt8((len >> 16) & 0xff), UInt8((len >> 8) & 0xff), UInt8(len & 0xff)]
-        out += block
-        return Data(out)
+        return block
+    }
+
+    /// PICTURE body: type | MIME | (empty) description | w/h/depth/colors |
+    /// data length | data.
+    private func pictureBody(type: Int, mime: String, data: [UInt8]) -> [UInt8] {
+        var body: [UInt8] = be32(UInt32(type))
+        let mimeBytes = Array(mime.utf8)
+        body += be32(UInt32(mimeBytes.count)); body += mimeBytes
+        body += be32(0) // empty description
+        body += be32(16) + be32(16) + be32(24) + be32(0) // w, h, depth, colors
+        body += be32(UInt32(data.count)); body += data
+        return body
+    }
+
+    /// Minimal FLAC with one VORBIS_COMMENT block.
+    private func flacFile(comments: [String]) -> Data {
+        flacBlocks([(type: 4, body: vorbisBody(comments))])
     }
 
     /// Minimal ID3v2.3 file: header + the given (id, payload) frames.
