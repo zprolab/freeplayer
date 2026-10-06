@@ -536,9 +536,17 @@ enum Database {
                 [NSNumber(value: playlistId), NSNumber(value: trackId), NSNumber(value: pos)])
     }
 
+    /// Append tracks AFTER the playlist's current tail. The bridge used to
+    /// hardcode startAt 0, so adding a batch to a non-empty playlist wrote
+    /// duplicate positions and getPlaylistTracks (ORDER BY position) reordered
+    /// the list nondeterministically.
     @discardableResult
-    static func addTracksToPlaylist(_ playlistId: Int64, _ trackIds: [Any], startAt pos: Int64) -> Bool {
-        insertPlaylistTracks(playlistId, trackIds, startAt: pos, orIgnore: true)
+    static func addTracksToPlaylist(_ playlistId: Int64, _ trackIds: [Any]) -> Bool {
+        let rows = runTracksQuery(
+            "SELECT COALESCE(MAX(position), -1) + 1 AS next_pos FROM playlist_tracks WHERE playlist_id = ?",
+            [NSNumber(value: playlistId)])
+        let start = (rows.first?["next_pos"] as? NSNumber)?.int64Value ?? 0
+        return insertPlaylistTracks(playlistId, trackIds, startAt: start, orIgnore: true)
     }
 
     // P9: Shared helper for playlist track insertion to avoid code duplication

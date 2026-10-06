@@ -49,8 +49,7 @@ extension FPBridge {
             guard let ids = d["trackIds"] as? [Any], ids.count <= 10000 else { call.reply(false); return }
             call.reply(Database.addTracksToPlaylist(
                 (d["playlistId"] as? NSNumber)?.int64Value ?? 0,
-                ids,
-                startAt: 0))
+                ids))
         }
 
         core.register("setPlaylistTracks") { call in

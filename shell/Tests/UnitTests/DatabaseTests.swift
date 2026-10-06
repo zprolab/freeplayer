@@ -294,4 +294,30 @@ final class DatabaseTests: XCTestCase {
         XCTAssertEqual(track?["file_path"] as? String, "/lib/original.mp3")
         Database.close()
     }
+
+    // MARK: - playlist append position
+
+    func testAddTracksToPlaylistAppendsAfterTail() {
+        openTracksDb()
+        insertTrack("First", "/lib/1.mp3")
+        insertTrack("Second", "/lib/2.mp3")
+        let tracks = Database.getAllTracks("", "imported_at", "ASC")
+        guard let p1 = tracks.first?["id"] as? Int64,
+              let p2 = tracks.last?["id"] as? Int64 else {
+            XCTFail("track inserts failed"); Database.close(); return
+        }
+        Database.createPlaylist("List", nil)
+        guard let plId = Database.getPlaylists().first?["id"] as? Int64 else {
+            XCTFail("playlist create failed"); Database.close(); return
+        }
+        Database.addTrackToPlaylist(plId, p1)
+        // Pre-fix this hardcoded position 0 and collided with p1's slot.
+        Database.addTracksToPlaylist(plId, [NSNumber(value: p2)])
+        let rows = Database.getPlaylistTracks(plId)
+        XCTAssertEqual(rows.count, 2)
+        XCTAssertEqual(rows.first?["id"] as? Int64, p1)
+        let positions = rows.compactMap { ($0["position"] as? NSNumber)?.int64Value }
+        XCTAssertEqual(positions, [0, 1])
+        Database.close()
+    }
 }
