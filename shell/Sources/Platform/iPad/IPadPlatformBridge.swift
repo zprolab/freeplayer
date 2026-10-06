@@ -127,20 +127,19 @@ final class IPadPlatformBridge: NSObject, PlatformBridge {
         present(picker)
     }
 
-    func resetDatabase() -> Bool {
-        // synchronous API — present the alert and run the wipe on confirm
-        // (the renderer already double-confirms; this is a third gate)
-        guard let host = Host.viewController else { return false }
+    func resetDatabase(reply: @escaping (Bool) -> Void) {
+        // The renderer already double-confirms; this is a third gate. Reply
+        // from the alert action: returning synchronously always reported
+        // "not reset" because the destructive closure runs after presentation.
+        guard let host = Host.viewController else { reply(false); return }
         let alert = UIAlertController(title: "Reset Database",
                                       message: "This will permanently delete all tracks, playlists, listening history, and settings. This cannot be undone.",
                                       preferredStyle: .alert)
-        var didReset = false
-        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel) { _ in reply(false) })
         alert.addAction(UIAlertAction(title: "Reset Everything", style: .destructive) { _ in
-            didReset = Database.resetDatabase()
+            reply(Database.resetDatabase())
         })
         host.present(alert, animated: true)
-        return didReset
     }
 
     // MARK: - Playback state (Control Center)

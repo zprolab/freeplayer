@@ -105,7 +105,7 @@ struct MacPlatformBridge: PlatformBridge {
         reply(["success": true, "content": content ?? "", "path": target])
     }
 
-    func resetDatabase() -> Bool {
+    func resetDatabase(reply: @escaping (Bool) -> Void) {
         // S8: gate behind a native confirmation dialog
         let alert = NSAlert()
         alert.alertStyle = .warning
@@ -113,7 +113,7 @@ struct MacPlatformBridge: PlatformBridge {
         alert.informativeText = "This will permanently delete all tracks, playlists, listening history, and settings. This cannot be undone."
         alert.addButton(withTitle: "Reset Everything")
         alert.addButton(withTitle: "Cancel")
-        return alert.runModal() == .alertFirstButtonReturn && Database.resetDatabase()
+        reply(alert.runModal() == .alertFirstButtonReturn && Database.resetDatabase())
     }
 
     // MARK: - Playback state

@@ -29,7 +29,9 @@ protocol PlatformBridge {
     func importDialog(reply: @escaping (Any?) -> Void)
     func selectLibraryDir(reply: @escaping (Any?) -> Void)
     func uploadLrc(trackId: Int64, audioPath: String, reply: @escaping (Any?) -> Void)
-    func resetDatabase() -> Bool
+    /// Async because the confirmation dialog is modal/asynchronous on iPad: a
+    /// synchronous Bool return could only ever report the pre-dialog default.
+    func resetDatabase(reply: @escaping (Bool) -> Void)
 
     // ── Playback state (Control Center / tray) ──
     func sendPlaybackState(playing: Bool)
@@ -73,7 +75,7 @@ extension PlatformBridge {
             call.reply(true)
         }
         core.register("resetDatabase") { call in
-            call.reply(self.resetDatabase())
+            self.resetDatabase { call.reply($0) }
         }
         core.register("sendPlaybackState") { call in
             let d = call.args.first as? [String: Any] ?? [:]
