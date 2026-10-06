@@ -19,6 +19,19 @@ enum HttpClient {
     // private / multicast / unspecified addresses. Every resolved address must
     // be public: a hostname that resolves to a mix of public + private IPs is
     // rejected (getaddrinfo on the bare host, then one check per address).
+    /// 0.0.0.0/8, 127/8, 169.254/16, 10/8, 172.16/12, 192.168/16, 224/4.
+    /// Shared by the AF_INET path and the IPv4-mapped AF_INET6 path so the two
+    /// can't drift.
+    private static func ipv4IsBlocked(_ v: UInt32) -> Bool {
+        v == 0
+            || (v >> 24) == 127
+            || (v >> 16) == 0xA9FE
+            || (v >> 24) == 10
+            || (v >> 20) == 0xAC1
+            || (v >> 16) == 0xC0A8
+            || (v >> 28) == 0xE
+    }
+
     static func urlAllowed(_ url: URL) -> Bool {
         guard url.scheme == "https" || url.scheme == "http" else { return false }
         guard let host = url.host?.lowercased(), !host.isEmpty else { return false }
@@ -36,15 +49,7 @@ enum HttpClient {
         while let cur = ai {
             if cur.pointee.ai_family == AF_INET {
                 cur.pointee.ai_addr.withMemoryRebound(to: sockaddr_in.self, capacity: 1) { sa in
-                    let a = UInt32(bigEndian: sa.pointee.sin_addr.s_addr)
-                    let v = a as UInt32
-                    if v == 0                  // 0.0.0.0
-                        || (v >> 24) == 127    // 127.0.0.0/8
-                        || (v >> 16) == 0xA9FE // 169.254.0.0/16 link-local
-                        || (v >> 24) == 10     // 10.0.0.0/8
-                        || (v >> 20) == 0xAC1  // 172.16.0.0/12
-                        || (v >> 16) == 0xC0A8 // 192.168.0.0/16
-                        || (v >> 28) == 0xE {  // 224.0.0.0/4 multicast
+                    if ipv4IsBlocked(UInt32(bigEndian: sa.pointee.sin_addr.s_addr)) {
                         allowed = false
                     }
                 }
@@ -58,7 +63,16 @@ enum HttpClient {
                     let loopback = bytes[0...14].allSatisfy { $0 == 0 } && bytes[15] == 1
                     let linkLocal = bytes[0] == 0xfe && (bytes[1] & 0xc0) == 0x80
                     let multicast = bytes[0] == 0xff
-                    if allZero || loopback || linkLocal || multicast {
+                    // fc00::/7 unique-local is private.
+                    let uniqueLocal = (bytes[0] & 0xfe) == 0xfc
+                    // ::ffff:a.b.c.d wraps an IPv4 address — without this,
+                    // https://[::ffff:127.0.0.1] slipped past the v4 checks.
+                    let v4Mapped = bytes[0...9].allSatisfy { $0 == 0 }
+                        && bytes[10] == 0xff && bytes[11] == 0xff
+                    let mappedBlocked = v4Mapped && ipv4IsBlocked(
+                        (UInt32(bytes[12]) << 24) | (UInt32(bytes[13]) << 16)
+                        | (UInt32(bytes[14]) << 8) | UInt32(bytes[15]))
+                    if allZero || loopback || linkLocal || multicast || uniqueLocal || mappedBlocked {
                         allowed = false
                     }
                 }
