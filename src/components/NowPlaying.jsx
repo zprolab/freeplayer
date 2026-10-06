@@ -5,6 +5,7 @@ import ImmersiveMode from './ImmersiveMode';
 import CoverArt from './CoverArt';
 import { formatTime } from '../utils/format';
 import { useCoverArt } from '../hooks/useCoverArt';
+import { sourceLabel, sourceKind } from '../utils/provenance';
 import { fetchAndSaveLyrics, fetchAndSaveCover } from '../services/metaPersistence';
 
 export default function NowPlaying({
@@ -14,9 +15,11 @@ export default function NowPlaying({
   audioElement,
   visualizerMode, onVisualizerModeChange,
   onCoverSaved,
+  onTrackReset,
   meta,
 }) {
   const [lrcContent, setLrcContent] = useState(null);
+  const [lrcSource, setLrcSource] = useState(null);
   const [isImmersive, setIsImmersive] = useState(false);
   const [tab, setTab] = useState('overview');
   const [queueOpen, setQueueOpen] = useState(false);
@@ -24,6 +27,8 @@ export default function NowPlaying({
   const [lyricsFailReason, setLyricsFailReason] = useState(null);
   const [fetchingCover, setFetchingCover] = useState(false);
   const [coverFailReason, setCoverFailReason] = useState(null);
+  const [resetting, setResetting] = useState(false);
+  const [resetError, setResetError] = useState(null);
 
   const coverUrl = useCoverArt(currentTrack);
 
@@ -33,19 +38,24 @@ export default function NowPlaying({
     if (currentTrack?.id) {
       window.freeplayer.getLrc(currentTrack.id).then((result) => {
         if (!stale) {
-          setLrcContent(result && result.content ? result.content : null);
+          const content = result && result.content ? result.content : null;
+          setLrcContent(content);
+          setLrcSource(content ? (result.source || null) : null);
         }
       }).catch((err) => {
         console.warn('Failed to load lyrics:', err);
         if (!stale) {
           setLrcContent(null);
+          setLrcSource(null);
         }
       });
     } else {
       setLrcContent(null);
+      setLrcSource(null);
     }
     setLyricsFailReason(null);
     setCoverFailReason(null);
+    setResetError(null);
     return () => { stale = true; };
   }, [currentTrack]);
 
@@ -56,6 +66,7 @@ export default function NowPlaying({
       const lrcResult = await window.freeplayer.getLrc(currentTrack.id);
       if (lrcResult && lrcResult.content) {
         setLrcContent(lrcResult.content);
+        setLrcSource(lrcResult.source || 'sidecar');
       }
     }
   }, [currentTrack]);
@@ -64,6 +75,7 @@ export default function NowPlaying({
     if (!currentTrack?.id) return;
     await window.freeplayer.removeLrc(currentTrack.id);
     setLrcContent(null);
+    setLrcSource(null);
   }, [currentTrack]);
 
   const handleFetchLyrics = useCallback(async () => {
@@ -78,6 +90,7 @@ export default function NowPlaying({
         const lrcResult = await window.freeplayer.getLrc(currentTrack.id);
         if (lrcResult && lrcResult.content) {
           setLrcContent(lrcResult.content);
+          setLrcSource(lrcResult.source || 'plugin');
         }
       } else {
         setLyricsFailReason(reason || 'not-found');
@@ -107,6 +120,31 @@ export default function NowPlaying({
     }
   }, [currentTrack, fetchingCover, onCoverSaved, meta]);
 
+  // Make the audio file's own metadata the baseline again: embedded tags,
+  // artwork and lyrics replace whatever an online backend or an earlier edit
+  // left behind. The row is refreshed from the shell afterwards.
+  const handleResetFromFile = useCallback(async () => {
+    if (!currentTrack?.id || resetting) return;
+    setResetting(true);
+    setResetError(null);
+    try {
+      const result = await window.freeplayer.resetTrackFromFile(currentTrack.id);
+      if (!result || result.success === false) {
+        setResetError(result?.error || 'reset failed');
+        return;
+      }
+      const fresh = await window.freeplayer.getTrack(currentTrack.id).catch(() => null);
+      if (fresh && onTrackReset) onTrackReset(fresh);
+      const lrcResult = await window.freeplayer.getLrc(currentTrack.id).catch(() => null);
+      setLrcContent(lrcResult && lrcResult.content ? lrcResult.content : null);
+      setLrcSource(lrcResult && lrcResult.content ? (lrcResult.source || null) : null);
+    } catch (err) {
+      setResetError(err?.message || 'error');
+    } finally {
+      setResetting(false);
+    }
+  }, [currentTrack, resetting, onTrackReset]);
+
   if (!currentTrack) {
     return (
       <div className="empty-state">
@@ -129,6 +167,14 @@ export default function NowPlaying({
   if (currentTrack.year) specRows.push(['Year', currentTrack.year]);
   if (currentTrack.genre) specRows.push(['Genre', currentTrack.genre]);
 
+  // Only the values whose provenance the shell actually recorded (rows
+  // imported before the columns existed have none yet).
+  const provenanceItems = [
+    ['Tags', currentTrack.meta_source],
+    ['Cover', currentTrack.cover_source],
+    ['Lyrics', lrcSource],
+  ].filter(([, source]) => !!source);
+
   const lyrics = (
     <LyricsDisplay
       lrcContent={lrcContent}
@@ -139,6 +185,7 @@ export default function NowPlaying({
       lyricsFailReason={lyricsFailReason}
       onImmersive={() => setIsImmersive(true)}
       onRemove={handleRemoveLrc}
+      lyricsSource={lrcSource}
       autoScroll
     />
   );
@@ -197,6 +244,33 @@ export default function NowPlaying({
                   ))}
                 </dl>
               )}
+
+              {/* Provenance of each value: the audio file itself is the
+                  baseline, online backends and manual edits are labelled so
+                  the user can see (and undo) a fill-in. */}
+              <div className="np-baseline">
+                {provenanceItems.length > 0 && (
+                  <div className="np-baseline-sources">
+                    {provenanceItems.map(([label, source]) => (
+                      <span className="np-baseline-item" key={label}>
+                        <span className="np-baseline-label">{label}</span>
+                        <span className={`np-source np-source--${sourceKind(source)}`}>
+                          {sourceLabel(source)}
+                        </span>
+                      </span>
+                    ))}
+                  </div>
+                )}
+                <button
+                  className="np-reset-btn"
+                  onClick={handleResetFromFile}
+                  disabled={resetting}
+                  title="Re-read the tags, artwork and lyrics embedded in the audio file"
+                >
+                  {resetting ? 'Resetting…' : 'Reset from file'}
+                </button>
+                {resetError && <span className="np-reset-error">{resetError}</span>}
+              </div>
             </div>
           </div>
 

@@ -488,7 +488,16 @@ useEffect(() => {
                   audioElement={audioRef.current}
                   visualizerMode={state.visualizerMode}
                   onVisualizerModeChange={(m) => dispatch({ type: 'SET', payload: { visualizerMode: m } })}
-                  onCoverSaved={(coverPath) => dispatch({ type: 'SET_TRACK_FIELDS', payload: { id: state.currentTrack?.id, fields: { cover_path: coverPath } } })}
+                  onCoverSaved={(coverPath) => dispatch({ type: 'SET_TRACK_FIELDS', payload: { id: state.currentTrack?.id, fields: { cover_path: coverPath, cover_source: 'plugin' } } })}
+                  onTrackReset={(fresh) => {
+                    // "Reset from file" rewrote tags/cover in the DB from the
+                    // audio file: mirror the fresh row (sources included) into
+                    // the current track and the lists so the badges and cover
+                    // follow immediately.
+                    if (!fresh || !fresh.id) return;
+                    const { id, ...fields } = fresh;
+                    dispatch({ type: 'SET_TRACK_FIELDS', payload: { id, fields } });
+                  }}
                   meta={meta}
                 />
               )}

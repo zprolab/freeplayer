@@ -202,8 +202,97 @@
   white-space: nowrap;
 }
 
-/* ── Lyrics panes ── */
+/* Metadata provenance — where tags/cover/lyrics came from, plus the reset
+   action that re-reads them from the audio file. */
+.np-baseline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--np-border);
+}
 
+.np-baseline-sources {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+}
+
+.np-baseline-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.np-baseline-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--np-text-3);
+}
+
+.np-source {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  padding: 2px 7px;
+  border-radius: 3px;
+  border: 1px solid transparent;
+  color: var(--np-text-2);
+  background: rgba(127, 127, 127, 0.12);
+}
+
+.np-source--file {
+  color: var(--gl-green);
+  background: var(--gl-green-light);
+  border-color: rgba(16, 133, 72, 0.25);
+}
+
+.np-source--online {
+  color: var(--gl-blue);
+  background: var(--gl-blue-light);
+  border-color: rgba(31, 117, 203, 0.25);
+}
+
+.np-source--user {
+  color: var(--gl-purple);
+  background: rgba(110, 73, 236, 0.08);
+  border-color: rgba(110, 73, 236, 0.25);
+}
+
+.np-reset-btn {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 4px 10px;
+  border-radius: var(--gl-radius-sm);
+  border: 1px solid var(--np-border);
+  background: transparent;
+  color: var(--np-text-2);
+  cursor: pointer;
+}
+
+.np-reset-btn:hover:not(:disabled) {
+  color: var(--np-text);
+  border-color: var(--np-accent);
+}
+
+.np-reset-btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.np-reset-error {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--gl-red);
+}
+
+/* ── Lyrics panes ── */
 .np-lyrics-pane {
   min-height: 0;
   display: flex;

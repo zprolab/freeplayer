@@ -31,6 +31,9 @@ export default function EditModal({ track, onClose, onSaved }) {
           album: album.trim() || 'Unknown Album',
           genre: genre.trim() || null,
           year: year ? parseInt(year, 10) : null,
+          // Provenance: these values were hand-edited rather than read from
+          // the file, so the track stops claiming a file baseline for its tags.
+          meta_source: 'user',
         },
       });
       onSaved();

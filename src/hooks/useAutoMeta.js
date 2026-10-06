@@ -64,6 +64,7 @@ export function useAutoMeta(currentTrack, meta, dispatch) {
       try {
         let out = track;
         let coverPath = track.cover_path;
+        let coverSaved = false;
         let lyricsSaved = false;
         let metaSaved = false;
         let updated = null;
@@ -74,7 +75,10 @@ export function useAutoMeta(currentTrack, meta, dispatch) {
             || !(await window.freeplayer.getCover(track.cover_path).catch(() => null));
           if (coverMissing) {
             const { saved, coverPath: newCoverPath } = await meta.fetchCover(track);
-            if (saved && newCoverPath) coverPath = newCoverPath;
+            if (saved && newCoverPath) {
+              coverPath = newCoverPath;
+              coverSaved = true;
+            }
           }
         }
         if (auto.lyrics) {
@@ -101,7 +105,10 @@ export function useAutoMeta(currentTrack, meta, dispatch) {
         const changed = coverPath !== track.cover_path || lyricsSaved || metaSaved;
         if (changed) {
           const fields = {};
-          if (coverPath !== track.cover_path) fields.cover_path = coverPath;
+          if (coverPath !== track.cover_path) {
+            fields.cover_path = coverPath;
+            if (coverSaved) fields.cover_source = 'plugin';
+          }
           if (updated) Object.assign(fields, updated);
           // Id-matched patch (SET_TRACK_FIELDS): refreshes the current track
           // AND the lists (tracks/queue/playlistTracks), so a cover or

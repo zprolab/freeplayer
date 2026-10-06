@@ -127,9 +127,13 @@ export function createMetadataRegistry(deps) {
       return { saved: false, reason: 'not-found' };
     }
     registry.logOp(backend, 'fetchMetadata', track.id, true);
-    const ok = await updateTrack(track.id, fields);
+    // Stamp provenance with the write: the fields came from an online backend,
+    // not from the audio file, so a later "reset from file" knows what it may
+    // replace and the UI can label the source.
+    const stamp = { ...fields, meta_source: 'plugin' };
+    const ok = await updateTrack(track.id, stamp);
     registry.logOp(backend, 'saveMetadata', track.id, ok);
-    return { saved: !!ok, updated: fields };
+    return { saved: !!ok, updated: stamp };
   }
 
   return { getBackend: backendFor, getProviders, fetchLyrics, fetchCover, fetchMetadata };

@@ -172,7 +172,9 @@ describe('useAutoMeta with per-backend switches', () => {
     await flush();
     expect(dispatch).toHaveBeenCalledWith({
       type: 'SET_TRACK_FIELDS',
-      payload: { id: 1, fields: { cover_path: '/new.jpg' } },
+      // The fetched cover is recorded as coming from an online backend, so
+      // the UI can label it (and "reset from file" can undo it).
+      payload: { id: 1, fields: { cover_path: '/new.jpg', cover_source: 'plugin' } },
     });
   });
 
@@ -192,7 +194,7 @@ describe('useAutoMeta with per-backend switches', () => {
     // currentTrack (track 2), never drop the saved cover.
     expect(dispatch).toHaveBeenCalledWith({
       type: 'SET_TRACK_FIELDS',
-      payload: { id: 1, fields: { cover_path: '/new.jpg' } },
+      payload: { id: 1, fields: { cover_path: '/new.jpg', cover_source: 'plugin' } },
     });
     expect(dispatch).not.toHaveBeenCalledWith(expect.objectContaining({ type: 'SET_CURRENT_TRACK' }));
   });
@@ -253,7 +255,7 @@ describe('useAutoMeta with per-backend switches', () => {
     expect(dispatch).toHaveBeenCalledTimes(1);
     expect(dispatch).toHaveBeenCalledWith({
       type: 'SET_TRACK_FIELDS',
-      payload: { id: 1, fields: { title: 'New', cover_path: '/new.jpg' } },
+      payload: { id: 1, fields: { title: 'New', cover_path: '/new.jpg', cover_source: 'plugin' } },
     });
   });
 });

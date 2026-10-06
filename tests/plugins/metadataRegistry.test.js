@@ -167,8 +167,14 @@ describe('createMetadataRegistry', () => {
     const track = { id: 7, title: 'Old Title', artist: 'A B', album: 'X' };
     const res = await reg.fetchMetadata(track);
     expect(res.saved).toBe(true);
-    expect(updateTrack).toHaveBeenCalledWith(7, { title: 'Better Title', genre: 'Rock', year: 2020 });
-    expect(res.updated).toEqual({ title: 'Better Title', genre: 'Rock', year: 2020 });
+    // The provenance stamp rides along with the write, so the row records that
+    // these fields came from an online backend rather than the audio file.
+    expect(updateTrack).toHaveBeenCalledWith(7, {
+      title: 'Better Title', genre: 'Rock', year: 2020, meta_source: 'plugin',
+    });
+    expect(res.updated).toEqual({
+      title: 'Better Title', genre: 'Rock', year: 2020, meta_source: 'plugin',
+    });
   });
   it('fetchMetadata: refuses without the metadata:write grant', async () => {
     const registry = makeRegistry([

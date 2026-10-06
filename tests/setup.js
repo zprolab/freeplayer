@@ -29,6 +29,7 @@ global.window = {
     getLrc: async () => null,
     saveLrcContent: async () => ({ success: false }),
     saveCover: async () => ({ success: false }),
+    resetTrackFromFile: async () => ({ success: true }),
     httpGetJson: async () => ({ ok: false, status: 404, error: 'not mocked' }),
     getStats: async () => ({ totalTime: 0, totalPlays: 0, uniqueTracksPlayed: 0, topTracks: [], topArtists: [], dailyStats: [] }),
     getPlayHistory: async () => [],

@@ -41,6 +41,33 @@
   font-family: var(--font-mono);
 }
 
+/* Where the lyrics came from: the audio file / a sidecar .lrc / online. */
+.lyrics-meta-source {
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-family: var(--font-mono);
+  padding: 2px 7px;
+  border-radius: 3px;
+  color: var(--np-text-3);
+  background: rgba(127, 127, 127, 0.12);
+}
+
+.lyrics-meta-source--file {
+  color: var(--gl-green);
+  background: var(--gl-green-light);
+}
+
+.lyrics-meta-source--online {
+  color: var(--gl-blue);
+  background: var(--gl-blue-light);
+}
+
+.lyrics-meta-source--user {
+  color: var(--gl-purple);
+  background: rgba(110, 73, 236, 0.08);
+}
+
 .lyrics-meta-spacer {
   flex: 1;
 }

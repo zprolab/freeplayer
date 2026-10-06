@@ -2,10 +2,11 @@ import { useMemo, useRef } from 'react';
 import { parseLRC } from '../utils/lrc';
 import { formatTime } from '../utils/format';
 import { useActiveLineScroll } from '../hooks/useActiveLineScroll';
+import { sourceLabel, sourceKind } from '../utils/provenance';
 
 export default function LyricsDisplay({
   lrcContent, currentTime = 0, onUpload, onRemove, onImmersive, autoScroll = false,
-  onFetchLyrics, fetchingLyrics, lyricsFailReason,
+  onFetchLyrics, fetchingLyrics, lyricsFailReason, lyricsSource,
 }) {
   const lyrics = useMemo(() => parseLRC(lrcContent), [lrcContent]);
   const listRef = useRef(null);
@@ -86,6 +87,14 @@ export default function LyricsDisplay({
       {/* Metadata header */}
       <div className="lyrics-meta-header">
         <span className="lyrics-meta-badge">LRC</span>
+        {lyricsSource && (
+          <span
+            className={`lyrics-meta-source lyrics-meta-source--${sourceKind(lyricsSource)}`}
+            title="Where these lyrics came from"
+          >
+            {sourceLabel(lyricsSource)}
+          </span>
+        )}
         <span className="lyrics-meta-count">{lyrics.length} lines</span>
         <div className="lyrics-meta-spacer" />
         {onImmersive && (
