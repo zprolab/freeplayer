@@ -6,7 +6,13 @@
 #   bash scripts/test-simulator.sh unit          # unit tests only
 #   bash scripts/test-simulator.sh ui            # UI tests only
 #   bash scripts/test-simulator.sh --device "iPad Pro 13-inch (M5)"
-set -e
+#
+# A missing device used to fail only at step 5 — after icons, xcodegen and a
+# derived-data wipe — and because every xcodebuild invocation was piped into
+# `tail`, its non-zero exit was replaced by tail's 0: the script printed
+# "✅ Tests completed" having run nothing. The device is resolved up front and
+# pipefail keeps xcodebuild failures visible.
+set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SHELL="$ROOT/shell"
@@ -24,6 +30,32 @@ while [ $# -gt 0 ]; do
     *) echo "unknown arg: $1" >&2; exit 2 ;;
   esac
 done
+
+# ── resolve the simulator before doing any work ──
+simctl_devices() {
+  xcrun simctl list devices available \
+    | sed -n 's/^ *\(.*\) ([0-9A-Fa-f-]\{36\}).*$/\1/p'
+}
+AVAILABLE="$(simctl_devices)"
+if ! grep -Fxq "$DEVICE" <<<"$AVAILABLE"; then
+  # Prefer an already-booted iPad (no boot wait), else any available iPad.
+  FALLBACK="$(xcrun simctl list devices available \
+    | sed -n 's/^ *\(.*\) ([0-9A-Fa-f-]\{36\}) (Booted).*$/\1/p' \
+    | grep '^iPad' | head -1 || true)"
+  if [ -z "$FALLBACK" ]; then
+    FALLBACK="$(echo "$AVAILABLE" | grep '^iPad' | head -1 || true)"
+  fi
+  if [ -z "$FALLBACK" ]; then
+    echo "✗ No simulator named '$DEVICE', and no iPad simulator is available." >&2
+    echo "  Available devices:" >&2
+    echo "$AVAILABLE" | sed 's/^/    /' >&2
+    exit 2
+  fi
+  echo "⚠  '$DEVICE' is not available on this machine — using '$FALLBACK'."
+  echo "   Override with: bash scripts/test-simulator.sh --device \"<name>\""
+  echo "   (list with: xcrun simctl list devices available)"
+  DEVICE="$FALLBACK"
+fi
 
 echo "╔══════════════════════════════════════════╗"
 echo "║  FreePlayer — Simulator Test Runner      ║"
