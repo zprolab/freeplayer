@@ -74,6 +74,11 @@ export function usePlayback() {
   const togglePlayPause = useCallback(() => {
     const audio = audioRef.current;
     if (!audio.src && state.tracks.length > 0) {
+      // Starting from a stopped state: seed the queue as well, or Next/Prev
+      // bail out (`if (!queue.length) return`) and the newly playing track
+      // cannot be advanced until the user picks one from the library.
+      dispatch({ type: 'SET_QUEUE', payload: state.tracks });
+      dispatch({ type: 'SET_QUEUE_INDEX', payload: 0 });
       playTrack(state.tracks[0]);
       return;
     }
@@ -85,7 +90,7 @@ export function usePlayback() {
     } else {
       audio.pause();
     }
-  }, [audioRef, state.tracks, playTrack]);
+  }, [audioRef, state.tracks, playTrack, dispatch]);
 
   const handleNext = useCallback(() => {
     const { queue, queueIndex, playMode, shuffledQueue } = state;
