@@ -111,4 +111,20 @@ final class PathsTests: XCTestCase {
         XCTAssertFalse(Paths.isPathInLibrary("/anything/at/all.mp3"))
         Database.close()
     }
+
+    // MARK: - autoLrcPath (host-written lyrics slot)
+
+    func testAutoLrcPathSitsNextToTheAudio() {
+        XCTAssertEqual(
+            Paths.autoLrcPath(audioPath: "/lib/Artist/Album/Song Title.mp3", trackId: 42),
+            "/lib/Artist/Album/Song Title.42.lrc")
+    }
+
+    func testAutoLrcPathCleansDownloaderSuffix() {
+        // Same stem rule as findSidecarLrc, so lyrics written for a track land
+        // beside the audio it belongs to even with a downloader suffix.
+        XCTAssertEqual(
+            Paths.autoLrcPath(audioPath: "/lib/Song_EM.flac", trackId: 7),
+            "/lib/Song.7.lrc")
+    }
 }

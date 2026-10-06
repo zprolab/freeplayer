@@ -186,30 +186,19 @@ enum ImportPipeline {
                         }
                     }
 
-                    // Cover art -> <albumDir>/.covers/cover.ext
+                    // Cover art -> <albumDir>/.covers/cover.jpg (the album's
+                    // shared cover; also what resetTrackFromFile re-points to)
                     var coverPath: String?
                     if let artwork = meta["artwork"] as? Data {
-                        let coverDir = (albumDir as NSString).appendingPathComponent(".covers")
-                        if !fm.fileExists(atPath: coverDir) {
-                            try? fm.createDirectory(atPath: coverDir, withIntermediateDirectories: true)
-                        }
-                        let cp = (coverDir as NSString).appendingPathComponent("cover.jpg")
-                        if !fm.fileExists(atPath: cp) {
-                            do {
-                                try artwork.write(to: URL(fileURLWithPath: cp), options: .atomic)
-                                coverPath = cp
-                            } catch {
-                                NSLog("[bridge] cover write failed: %@", "\(error)")
-                                coverPath = nil // keep the track, drop only the cover
-                            }
-                        } else {
-                            coverPath = cp
-                        }
+                        coverPath = Metadata.writeEmbeddedCover(artwork, audioPath: targetPath)
                     }
 
                     var trackData = meta
                     trackData["file_path"] = targetPath
                     trackData["cover_path"] = coverPath ?? NSNull()
+                    // Only a cover that actually landed on disk is "from file";
+                    // an artwork write failure must not be recorded as a source.
+                    trackData["cover_source"] = coverPath != nil ? "file" : NSNull()
                     trackData["replaygain_gain"] = 0
                     trackData["replaygain_peak"] = 0
                     trackData.removeValue(forKey: "artwork")
@@ -235,6 +224,8 @@ enum ImportPipeline {
                             DebugLog.file("IMPORT_DB_FAIL path=\(failedPath) reason=insert-failed")
                             boxErrors.append(["file": td["file_path"] ?? "?", "error": "database insert failed"])
                             imported -= 1
+                        } else {
+                            applyLyricsBaseline(td)
                         }
                     }
                     if tx { _ = Database.commitTransaction() }
@@ -248,5 +239,34 @@ enum ImportPipeline {
                 DebugLog.file("IMPORT_PIPELINE_DONE imported=\(imported) skipped=\(skipped) errors=\(boxErrors.count)")
             }
         }
+    }
+
+    /// Persist the lyrics the audio file carries as the track's baseline.
+    ///
+    /// Order: a `.lrc` sitting next to the audio is a file-provided baseline
+    /// too and wins, then the lyrics embedded in the file are written to the
+    /// host's `<stem>.<id>.lrc` slot and recorded as source "file". Online
+    /// backends may only fill in when this leaves the track without lyrics.
+    /// Runs after the insert because the file name carries the track id.
+    private static func applyLyricsBaseline(_ td: [String: Any]) {
+        guard let target = td["file_path"] as? String,
+              let tid = Database.getTrackIdByPath(target) else { return }
+        if let sidecar = Metadata.findSidecarLrc(target) {
+            _ = Database.setTrackLrc(tid, sidecar, source: "sidecar")
+            DebugLog.file("IMPORT_LYRICS_BASELINE path=\(target) source=sidecar")
+            return
+        }
+        guard let lyrics = td["lyrics"] as? String,
+              !lyrics.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        let dest = Paths.autoLrcPath(audioPath: target, trackId: tid)
+        guard Paths.isPathInLibrary(dest) else { return }
+        do {
+            try lyrics.write(to: URL(fileURLWithPath: dest), atomically: true, encoding: .utf8)
+        } catch {
+            DebugLog.file("IMPORT_LYRICS_FAIL path=\(target) error=\(error.localizedDescription)")
+            return
+        }
+        _ = Database.setTrackLrc(tid, dest, source: "file")
+        DebugLog.file("IMPORT_LYRICS_BASELINE path=\(target) source=file")
     }
 }

@@ -38,6 +38,19 @@ enum Paths {
         }
     }
 
+    /// `<dir>/<clean stem>.<trackId>.lrc` — where the host writes lyrics it
+    /// obtained for a track: fetched from a plugin backend, or read out of the
+    /// audio file's own tags. The track id keeps one track's lyrics from
+    /// colliding with a sibling whose name only differs by a downloader suffix.
+    /// Single implementation shared by saveLrcContent, the import baseline and
+    /// the "reset from file" flow.
+    static func autoLrcPath(audioPath: String, trackId: Int64) -> String {
+        let stem = Metadata.cleanAudioStem(
+            ((audioPath as NSString).lastPathComponent as NSString).deletingPathExtension)
+        return ((audioPath as NSString).deletingLastPathComponent as NSString)
+            .appendingPathComponent("\(stem).\(trackId)") + ".lrc"
+    }
+
     /// True when `path` (standardized) lives inside library_dir AND, after
     /// resolving symlinks, its final target still lives inside library_dir
     /// (S3d: a renderer-planted symlink to an arbitrary file must not read).
