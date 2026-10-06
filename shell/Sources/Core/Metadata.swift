@@ -100,7 +100,12 @@ enum Metadata {
                     let count = UInt32(c[0]) | (UInt32(c[1]) << 8) | (UInt32(c[2]) << 16) | (UInt32(c[3]) << 24)
                     c += 4; cRem -= 4
                     var tags: [String: String] = [:]
-                    for _ in 0..<count where cRem >= 4 {
+                    // Bound by remaining bytes, not the file-declared `count`:
+                    // a crafted FLAC can claim 0xFFFFFFFF comments over a short
+                    // block, and `where cRem >= 4` turned every remaining
+                    // iteration into a no-op spin (~4.3B) — an import hang.
+                    for _ in 0..<count {
+                        if cRem < 4 { break }
                         let clen = UInt32(c[0]) | (UInt32(c[1]) << 8) | (UInt32(c[2]) << 16) | (UInt32(c[3]) << 24)
                         c += 4; cRem -= 4
                         if cRem < Int(clen) { break }
