@@ -59,11 +59,14 @@ export function parseLRC(raw) {
 export function sanitizeText(text) {
   if (!text) return text;
   let result = '';
-  for (let i = 0; i < text.length; i++) {
-    const cp = text.codePointAt(i);
-    // Skip surrogate pair trailing half so we don't double-process
-    if (cp > 0xFFFF) i++;
+  // Iterate by code point (for...of), not UTF-16 unit. Indexing text[i] and
+  // skipping the trailing surrogate of a pair appended ONLY the low surrogate,
+  // so every non-BMP character (emoji, rare CJK ext) came out as a lone
+  // surrogate — the exact tofu this function exists to avoid.
+  for (const ch of text) {
+    const cp = ch.codePointAt(0);
     if (
+      cp === undefined ||
       cp <= 0x08 ||                           // C0 controls (except \t=0x09, \n=0x0A, \r=0x0D)
       cp === 0x0B || cp === 0x0C ||           // VT, FF
       (cp >= 0x0E && cp <= 0x1F) ||           // rest of C0
@@ -76,7 +79,7 @@ export function sanitizeText(text) {
     ) {
       result += ' ';
     } else {
-      result += text[i];
+      result += ch;
     }
   }
   return result;
