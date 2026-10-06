@@ -31,10 +31,15 @@ extension FPBridge {
         core.register("getLrc") { call in
             let tid = (call.args.first as? NSNumber)?.int64Value ?? 0
             var lrcPath = Database.getTrackLrc(tid)
+            var source = Database.getTrackLyricsSource(tid)
             if lrcPath == nil {
                 if let track = Database.getTrackById(tid) as? [String: Any],
-                   let filePath = track["file_path"] as? String {
-                    lrcPath = Metadata.findSidecarLrc(filePath)
+                   let filePath = track["file_path"] as? String,
+                   let sidecar = Metadata.findSidecarLrc(filePath) {
+                    lrcPath = sidecar
+                    // Not recorded in the DB — it was found on disk next to the
+                    // audio, which is a file baseline, not an online fill-in.
+                    if source == nil { source = "sidecar" }
                 }
             }
             if lrcPath == nil || !FileManager.default.fileExists(atPath: lrcPath!) {
@@ -45,7 +50,9 @@ extension FPBridge {
                 let decoded = raw.flatMap { String(data: $0, encoding: .utf8) }
                     ?? raw.flatMap { String(data: $0, encoding: Metadata.gb18030) }
                 if let decoded {
-                    call.reply(["content": decoded, "path": lrcPath!])
+                    let reply: [String: Any] = ["content": decoded, "path": lrcPath!,
+                                                "source": source ?? NSNull()]
+                    call.reply(reply)
                 } else {
                     call.reply(NSNull())
                 }
@@ -56,7 +63,8 @@ extension FPBridge {
             let d = call.args.first as? [String: Any] ?? [:]
             let lrcPath = d["lrcPath"] as? String ?? ""
             guard Paths.isPathInLibrary(lrcPath) else { call.reply(false); return }
-            call.reply(Database.setTrackLrc((d["trackId"] as? NSNumber)?.int64Value ?? 0, lrcPath))
+            call.reply(Database.setTrackLrc((d["trackId"] as? NSNumber)?.int64Value ?? 0, lrcPath,
+                                            source: "sidecar"))
         }
 
         core.register("saveLrcContent") { call in
@@ -67,13 +75,14 @@ extension FPBridge {
                   let audioPath = track["file_path"] as? String else {
                 call.reply(["success": false]); return
             }
-            let audioStem = Metadata.cleanAudioStem(((audioPath as NSString).lastPathComponent as NSString).deletingPathExtension)
-            let target = ((audioPath as NSString).deletingLastPathComponent as NSString)
-                .appendingPathComponent("\(audioStem).\(tid)") + ".lrc"
+            let target = Paths.autoLrcPath(audioPath: audioPath, trackId: tid)
             guard Paths.isPathInLibrary(target) else { call.reply(["success": false]); return }
             do { try content.write(to: URL(fileURLWithPath: target), atomically: true, encoding: .utf8) }
             catch { call.reply(["success": false]); return }
-            let ok = Database.setTrackLrc(tid, target)
+            // Every caller of saveLrcContent is a plugin/online backend (the
+            // registry's fetchLyrics and the plugin api), so the file it writes
+            // is recorded as such — the file-embedded baseline stays visible.
+            let ok = Database.setTrackLrc(tid, target, source: "plugin")
             call.reply(ok ? ["success": true, "lrcPath": target] : ["success": false])
         }
 
@@ -146,7 +155,7 @@ extension FPBridge {
         guard Paths.isPathInLibrary(coverPath) else { call.reply(["success": false]); return }
         do { try outImg.write(to: URL(fileURLWithPath: coverPath), options: .atomic) }
         catch { call.reply(["success": false]); return }
-        let ok = Database.setTrackCover(tid, coverPath)
+        let ok = Database.setTrackCover(tid, coverPath, source: "plugin")
         call.reply(ok ? ["success": true, "coverPath": coverPath] : ["success": false])
     }
 }

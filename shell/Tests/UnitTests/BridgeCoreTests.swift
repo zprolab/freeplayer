@@ -148,6 +148,8 @@ final class BridgeCoreTests: XCTestCase {
             "setPlaylistTracks", "removeFromPlaylist",
             // lrc
             "getLrc", "setLrc", "saveLrcContent", "saveCover", "removeLrc",
+            // file baseline
+            "resetTrackFromFile",
             // import
             "scanDirectory", "importFiles",
             // platform-delegated from fp layer

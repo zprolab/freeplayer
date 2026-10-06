@@ -99,7 +99,9 @@ struct MacPlatformBridge: PlatformBridge {
         } catch {
             reply(["success": false, "error": error.localizedDescription]); return
         }
-        _ = Database.setTrackLrc(trackId, target)
+        // A user-picked .lrc copied next to the audio: a file baseline, but not
+        // one embedded in the audio itself.
+        _ = Database.setTrackLrc(trackId, target, source: "sidecar")
         let content = String(data: raw, encoding: .utf8)
             ?? String(data: raw, encoding: Metadata.gb18030)
         reply(["success": true, "content": content ?? "", "path": target])

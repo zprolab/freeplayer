@@ -54,6 +54,8 @@ enum BridgeScript {
         removeLrc: (trackId) => api._invoke('removeLrc', trackId),
         saveLrcContent: (trackId, content) => api._invoke('saveLrcContent', trackId, content),
         saveCover: (trackId, base64) => api._invoke('saveCover', trackId, base64),
+        // Re-apply the audio file's own tags/artwork/lyrics as the baseline
+        resetTrackFromFile: (trackId) => api._invoke('resetTrackFromFile', trackId),
         // Media keys / tray (M5)
         onMediaKey: (callback) => { window.__freeplayerMediaKeyHandler = callback; },
         sendPlaybackState: (isPlaying) => api._invoke('sendPlaybackState', { isPlaying }),
