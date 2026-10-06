@@ -70,29 +70,41 @@ export default function NowPlaying({
     if (!currentTrack?.id || fetchingLyrics) return;
     setFetchingLyrics(true);
     setLyricsFailReason(null);
-    const { saved, reason } = await fetchAndSaveLyrics(currentTrack, meta);
-    if (saved) {
-      const lrcResult = await window.freeplayer.getLrc(currentTrack.id);
-      if (lrcResult && lrcResult.content) {
-        setLrcContent(lrcResult.content);
+    // try/finally: a rejected native save/getSetting would otherwise skip the
+    // reset and leave the button stuck disabled on "Fetching…" forever.
+    try {
+      const { saved, reason } = await fetchAndSaveLyrics(currentTrack, meta);
+      if (saved) {
+        const lrcResult = await window.freeplayer.getLrc(currentTrack.id);
+        if (lrcResult && lrcResult.content) {
+          setLrcContent(lrcResult.content);
+        }
+      } else {
+        setLyricsFailReason(reason || 'not-found');
       }
-    } else {
-      setLyricsFailReason(reason || 'not-found');
+    } catch (err) {
+      setLyricsFailReason(err?.message || 'error');
+    } finally {
+      setFetchingLyrics(false);
     }
-    setFetchingLyrics(false);
   }, [currentTrack, fetchingLyrics, meta]);
 
   const handleFetchCover = useCallback(async () => {
     if (!currentTrack?.id || fetchingCover) return;
     setFetchingCover(true);
     setCoverFailReason(null);
-    const { saved, coverPath, reason } = await fetchAndSaveCover(currentTrack, meta);
-    if (saved && coverPath) {
-      onCoverSaved(coverPath);
-    } else {
-      setCoverFailReason(reason || 'not-found');
+    try {
+      const { saved, coverPath, reason } = await fetchAndSaveCover(currentTrack, meta);
+      if (saved && coverPath) {
+        onCoverSaved(coverPath);
+      } else {
+        setCoverFailReason(reason || 'not-found');
+      }
+    } catch (err) {
+      setCoverFailReason(err?.message || 'error');
+    } finally {
+      setFetchingCover(false);
     }
-    setFetchingCover(false);
   }, [currentTrack, fetchingCover, onCoverSaved, meta]);
 
   if (!currentTrack) {
