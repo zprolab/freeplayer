@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { computeNextIndex, computePrevIndex, shuffleArray } from '../src/hooks/playQueue';
+import { computeNextIndex, computePrevIndex, shuffleArray, buildShuffleOrder } from '../src/hooks/playQueue';
 
 const tracks = [
   { id: 1, title: 'A', file_path: 'path-A' }, { id: 2, title: 'B', file_path: 'path-B' },
@@ -24,14 +24,23 @@ describe('computeNextIndex', () => {
     expect(r.nextIdx).toBe(3);
   });
 
-  it('reshuffles and plays the new first track on shuffle wrap-around', () => {
-    // shuffled order IS the queue order: the current track is last → wrap
+  it('wraps to the head of the same shuffle order (no mid-cycle re-roll)', () => {
+    // The stored order IS the queue order: the current track is last, so the
+    // next one wraps back to the head instead of re-rolling. Re-rolling used
+    // to repeat the track just played and skip tracks that never came up.
     const shuffled = [...tracks];
     const r = computeNextIndex({ queue: tracks, queueIndex: 3, playMode: 'shuffle', shuffledQueue: shuffled });
-    expect(r.reshuffled).not.toBeNull();
-    expect(r.reshuffled).toHaveLength(tracks.length);
-    expect(r.reshuffled.map(t => t.id).sort()).toEqual(tracks.map(t => t.id).sort());
-    expect(r.nextIdx).toBe(tracks.findIndex(t => t.id === r.reshuffled[0].id));
+    expect(r.reshuffled).toBeNull();
+    expect(r.nextIdx).toBe(0);
+  });
+
+  it('skips rather than playing the wrong track when the order no longer matches', () => {
+    // The queue was replaced, so the current track is not in the stored order.
+    // Advancing from findIndex === -1 landed on shuffled[1] and silently played
+    // an unrelated track.
+    const stale = [tracks[2], tracks[3]];
+    const r = computeNextIndex({ queue: tracks, queueIndex: 0, playMode: 'shuffle', shuffledQueue: stale });
+    expect(r).toEqual({ nextIdx: -1, reshuffled: null });
   });
 
   it('uses the queue as the shuffle order when none is stored', () => {
@@ -40,14 +49,45 @@ describe('computeNextIndex', () => {
     expect(r.reshuffled).toBeNull();
   });
 
-  it('falls back to sequential when shuffledQueue is empty (next from end wraps with re-roll)', () => {
+  it('wraps to the head when no order is stored', () => {
     const r = computeNextIndex({ queue: tracks, queueIndex: 3, playMode: 'shuffle', shuffledQueue: [] });
-    expect(r.reshuffled).not.toBeNull();
-    expect(r.nextIdx).toBe(tracks.findIndex(t => t.id === r.reshuffled[0].id));
+    expect(r.reshuffled).toBeNull();
+    expect(r.nextIdx).toBe(0);
   });
 
   it('returns -1 for an empty queue', () => {
     expect(computeNextIndex({ queue: [], queueIndex: 0, playMode: 'sequential', shuffledQueue: [] })).toEqual({ nextIdx: -1, reshuffled: null });
+  });
+});
+
+describe('buildShuffleOrder', () => {
+  it('puts the current track first and every other track exactly once', () => {
+    const order = buildShuffleOrder(tracks, 3);
+    expect(order[0].id).toBe(3);
+    expect(order).toHaveLength(tracks.length);
+    expect([...order].map(t => t.id).sort()).toEqual([1, 2, 3, 4]);
+  });
+
+  it('covers the whole queue in one pass (the old swap made a cycle repeat and skip)', () => {
+    for (let attempt = 0; attempt < 25; attempt++) {
+      let order = buildShuffleOrder(tracks, 2);
+      const played = [order[0].id];
+      let queueIndex = tracks.findIndex(t => t.id === order[0].id);
+      let stored = order;
+      for (let step = 0; step < tracks.length - 1; step++) {
+        const r = computeNextIndex({ queue: tracks, queueIndex, playMode: 'shuffle', shuffledQueue: stored });
+        queueIndex = r.nextIdx;
+        played.push(tracks[queueIndex].id);
+      }
+      expect(new Set(played).size).toBe(tracks.length);
+      expect(played[0]).toBe(2);
+    }
+  });
+
+  it('still includes a track that is not in the list it is asked about', () => {
+    const order = buildShuffleOrder(tracks, 99);
+    expect(order).toHaveLength(tracks.length);
+    expect([...order].map(t => t.id).sort()).toEqual([1, 2, 3, 4]);
   });
 });
 
@@ -80,6 +120,13 @@ describe('computePrevIndex', () => {
 
   it('returns -1 for an empty queue', () => {
     expect(computePrevIndex({ queue: [], queueIndex: 0, currentTime: 1, playMode: 'sequential', shuffledQueue: [] }).prevIdx).toBe(-1);
+  });
+
+  it('bails out when the stored shuffle order no longer contains the current track', () => {
+    // findIndex === -1 used to fall through to the wrap branch and jump to the
+    // last entry of an unrelated order.
+    const stale = [tracks[2], tracks[3]];
+    expect(computePrevIndex({ queue: tracks, queueIndex: 0, currentTime: 1, playMode: 'shuffle', shuffledQueue: stale }).prevIdx).toBe(-1);
   });
 });
 
@@ -131,6 +178,7 @@ vi.mock('../src/audio/audioEngine', () => ({
 import { usePlayer } from '../src/context/PlayerContext';
 import { audioEngine } from '../src/audio/audioEngine';
 import { usePlayback } from '../src/hooks/usePlayback';
+import { PlaybackEngine, __setPlaybackEngineForTests } from '../src/player/playbackEngine';
 
 function reset() {
   hookState.effects = [];
@@ -157,6 +205,7 @@ function makeAudio() {
 }
 
 let handlers;
+let engine;
 function mount(overrides = {}) {
   reset();
   const audio = overrides.audio || makeAudio();
@@ -167,12 +216,14 @@ function mount(overrides = {}) {
     },
     dispatch: vi.fn(),
     audioRef: { current: audio },
-    playSessionIdRef: { current: null },
-    playStartTimeRef: { current: null },
   };
   usePlayer.mockReturnValue(player);
+  // A fresh engine per mount: the real one is a process-lifetime singleton, so
+  // sharing it across tests would leak session and event-listener state.
+  engine = new PlaybackEngine({ audio });
+  __setPlaybackEngineForTests(engine);
   handlers = usePlayback();
-  return { audio, dispatch: player.dispatch, player };
+  return { audio, dispatch: player.dispatch, player, engine };
 }
 
 async function flush(times = 3) {
@@ -252,7 +303,9 @@ describe('usePlayback session lifecycle', () => {
     await flush();
     expect(window.freeplayer.playEnd).toHaveBeenCalledTimes(1);
     expect(window.freeplayer.playEnd).toHaveBeenCalledWith(expect.objectContaining({ sessionId: 9 }));
-    expect(audioEngine.dispose).toHaveBeenCalledTimes(1);
+    // The engine is a process-lifetime singleton: unmounting the UI must NOT
+    // tear down the audio graph (a StrictMode/HMR remount would lose playback).
+    expect(audioEngine.dispose).not.toHaveBeenCalled();
   });
 });
 
@@ -281,14 +334,22 @@ describe('usePlayback next/prev wiring (real logic from playQueue)', () => {
     expect(window.freeplayer.playStart).toHaveBeenCalledWith(tracks[1].id);
   });
 
-  it('handleNext in repeat-one restarts the track without dispatching an index', () => {
+  it('handleNext in repeat-one replays through the session lifecycle', async () => {
+    window.freeplayer.playStart = vi.fn(async () => 5);
     const { dispatch, audio } = mount({ state: {
       tracks, queue: tracks, queueIndex: 1, playMode: 'repeat-one',
-      shuffledQueue: [], volume: 0.8, isPlaying: false, currentTrack: null,
+      shuffledQueue: [], volume: 0.8, isPlaying: false, currentTrack: tracks[1],
     } });
+    await handlers.playTrack(tracks[1]);
+    window.freeplayer.playEnd.mockClear();
+    window.freeplayer.playStart.mockClear();
     handlers.handleNext();
-    expect(audio.currentTime).toBe(0);
-    expect(audio.play).toHaveBeenCalled();
+    await flush();
+    // The loop must open a NEW session and close the previous one, otherwise a
+    // looping track is recorded as a single session that grows without bound.
+    expect(window.freeplayer.playEnd).toHaveBeenCalled();
+    expect(window.freeplayer.playStart).toHaveBeenCalledWith(tracks[1].id);
+    expect(audio.src).toBe('media://path-B');
     expect(dispatch).not.toHaveBeenCalledWith({ type: 'SET_QUEUE_INDEX', payload: expect.anything() });
   });
 
@@ -307,5 +368,77 @@ describe('usePlayback next/prev wiring (real logic from playQueue)', () => {
     expect(dispatch).toHaveBeenCalledWith({ type: 'SET_QUEUE_INDEX', payload: 3 });
     await flush();
     expect(window.freeplayer.playStart).toHaveBeenCalledWith(tracks[3].id);
+  });
+});
+
+// ── PlaybackEngine listening accounting ──
+// These used to be derived from Date.now() - playStartTimeRef, so a paused or
+// backgrounded player kept accruing listening time and reported a "listened
+// position" that seeking could inflate.
+describe('PlaybackEngine listening accounting', () => {
+  function engineWithAudio(duration = 180) {
+    const audio = makeAudio();
+    audio.duration = duration;
+    const bridge = { playStart: vi.fn(async () => 77), playEnd: vi.fn(async () => {}) };
+    return { engine: new PlaybackEngine({ audio, bridge }), audio, bridge };
+  }
+
+  it('does not count paused time as listening time', async () => {
+    const { engine, audio, bridge } = engineWithAudio(180);
+    engine.bind();
+    engine._trackId = 1;
+    await engine.openSession(1);
+
+    // Play for 90s, then pause for 300s, then a second 90s segment.
+    engine._segmentStart = Date.now() - 90_000;
+    audio.currentTime = 90;
+    engine._closeSegment();
+    await new Promise((r) => setTimeout(r, 5)); // wall clock passes while paused
+    engine._segmentStart = Date.now() - 90_000;
+    audio.currentTime = 180;
+    engine._notePosition(180);
+
+    const snap = engine.sessionSnapshot();
+    expect(snap.durationSeconds).toBeGreaterThanOrEqual(179);
+    expect(snap.durationSeconds).toBeLessThanOrEqual(181);
+    expect(snap.playPercentage).toBe(100);
+  });
+
+  it('reports the furthest position reached, so a skip scores low', async () => {
+    const { engine, audio } = engineWithAudio(180);
+    engine.bind();
+    engine._trackId = 1;
+    await engine.openSession(1);
+    engine._segmentStart = Date.now() - 600_000; // 10 minutes of wall clock
+    audio.currentTime = 8;                        // ...but only 8s in
+    engine._notePosition(8);
+
+    const snap = engine.sessionSnapshot();
+    expect(snap.playPercentage).toBe(4);          // 8/180
+    expect(snap.durationSeconds).toBeLessThan(700); // not the whole wall clock
+  });
+
+  it('does not lower the percentage when the listener seeks backwards', async () => {
+    const { engine, audio } = engineWithAudio(180);
+    engine.bind();
+    engine._trackId = 1;
+    await engine.openSession(1);
+    engine._notePosition(120);
+    audio.currentTime = 10; // seeked back to the start
+    engine._notePosition(10);
+
+    expect(engine.sessionSnapshot().playPercentage).toBe(Math.round((120 / 180) * 100));
+  });
+
+  it('closes the previous session when the same track is replayed', async () => {
+    const { engine, bridge } = engineWithAudio(180);
+    engine.bind();
+    window.freeplayer = { ...window.freeplayer, ...bridge };
+    engine.bridge = bridge;
+    engine._sessionId = 11;
+    engine._segmentStart = Date.now() - 181_000;
+    await engine.play({ id: 1, file_path: '/x/a.flac' });
+    expect(bridge.playEnd).toHaveBeenCalledWith(expect.objectContaining({ sessionId: 11 }));
+    expect(bridge.playStart).toHaveBeenCalledWith(1);
   });
 });
