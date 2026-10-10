@@ -147,6 +147,28 @@ if [ "$MAKE_IPA" = 1 ]; then
     PLATFORM="ios-simulator"        # simulator build
   fi
   IPA="$OUT/$TARGET-$VER-$PLATFORM-$STAMP.ipa"
+
+  # ── verify what is actually being shipped ──
+  # PLATFORM above is derived from the FLAGS, so a stale or mismatched product
+  # would still be labelled "ios-arm64-unsigned" while containing a simulator
+  # binary. Read the built app instead: LC_BUILD_VERSION's platform field is the
+  # authoritative device/simulator marker (both are arm64 on Apple Silicon, so
+  # `file` cannot tell them apart).
+  BIN="$APP/$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$APP/Info.plist")"
+  BUILT_PLATFORM=$(vtool -show-build "$BIN" 2>/dev/null \
+    | awk '/^ *platform /{print $2}' | sort -u | tr '\n' ' ')
+  case "$PLATFORM" in
+    *simulator*) EXPECTED="IOSSIMULATOR" ;;
+    *)           EXPECTED="IOS" ;;
+  esac
+  if [ "$BUILT_PLATFORM" != "$EXPECTED" ]; then
+    echo "[ios] refusing to package: $PLATFORM declares $EXPECTED but the binary is ${BUILT_PLATFORM:-unknown}" >&2
+    echo "[ios]   binary: $BIN" >&2
+    rm -rf "$PKG"
+    exit 4
+  fi
+  echo "[ios] verified $EXPECTED device binary ($(basename "$BIN"))"
+
   (cd "$PKG" && zip -qr "$IPA" Payload)
   rm -rf "$PKG"
   echo "==> $IPA"
