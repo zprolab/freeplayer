@@ -45,27 +45,38 @@ jobs:
         run: pnpm build:iphone:ipa
 
       # ── release notes ──
+      # A hand-written .github/RELEASE-NOTES.md, when present, leads the notes.
+      # The generated log alone only lists one-line commit subjects, which hides
+      # exactly the thing a user needs told: fixes for defects that failed
+      # SILENTLY in the previous release (saved data that was never saved, etc.).
       - name: Generate release notes
         run: |
           VER=$(node -p "require('./package.json').version")
           PREV=$(git describe --tags --abbrev=0 HEAD~1 2>/dev/null || true)
+          NOTES=.github/RELEASE-NOTES.md
           {
-            echo "## FreePlayer $VER"
-            echo ""
-            echo "### What's changed since ${PREV:-the beginning}"
+            if [ -f "$NOTES" ]; then
+              cat "$NOTES"
+              echo ""
+              echo "---"
+              echo ""
+            fi
+            echo "## What's changed since ${PREV:-the beginning}"
             echo ""
             if [ -n "$PREV" ]; then
               git log --oneline --no-merges "$PREV..HEAD"
             else
               git log --oneline --no-merges -20 HEAD
             fi
-            echo ""
-            echo "### Notes"
-            echo ""
-            echo "- macOS build is ad-hoc signed (not notarized): first launch requires right-click → Open, or \`xattr -d com.apple.quarantine <path>\`."
-            echo "- macOS 13+ / Apple Silicon only."
-            echo "- iPad \`.ipa\` is an unsigned Release arm64 device build (no signing team) — sideloadable via a jailbreak, Filza, or your own signing tool."
-            echo "- iPhone \`.ipa\` is an unsigned Release arm64 device build — same as iPad but for iPhone."
+            if [ ! -f "$NOTES" ]; then
+              echo ""
+              echo "### Notes"
+              echo ""
+              echo "- macOS build is ad-hoc signed (not notarized): first launch requires right-click → Open, or \`xattr -d com.apple.quarantine <path>\`."
+              echo "- macOS 13+ / Apple Silicon only."
+              echo "- iPad \`.ipa\` is an unsigned Release arm64 device build (no signing team) — sideloadable via a jailbreak, Filza, or your own signing tool."
+              echo "- iPhone \`.ipa\` is an unsigned Release arm64 device build — same as iPad but for iPhone."
+            fi
           } > /tmp/release-notes.md
 
       # ── publish ──
