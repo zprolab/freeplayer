@@ -155,8 +155,12 @@ if [ "$MAKE_IPA" = 1 ]; then
   # authoritative device/simulator marker (both are arm64 on Apple Silicon, so
   # `file` cannot tell them apart).
   BIN="$APP/$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$APP/Info.plist")"
+  # tr -d, not tr '\n' ' ': command substitution strips trailing NEWLINES, so a
+  # trailing SPACE survived and "$BUILT_PLATFORM" was "IOS " — the check compared
+  # "IOS " against "IOS", refused a perfectly good device build, and printed a
+  # rejection message whose two halves looked identical. Strip all whitespace.
   BUILT_PLATFORM=$(vtool -show-build "$BIN" 2>/dev/null \
-    | awk '/^ *platform /{print $2}' | sort -u | tr '\n' ' ')
+    | awk '/^ *platform /{print $2}' | sort -u | tr -d '[:space:]')
   case "$PLATFORM" in
     *simulator*) EXPECTED="IOSSIMULATOR" ;;
     *)           EXPECTED="IOS" ;;
