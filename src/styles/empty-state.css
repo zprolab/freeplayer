@@ -13,27 +13,27 @@
 }
 
 .empty-state-icon {
-  color: var(--gl-text-tertiary);
+  color: var(--fp-text-subtle);
   opacity: 0.6;
   margin-bottom: 8px;
 }
 
 .empty-state h2 {
-  font-size: 20px;
+  font-size: var(--fp-font-3xl);
   font-weight: 600;
-  color: var(--gl-text-primary);
+  color: var(--fp-text-default);
   letter-spacing: -0.01em;
 }
 
 .empty-state h3 {
-  font-size: 16px;
+  font-size: var(--fp-font-xl);
   font-weight: 600;
-  color: var(--gl-text-primary);
+  color: var(--fp-text-default);
 }
 
 .empty-state p {
-  font-size: 14px;
-  color: var(--gl-text-secondary);
+  font-size: var(--fp-font-lg);
+  color: var(--fp-text-muted);
   max-width: 400px;
   line-height: 1.6;
 }

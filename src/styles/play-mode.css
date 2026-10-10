@@ -16,22 +16,22 @@
   height: 26px;
   border: none;
   background: transparent;
-  color: var(--gl-text-tertiary);
+  color: var(--fp-text-subtle);
   cursor: pointer;
-  border-radius: var(--gl-radius-sm);
+  border-radius: var(--fp-radius-md);
   transition: color 0.12s, background 0.12s;
 }
 
 .play-mode-btn:hover {
-  color: var(--gl-text-secondary);
-  background: var(--gl-border-light);
+  color: var(--fp-text-muted);
+  background: var(--fp-border-subtle);
 }
 
 .play-mode-btn--active {
-  color: var(--gl-orange);
+  color: var(--fp-accent);
 }
 
 .play-mode-btn--active:hover {
-  color: var(--gl-orange-hover);
+  color: var(--fp-accent-hover);
 }
 

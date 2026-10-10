@@ -8,7 +8,7 @@
   flex-direction: column;
   min-width: 0;
   height: 100%;
-  background: var(--gl-content-bg);
+  background: var(--fp-surface-canvas);
   padding-bottom: var(--player-height);
 }
 
@@ -17,7 +17,7 @@
    corner gap matches — the native window background never shows through
    the opaque webview, so this must be done in CSS. */
 .ui-mode-unified .main-content {
-  background: var(--gl-sidebar-bg);
+  background: var(--fp-surface-chrome);
 }
 
 .top-bar {
@@ -27,17 +27,17 @@
   padding: 0 24px;
   height: var(--topbar-height);
   min-height: var(--topbar-height);
-  background: var(--gl-white);
-  color: var(--gl-text-primary);
-  border-bottom: 1px solid var(--gl-border);
+  background: var(--fp-surface-raised);
+  color: var(--fp-text-default);
+  border-bottom: 1px solid var(--fp-border-default);
   -webkit-app-region: drag;
   gap: 16px;
 }
 
 /* Unified mode: top bar joins the dark sidebar frame */
 .ui-mode-unified .top-bar {
-  background: var(--gl-sidebar-bg);
-  color: var(--gl-text-inverse);
+  background: var(--fp-surface-chrome);
+  color: var(--fp-text-inverse);
   border-bottom: none;
 }
 
@@ -48,23 +48,23 @@
 }
 
 .page-title {
-  font-size: 16px;
+  font-size: var(--fp-font-xl);
   font-weight: 600;
-  color: var(--gl-text-primary);
+  color: var(--fp-text-default);
   letter-spacing: -0.01em;
 }
 
 .ui-mode-unified .page-title {
-  color: var(--gl-text-inverse);
+  color: var(--fp-text-inverse);
 }
 
 .track-count-badge {
-  font-size: 11px;
+  font-size: var(--fp-font-sm);
   font-weight: 500;
   padding: 2px 8px;
-  border-radius: 10px;
-  background: var(--gl-blue-light);
-  color: var(--gl-blue);
+  border-radius: var(--fp-radius-lg);
+  background: var(--fp-info-soft);
+  color: var(--fp-info);
   font-family: var(--font-mono);
 }
 
@@ -91,7 +91,7 @@
 .search-icon {
   position: absolute;
   left: 10px;
-  color: var(--gl-text-tertiary);
+  color: var(--fp-text-subtle);
   pointer-events: none;
 }
 
@@ -99,24 +99,24 @@
   width: 240px;
   height: 32px;
   padding: 0 32px 0 32px;
-  border: 1px solid var(--gl-border);
-  border-radius: var(--gl-radius-sm);
+  border: 1px solid var(--fp-border-default);
+  border-radius: var(--fp-radius-md);
   font-family: var(--font-ui);
-  font-size: 13px;
-  color: var(--gl-text-primary);
-  background: var(--gl-white);
+  font-size: var(--fp-font-base);
+  color: var(--fp-text-default);
+  background: var(--fp-surface-raised);
   outline: none;
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
 .search-input::placeholder {
-  color: var(--gl-text-tertiary);
+  color: var(--fp-text-subtle);
 }
 
 .ui-mode-unified .search-input {
-  border-color: var(--gl-border-dark);
-  color: var(--gl-text-inverse);
-  background: var(--gl-bg-elevated, rgba(255, 255, 255, 0.05));
+  border-color: var(--fp-border-chrome);
+  color: var(--fp-text-inverse);
+  background: var(--fp-surface-sunken);
 }
 
 .ui-mode-unified .search-input::placeholder {
@@ -124,7 +124,7 @@
 }
 
 .search-input:focus {
-  border-color: var(--gl-blue);
+  border-color: var(--fp-info);
   box-shadow: 0 0 0 3px rgba(31, 117, 203, 0.15);
 }
 
@@ -134,16 +134,16 @@
   background: none;
   border: none;
   cursor: pointer;
-  color: var(--gl-text-tertiary);
+  color: var(--fp-text-subtle);
   display: flex;
   align-items: center;
   padding: 4px;
-  border-radius: 3px;
+  border-radius: var(--fp-radius-sm);
 }
 
 .search-clear:hover {
-  color: var(--gl-text-primary);
-  background: var(--gl-border-light);
+  color: var(--fp-text-default);
+  background: var(--fp-border-subtle);
 }
 
 .content-area {
@@ -156,6 +156,6 @@
 .ui-mode-unified .content-area {
   border-top-left-radius: 14px;
   /* background stays fixed while the content scrolls */
-  background: var(--gl-content-bg);
+  background: var(--fp-surface-canvas);
 }
 

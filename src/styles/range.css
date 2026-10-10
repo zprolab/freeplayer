@@ -11,18 +11,35 @@ input[type="range"]:focus {
   outline: none;
 }
 
+/* The outline was removed with nothing in its place, so a keyboard user could
+   not see which slider had focus. */
+input[type="range"]:focus-visible::-webkit-slider-thumb {
+  outline: 2px solid var(--fp-info);
+  outline-offset: 2px;
+}
+
+/* Playing position must be visible on the track. `--fp-range-fill` is set by
+   the caller (PlayerBar) as a percentage; without it the whole track is one
+   colour and the slider gives no read of where playback sits. The EQ faders
+   already show their position this way. */
 input[type="range"]::-webkit-slider-runnable-track {
   height: 4px;
-  background: var(--gl-border-light);
-  border-radius: 2px;
+  background: linear-gradient(
+    to right,
+    var(--fp-accent) 0,
+    var(--fp-accent) var(--fp-range-fill, 0%),
+    var(--fp-border-subtle) var(--fp-range-fill, 0%),
+    var(--fp-border-subtle) 100%
+  );
+  border-radius: var(--fp-radius-xs);
 }
 
 input[type="range"]::-webkit-slider-thumb {
   -webkit-appearance: none;
   width: 12px;
   height: 12px;
-  border-radius: 50%;
-  background: var(--gl-text-secondary);
+  border-radius: var(--fp-radius-circle);
+  background: var(--fp-text-muted);
   margin-top: -4px;
   cursor: pointer;
 }

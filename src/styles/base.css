@@ -15,10 +15,10 @@ html, body, #root {
 
 body {
   font-family: var(--font-ui);
-  font-size: 13px;
+  font-size: var(--fp-font-base);
   line-height: 1.5;
-  color: var(--gl-text-primary);
-  background: var(--gl-darker);
+  color: var(--fp-text-default);
+  background: var(--fp-surface-app);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   user-select: none;
@@ -28,7 +28,39 @@ body {
 .mono {
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
-  font-size: 12px;
+  font-size: var(--fp-font-md);
   letter-spacing: -0.01em;
 }
 
+
+/* Last-resort render-error surface (see components/ErrorBoundary.jsx). Kept
+   deliberately plain: it must render even when app state is broken. */
+.app-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  height: 100vh;
+  padding: 32px;
+  text-align: center;
+  color: var(--fp-text-default);
+  background: var(--fp-surface-instrument);
+}
+
+.app-error h1 {
+  font-size: var(--fp-font-2xl);
+  font-weight: 600;
+}
+
+.app-error p {
+  max-width: 640px;
+  font-size: var(--fp-font-md);
+  color: var(--fp-text-on-instrument-muted);
+  word-break: break-word;
+}
+
+.app-error-actions {
+  display: flex;
+  gap: 8px;
+}

@@ -5,16 +5,16 @@
 .overlay {
   position: fixed;
   inset: 0;
-  z-index: 150;
+  z-index: var(--fp-z-popover);
 }
 
 .context-menu {
   position: fixed;
-  z-index: 160;
-  background: var(--gl-white);
-  border: 1px solid var(--gl-border);
-  border-radius: var(--gl-radius-md);
-  box-shadow: var(--gl-shadow-lg);
+  z-index: var(--fp-z-popover);
+  background: var(--fp-surface-raised);
+  border: 1px solid var(--fp-border-default);
+  border-radius: var(--fp-radius-lg);
+  box-shadow: var(--fp-shadow-lg);
   padding: 4px;
   min-width: 160px;
   animation: slideUp 0.1s ease;
@@ -29,15 +29,15 @@
   border: none;
   background: transparent;
   font-family: var(--font-ui);
-  font-size: 12px;
-  color: var(--gl-text-primary);
+  font-size: var(--fp-font-md);
+  color: var(--fp-text-default);
   cursor: pointer;
-  border-radius: var(--gl-radius-sm);
+  border-radius: var(--fp-radius-md);
   text-align: left;
 }
 
 .context-menu-item:hover {
-  background: var(--gl-red-light);
-  color: var(--gl-red);
+  background: var(--fp-danger-soft);
+  color: var(--fp-danger);
 }
 

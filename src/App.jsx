@@ -13,9 +13,11 @@ import PlaylistModal from './components/PlaylistModal';
 import EqWindow from './components/EqWindow';
 import { usePlayer, VIEWS } from './context/PlayerContext';
 import { usePlayback } from './hooks/usePlayback';
+import { buildShuffleOrder } from './hooks/playQueue';
 import { useLibrary } from './hooks/useLibrary';
 import { usePlaylists } from './hooks/usePlaylists';
 import { useAutoMeta } from './hooks/useAutoMeta';
+import { useVisualizerQuality } from './hooks/useVisualizerQuality';
 import { audioEngine } from './audio/audioEngine';
 import { createRegistry } from './plugins/registry';
 import { createMetadataRegistry } from './plugins/metadataRegistry';
@@ -25,6 +27,7 @@ import * as diagnosticsMain from './plugins/builtin/diagnostics/main.js';
 import { createLoader } from './plugins/loader';
 import { createPluginApi } from './plugins/api';
 import { createEventBus } from './plugins/hooks';
+import { Button, IconButton } from './ui/components';
 
 // Plugin runtime singleton: registry + metadata registry assembled lazily on
 // first use. Player/audio/events are resolved per plugin activation via
@@ -130,6 +133,14 @@ export default function App() {
   const meta = pluginRuntime?.meta;
 
   useAutoMeta(state.currentTrack, meta, dispatch);
+
+  // Analysis quality is surfaced both in Settings and inline on the visualizer;
+  // one hook instance means both read and write the same live value.
+  const {
+    tier: visualizerQualityTier,
+    changeQuality: changeVisualizerQuality,
+    tiers: visualizerQualityTiers,
+  } = useVisualizerQuality();
 
   // Plugin bridge: real player/audio/events are written into
   // window.__fpRuntimeState and read lazily by createPluginApi per activation.
@@ -385,12 +396,12 @@ useEffect(() => {
                     </button>
                   )}
                 </div>
-                <button className="btn btn-primary" onClick={() => dispatch({ type: 'SET', payload: { importModalOpen: true } })}>
+                <Button variant="primary" onClick={() => dispatch({ type: 'SET', payload: { importModalOpen: true } })}>
                   <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
                     <path d="M8 1v14M1 8h14" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
                   </svg>
                   <span className="btn-label">Import</span>
-                </button>
+                </Button>
               </>
             )}
           </div>
@@ -428,6 +439,9 @@ useEffect(() => {
               onDefaultVolumeChange={handleDefaultVolumeChange}
               defaultVisualizer={state.defaultVisualizer}
               onDefaultVisualizerChange={handleDefaultVisualizerChange}
+              qualityTier={visualizerQualityTier}
+              qualityTiers={visualizerQualityTiers}
+              onQualityChange={changeVisualizerQuality}
               onResetDatabase={handleResetDatabase}
             />
           ) : !state.isSetup ? (
@@ -439,9 +453,9 @@ useEffect(() => {
               </div>
               <h2>Welcome to FreePlayer</h2>
               <p>Set up your music library to get started. Choose a directory where your music will be stored, then import your audio files.</p>
-              <button className="btn btn-primary btn-lg" onClick={() => dispatch({ type: 'SET', payload: { importModalOpen: true } })}>
+              <Button variant="primary" size="lg" onClick={() => dispatch({ type: 'SET', payload: { importModalOpen: true } })}>
                 Set Up Library
-              </button>
+              </Button>
             </div>
           ) : (
             <>
@@ -519,7 +533,19 @@ useEffect(() => {
         volume={state.volume}
         onVolumeChange={handleVolumeChange}
         playMode={state.playMode}
-        onPlayModeChange={(m) => dispatch({ type: 'SET_PLAY_MODE', payload: m })}
+        onPlayModeChange={(m) => {
+          // Entering shuffle must seed the play order: the reducer only clears
+          // the stored order when *leaving* shuffle, so without this the empty
+          // order made computeNextIndex fall back to the queue and "shuffle"
+          // played the list in its stored order.
+          if (m === 'shuffle' && state.queue.length > 0) {
+            dispatch({
+              type: 'SET_SHUFFLED_QUEUE',
+              payload: buildShuffleOrder(state.queue, state.currentTrack?.id),
+            });
+          }
+          dispatch({ type: 'SET_PLAY_MODE', payload: m });
+        }}
         eqEnabled={state.eqEnabled}
         onOpenEq={() => {
           // iOS is a single-window app: the EQ renders in a sheet instead of
@@ -560,11 +586,11 @@ useEffect(() => {
       {eqPanelOpen && (
         <div className="eq-overlay" onClick={() => setEqPanelOpen(false)}>
           <div className="eq-sheet" onClick={(e) => e.stopPropagation()}>
-            <button className="btn-icon eq-sheet-close" onClick={() => setEqPanelOpen(false)} aria-label="Close equalizer">
+            <IconButton size="lg" className="eq-sheet-close" label="Close equalizer" onClick={() => setEqPanelOpen(false)}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
                 <path d="M6 6l12 12M18 6L6 18" />
               </svg>
-            </button>
+            </IconButton>
             <EqWindow />
           </div>
         </div>

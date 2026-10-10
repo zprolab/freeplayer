@@ -4,6 +4,6 @@
 
 ::selection {
   background: rgba(31, 117, 203, 0.2);
-  color: var(--gl-text-primary);
+  color: var(--fp-text-default);
 }
 

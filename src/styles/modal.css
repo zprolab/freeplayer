@@ -6,7 +6,7 @@
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.45);
-  z-index: 200;
+  z-index: var(--fp-z-modal);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -14,10 +14,10 @@
 }
 
 .modal {
-  background: var(--gl-white);
-  border-radius: var(--gl-radius-lg);
-  box-shadow: var(--gl-shadow-xl);
-  width: var(--gl-dialog-width);
+  background: var(--fp-surface-raised);
+  border-radius: var(--fp-radius-lg);
+  box-shadow: var(--fp-shadow-xl);
+  width: var(--fp-dialog-width);
   max-height: 80vh;
   display: flex;
   flex-direction: column;
@@ -39,13 +39,13 @@
   align-items: center;
   justify-content: space-between;
   padding: 16px 20px;
-  border-bottom: 1px solid var(--gl-border);
+  border-bottom: 1px solid var(--fp-border-default);
 }
 
 .modal-title {
-  font-size: 16px;
+  font-size: var(--fp-font-xl);
   font-weight: 600;
-  color: var(--gl-text-primary);
+  color: var(--fp-text-default);
 }
 
 .modal-close {
@@ -64,7 +64,7 @@
   justify-content: flex-end;
   gap: 10px;
   padding: 14px 20px;
-  border-top: 1px solid var(--gl-border);
+  border-top: 1px solid var(--fp-border-default);
 }
 
 /* Import steps */
@@ -80,22 +80,22 @@
   align-items: center;
   gap: 8px;
   padding: 8px 10px;
-  border-radius: var(--gl-radius-sm);
-  background: #f0f0f3;
-  font-size: 11px;
-  color: var(--gl-text-tertiary);
+  border-radius: var(--fp-radius-md);
+  background: var(--fp-surface-sunken);
+  font-size: var(--fp-font-sm);
+  color: var(--fp-text-subtle);
   transition: all 0.15s ease;
 }
 
 .import-step--active {
-  background: var(--gl-blue-light);
-  color: var(--gl-blue);
+  background: var(--fp-info-soft);
+  color: var(--fp-info);
 }
 
 .step-dot {
   width: 8px;
   height: 8px;
-  border-radius: 50%;
+  border-radius: var(--fp-radius-circle);
   background: currentColor;
   flex-shrink: 0;
 }
@@ -116,8 +116,8 @@
 }
 
 .import-info {
-  color: var(--gl-text-secondary);
-  font-size: 14px;
+  color: var(--fp-text-muted);
+  font-size: var(--fp-font-lg);
 }
 
 .scanning-indicator {
@@ -128,8 +128,8 @@
 }
 
 .scan-hint {
-  font-size: 12px;
-  color: var(--gl-text-tertiary);
+  font-size: var(--fp-font-md);
+  color: var(--fp-text-subtle);
 }
 
 .import-confirm {
@@ -143,9 +143,9 @@
   flex-direction: column;
   gap: 8px;
   padding: 14px;
-  background: #fafafa;
-  border: 1px solid var(--gl-border-light);
-  border-radius: var(--gl-radius-md);
+  background: var(--fp-surface-canvas);
+  border: 1px solid var(--fp-border-subtle);
+  border-radius: var(--fp-radius-lg);
 }
 
 .summary-row {
@@ -155,18 +155,18 @@
 }
 
 .summary-label {
-  font-size: 12px;
-  color: var(--gl-text-secondary);
+  font-size: var(--fp-font-md);
+  color: var(--fp-text-muted);
   font-weight: 500;
 }
 
 .summary-value {
-  font-size: 12px;
-  color: var(--gl-text-primary);
+  font-size: var(--fp-font-md);
+  color: var(--fp-text-default);
 }
 
 .summary-value.highlight {
-  color: var(--gl-blue);
+  color: var(--fp-info);
   font-weight: 600;
 }
 
@@ -177,9 +177,9 @@
 }
 
 .preview-title {
-  font-size: 12px;
+  font-size: var(--fp-font-md);
   font-weight: 600;
-  color: var(--gl-text-secondary);
+  color: var(--fp-text-muted);
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
@@ -190,30 +190,30 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
-  background: #fafafa;
-  border: 1px solid var(--gl-border-light);
-  border-radius: var(--gl-radius-sm);
+  background: var(--fp-surface-canvas);
+  border: 1px solid var(--fp-border-subtle);
+  border-radius: var(--fp-radius-md);
   padding: 8px;
 }
 
 .file-item {
-  font-size: 11px;
-  color: var(--gl-text-secondary);
+  font-size: var(--fp-font-sm);
+  color: var(--fp-text-muted);
   display: flex;
   align-items: center;
   gap: 6px;
   padding: 3px 4px;
-  border-radius: 2px;
+  border-radius: var(--fp-radius-xs);
 }
 
 .file-item svg {
   flex-shrink: 0;
-  color: var(--gl-text-tertiary);
+  color: var(--fp-text-subtle);
 }
 
 .more-files {
-  font-size: 11px;
-  color: var(--gl-text-tertiary);
+  font-size: var(--fp-font-sm);
+  color: var(--fp-text-subtle);
   padding: 4px;
   font-style: italic;
 }
@@ -232,9 +232,9 @@
 }
 
 .import-done h3 {
-  font-size: 18px;
+  font-size: var(--fp-font-2xl);
   font-weight: 600;
-  color: var(--gl-text-primary);
+  color: var(--fp-text-default);
 }
 
 .import-results {
@@ -250,23 +250,23 @@
 }
 
 .result-value {
-  font-size: 28px;
+  font-size: var(--fp-font-6xl);
   font-weight: 700;
   font-family: var(--font-mono);
 }
 
 .result-label {
-  font-size: 12px;
-  color: var(--gl-text-secondary);
+  font-size: var(--fp-font-md);
+  color: var(--fp-text-muted);
 }
 
 .import-error {
   margin-top: 12px;
   padding: 10px 14px;
-  background: var(--gl-red-light);
-  color: var(--gl-red);
-  border-radius: var(--gl-radius-sm);
-  font-size: 12px;
+  background: var(--fp-danger-soft);
+  color: var(--fp-danger);
+  border-radius: var(--fp-radius-md);
+  font-size: var(--fp-font-md);
   font-family: var(--font-mono);
 }
 
@@ -284,14 +284,14 @@
 }
 
 .import-error-state h3 {
-  font-size: 18px;
+  font-size: var(--fp-font-2xl);
   font-weight: 600;
-  color: var(--gl-text-primary);
+  color: var(--fp-text-default);
 }
 
 .error-message {
-  font-size: 13px;
-  color: var(--gl-red);
+  font-size: var(--fp-font-base);
+  color: var(--fp-danger);
   max-width: 400px;
 }
 
@@ -303,23 +303,23 @@
   flex-direction: column;
   gap: 2px;
   margin-top: 8px;
-  background: #fafafa;
-  border: 1px solid var(--gl-border-light);
-  border-radius: var(--gl-radius-sm);
+  background: var(--fp-surface-canvas);
+  border: 1px solid var(--fp-border-subtle);
+  border-radius: var(--fp-radius-md);
   padding: 8px;
 }
 
 .error-detail-item {
   display: flex;
   gap: 10px;
-  font-size: 11px;
+  font-size: var(--fp-font-sm);
   padding: 4px 6px;
-  border-radius: 2px;
+  border-radius: var(--fp-radius-xs);
   align-items: flex-start;
 }
 
 .error-file {
-  color: var(--gl-text-primary);
+  color: var(--fp-text-default);
   font-weight: 500;
   flex-shrink: 0;
   max-width: 160px;
@@ -329,13 +329,13 @@
 }
 
 .error-reason {
-  color: var(--gl-text-secondary);
+  color: var(--fp-text-muted);
   word-break: break-all;
 }
 
 .more-errors {
-  font-size: 11px;
-  color: var(--gl-text-tertiary);
+  font-size: var(--fp-font-sm);
+  color: var(--fp-text-subtle);
   padding: 4px 6px;
   font-style: italic;
 }

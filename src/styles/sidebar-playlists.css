@@ -18,7 +18,7 @@
 }
 
 .sidebar-playlists-label {
-  font-size: 10px;
+  font-size: var(--fp-font-xs);
   font-weight: 600;
   color: #8c8c93;
   text-transform: uppercase;
@@ -35,13 +35,13 @@
   background: transparent;
   color: #8c8c93;
   cursor: pointer;
-  border-radius: var(--gl-radius-sm);
+  border-radius: var(--fp-radius-md);
   transition: color 0.12s, background 0.12s;
 }
 
 .sidebar-playlists-add:hover {
-  color: #d4d4d8;
-  background: var(--gl-sidebar-hover);
+  color: var(--fp-border-strong);
+  background: var(--fp-surface-chrome-hover);
 }
 
 .sidebar-playlists-list {

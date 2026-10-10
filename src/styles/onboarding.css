@@ -3,8 +3,8 @@
   height: 100%;
   display: flex;
   flex-direction: column;
-  background: var(--gl-content-bg);
-  color: var(--gl-text-primary);
+  background: var(--fp-surface-canvas);
+  color: var(--fp-text-default);
   font-family: var(--font-ui);
   user-select: none;
 }
@@ -19,21 +19,21 @@
   align-items: center;
   gap: 8px;
   padding: 8px 10px;
-  border-radius: var(--gl-radius-sm);
-  background: #f0f0f3;
-  font-size: 11px;
+  border-radius: var(--fp-radius-md);
+  background: var(--fp-surface-sunken);
+  font-size: var(--fp-font-sm);
   font-weight: 500;
-  color: var(--gl-text-tertiary);
+  color: var(--fp-text-subtle);
   transition: all 0.15s ease;
 }
 .ob-step--active {
-  background: var(--gl-blue-light);
-  color: var(--gl-blue);
+  background: var(--fp-info-soft);
+  color: var(--fp-info);
 }
 .ob-dot {
   width: 8px;
   height: 8px;
-  border-radius: 50%;
+  border-radius: var(--fp-radius-circle);
   background: currentColor;
   flex-shrink: 0;
 }
@@ -46,14 +46,14 @@
   overflow-y: auto;
 }
 .ob-title {
-  font-size: 20px;
+  font-size: var(--fp-font-3xl);
   font-weight: 600;
   letter-spacing: -0.01em;
   margin: 0 0 6px;
 }
 .ob-subtitle {
-  color: var(--gl-text-secondary);
-  font-size: 13px;
+  color: var(--fp-text-muted);
+  font-size: var(--fp-font-base);
   margin: 0 0 16px;
 }
 .ob-welcome-logo {
@@ -71,9 +71,9 @@
   display: flex;
   gap: 10px;
   align-items: flex-start;
-  background: var(--gl-white);
-  border: 1px solid var(--gl-border);
-  border-radius: var(--gl-radius-md);
+  background: var(--fp-surface-raised);
+  border: 1px solid var(--fp-border-default);
+  border-radius: var(--fp-radius-lg);
   padding: 12px 14px;
   margin-bottom: 10px;
 }
@@ -81,30 +81,30 @@
   margin-bottom: 0;
 }
 .ob-feature svg {
-  color: var(--gl-orange);
+  color: var(--fp-accent);
   flex-shrink: 0;
   margin-top: 2px;
 }
 .ob-feature b {
   display: block;
-  font-size: 12px;
-  color: var(--gl-text-primary);
+  font-size: var(--fp-font-md);
+  color: var(--fp-text-default);
 }
 .ob-feature span {
-  color: var(--gl-text-secondary);
-  font-size: 11px;
+  color: var(--fp-text-muted);
+  font-size: var(--fp-font-sm);
   line-height: 1.5;
 }
 .ob-license {
-  background: var(--gl-white);
-  border: 1px solid var(--gl-border);
-  border-radius: var(--gl-radius-md);
+  background: var(--fp-surface-raised);
+  border: 1px solid var(--fp-border-default);
+  border-radius: var(--fp-radius-lg);
   padding: 14px 16px;
   height: 220px;
   overflow-y: auto;
-  font-size: 11px;
+  font-size: var(--fp-font-sm);
   line-height: 1.6;
-  color: var(--gl-text-secondary);
+  color: var(--fp-text-muted);
   white-space: pre-wrap;
 }
 .ob-agree {
@@ -112,18 +112,18 @@
   align-items: center;
   gap: 8px;
   margin-top: 12px;
-  font-size: 12px;
-  color: var(--gl-text-primary);
+  font-size: var(--fp-font-md);
+  color: var(--fp-text-default);
 }
 .ob-agree input {
-  accent-color: var(--gl-orange);
+  accent-color: var(--fp-accent);
   width: 15px;
   height: 15px;
 }
 .ob-library-box {
-  background: var(--gl-white);
-  border: 1px solid var(--gl-border);
-  border-radius: var(--gl-radius-md);
+  background: var(--fp-surface-raised);
+  border: 1px solid var(--fp-border-default);
+  border-radius: var(--fp-radius-lg);
   padding: 14px 16px;
   margin-bottom: 12px;
   display: flex;
@@ -131,21 +131,21 @@
   gap: 4px;
 }
 .ob-library-label {
-  font-size: 11px;
-  color: var(--gl-text-tertiary);
+  font-size: var(--fp-font-sm);
+  color: var(--fp-text-subtle);
 }
 .ob-library-path {
-  font-size: 12px;
-  color: var(--gl-text-primary);
+  font-size: var(--fp-font-md);
+  color: var(--fp-text-default);
   word-break: break-all;
 }
 .ob-library-empty {
-  font-size: 12px;
-  color: var(--gl-text-tertiary);
+  font-size: var(--fp-font-md);
+  color: var(--fp-text-subtle);
 }
 .ob-error {
-  color: var(--gl-red);
-  font-size: 12px;
+  color: var(--fp-danger);
+  font-size: var(--fp-font-md);
   margin: 0 0 10px;
 }
 .onboarding-footer {
@@ -153,7 +153,7 @@
   justify-content: flex-end;
   gap: 10px;
   padding: 14px 20px;
-  border-top: 1px solid var(--gl-border);
-  background: var(--gl-white);
+  border-top: 1px solid var(--fp-border-default);
+  background: var(--fp-surface-raised);
 }
 

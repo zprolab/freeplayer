@@ -18,9 +18,9 @@
     left: 0;
     right: 0;
     height: calc(56px + env(safe-area-inset-bottom, 0px));
-    background: var(--gl-white);
-    border-top: 1px solid var(--gl-border);
-    z-index: 200;
+    background: var(--fp-surface-raised);
+    border-top: 1px solid var(--fp-border-default);
+    z-index: var(--fp-z-popover);
     justify-content: space-around;
     align-items: center;
     padding-bottom: env(safe-area-inset-bottom, 0px);
@@ -32,14 +32,14 @@
     gap: 2px;
     background: none;
     border: none;
-    color: var(--gl-text-tertiary);
-    font-size: 10px;
+    color: var(--fp-text-subtle);
+    font-size: var(--fp-font-xs);
     padding: 6px 12px;
     cursor: pointer;
     min-width: 56px;
   }
   .mobile-tabbar-item--active {
-    color: var(--gl-orange);
+    color: var(--fp-accent);
   }
   .mobile-tabbar-icon svg {
     width: 20px;
@@ -80,19 +80,19 @@
   }
   .playlist-chip {
     flex-shrink: 0;
-    background: var(--gl-bg-elevated, rgba(255,255,255,0.06));
-    border: 1px solid var(--gl-border-light);
-    border-radius: 16px;
-    color: var(--gl-text-secondary);
-    font-size: 12px;
+    background: var(--fp-surface-sunken);
+    border: 1px solid var(--fp-border-subtle);
+    border-radius: var(--fp-radius-lg);
+    color: var(--fp-text-muted);
+    font-size: var(--fp-font-md);
     padding: 6px 14px;
     cursor: pointer;
     white-space: nowrap;
   }
   .playlist-chip--active {
-    background: var(--gl-orange);
-    border-color: var(--gl-orange);
-    color: #fff;
+    background: var(--fp-accent);
+    border-color: var(--fp-accent);
+    color: var(--fp-surface-raised);
   }
 }
 
@@ -134,16 +134,18 @@
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    background: var(--gl-bg-elevated, #f0f0f3);
-    border-radius: 10px;
+    background: var(--fp-surface-sunken);
+    border-radius: var(--fp-radius-lg);
     margin: 0 12px 8px;
     padding: 8px 12px;
   }
+  /* Needs !important: the desktop .track-row--active sits later in the file
+     and the media query cannot out-specify an equal-specificity rule. */
   .data-table tr.track-row--active {
-    background: var(--gl-blue-light) !important;
+    background: var(--fp-info-soft) !important;
   }
   .data-table tr.track-row:hover {
-    background: #e7e7eb;
+    background: var(--fp-surface-hover);
   }
   .data-table td { border: none; padding: 2px 0; }
 
@@ -160,14 +162,14 @@
     order: 5;
     flex-basis: 100%;
     padding-left: 32px; /* 对齐标题缩进 */
-    font-size: 12px;
-    color: var(--gl-text-tertiary);
+    font-size: var(--fp-font-md);
+    color: var(--fp-text-subtle);
   }
 
   /* 触控行高 + 标题字号 */
   .data-table tr { min-height: calc(56px + env(safe-area-inset-bottom, 0px)); }
-  .data-table .track-title { font-size: 14px; }
-  .data-table .cell-action .btn-icon { width: 36px; height: 36px; }
+  .data-table .track-title { font-size: var(--fp-font-lg); }
+  .data-table .cell-action .fp-icon-btn { width: 36px; height: 36px; }
 }
 
 /* PlayerBar：更大的触控目标，紧凑布局 */
@@ -181,8 +183,8 @@
   .player-controls { gap: 4px; min-width: 116px; }
   .player-controls .ctrl-btn { width: 38px; height: 38px; }
   .player-controls .ctrl-btn--play { width: 44px; height: 44px; }
-  .player-title { font-size: 13px; }
-  .player-artist { font-size: 11px; }
+  .player-title { font-size: var(--fp-font-base); }
+  .player-artist { font-size: var(--fp-font-sm); }
   /* 手机下收窄 EQ/播放模式/时间，仅隐藏音量条 */
   .player-extras { width: auto; min-width: 0; flex: 0 0 auto; gap: 3px; }
   .player-time { display: none; }
@@ -192,8 +194,10 @@
 
 /* Modal：手机下全宽适配并盖过底部 Tab Bar */
 @media (max-width: 767px) {
+  /* !important required: .modal sets its width from the dialog-width token
+     after this file is imported. */
   .modal { width: 100% !important; max-width: 94vw !important; }
-  .modal-overlay { padding: 12px; z-index: 300; }
+  .modal-overlay { padding: 12px; z-index: var(--fp-z-modal); }
 }
 
 /* Now Playing：手机纵向堆叠（cover 置顶居中，歌词面板下方可滚动） */

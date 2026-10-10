@@ -16,9 +16,9 @@
 }
 
 .edit-label {
-  font-size: 11px;
+  font-size: var(--fp-font-sm);
   font-weight: 600;
-  color: var(--gl-text-secondary);
+  color: var(--fp-text-muted);
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
@@ -26,22 +26,22 @@
 .edit-input {
   height: 34px;
   padding: 0 10px;
-  border: 1px solid var(--gl-border);
-  border-radius: var(--gl-radius-sm);
+  border: 1px solid var(--fp-border-default);
+  border-radius: var(--fp-radius-md);
   font-family: var(--font-ui);
-  font-size: 13px;
-  color: var(--gl-text-primary);
-  background: var(--gl-white);
+  font-size: var(--fp-font-base);
+  color: var(--fp-text-default);
+  background: var(--fp-surface-raised);
   outline: none;
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
 .edit-input::placeholder {
-  color: var(--gl-text-tertiary);
+  color: var(--fp-text-subtle);
 }
 
 .edit-input:focus {
-  border-color: var(--gl-blue);
+  border-color: var(--fp-info);
   box-shadow: 0 0 0 3px rgba(31, 117, 203, 0.15);
 }
 
@@ -56,8 +56,8 @@
 }
 
 .edit-hint {
-  font-size: 11px;
-  color: var(--gl-text-tertiary);
+  font-size: var(--fp-font-sm);
+  color: var(--fp-text-subtle);
   margin-right: auto;
 }
 
@@ -68,16 +68,16 @@
   flex-direction: column;
   min-height: 0;
   margin-top: 16px;
-  border-top: 1px solid var(--gl-border);
+  border-top: 1px solid var(--fp-border-default);
   padding-top: 12px;
 }
 
 .track-picker-label {
-  font-size: 11px;
+  font-size: var(--fp-font-sm);
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  color: var(--gl-text-secondary);
+  color: var(--fp-text-muted);
   margin-bottom: 10px;
 }
 
@@ -86,7 +86,7 @@
   align-items: center;
   gap: 8px;
   padding-bottom: 10px;
-  border-bottom: 1px solid var(--gl-border-light);
+  border-bottom: 1px solid var(--fp-border-subtle);
   flex-wrap: wrap;
 }
 
@@ -98,16 +98,16 @@
 .track-picker-search .search-input {
   width: 100%;
   padding: 5px 8px;
-  font-size: 12px;
-  border: 1px solid var(--gl-border);
-  border-radius: 4px;
-  background: var(--gl-white);
-  color: var(--gl-text);
+  font-size: var(--fp-font-md);
+  border: 1px solid var(--fp-border-default);
+  border-radius: var(--fp-radius-md);
+  background: var(--fp-surface-raised);
+  color: var(--fp-text-default);
   outline: none;
 }
 
 .track-picker-search .search-input:focus {
-  border-color: var(--gl-blue);
+  border-color: var(--fp-info);
   box-shadow: 0 0 0 2px rgba(59, 115, 230, 0.15);
 }
 
@@ -120,20 +120,20 @@
   gap: 4px;
 }
 
-.track-picker-actions .btn {
+.track-picker-actions .fp-btn {
   padding: 3px 10px;
-  font-size: 11px;
+  font-size: var(--fp-font-sm);
   line-height: 20px;
 }
 
 .track-picker-count {
-  font-size: 11px;
+  font-size: var(--fp-font-sm);
   font-weight: 500;
-  color: var(--gl-blue);
+  color: var(--fp-info);
   font-family: var(--font-mono);
   padding: 2px 8px;
-  border-radius: 10px;
-  background: var(--gl-blue-light);
+  border-radius: var(--fp-radius-lg);
+  background: var(--fp-info-soft);
 }
 
 .track-picker-list {
@@ -150,26 +150,26 @@
   align-items: center;
   gap: 8px;
   padding: 5px 8px;
-  border-bottom: 1px solid var(--gl-border-light);
+  border-bottom: 1px solid var(--fp-border-subtle);
   cursor: pointer;
-  font-size: 12px;
-  border-radius: 3px;
+  font-size: var(--fp-font-md);
+  border-radius: var(--fp-radius-sm);
   transition: background 0.1s;
 }
 
 .track-picker-item:hover {
-  background: #f5f5f8;
+  background: var(--fp-surface-hover);
 }
 
 .track-picker-item.selected {
-  background: var(--gl-blue-light);
+  background: var(--fp-info-soft);
 }
 
 .track-picker-item input[type="checkbox"] {
   flex-shrink: 0;
   width: 14px;
   height: 14px;
-  accent-color: var(--gl-blue);
+  accent-color: var(--fp-info);
   cursor: pointer;
   margin: 0;
 }
@@ -180,7 +180,7 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   font-weight: 500;
-  color: var(--gl-text);
+  color: var(--fp-text-default);
 }
 
 .track-picker-artist {
@@ -188,7 +188,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: var(--gl-text-secondary);
+  color: var(--fp-text-muted);
 }
 
 .track-picker-album {
@@ -196,15 +196,15 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: var(--gl-text-secondary);
+  color: var(--fp-text-muted);
 }
 
 .track-picker-duration {
   width: 52px;
   text-align: right;
   font-family: var(--font-mono);
-  font-size: 11px;
-  color: var(--gl-text-tertiary);
+  font-size: var(--fp-font-sm);
+  color: var(--fp-text-subtle);
   flex-shrink: 0;
 }
 
@@ -213,7 +213,7 @@
   align-items: center;
   justify-content: center;
   padding: 32px;
-  color: var(--gl-text-tertiary);
-  font-size: 13px;
+  color: var(--fp-text-subtle);
+  font-size: var(--fp-font-base);
 }
 

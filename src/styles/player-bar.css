@@ -8,21 +8,21 @@
   left: var(--sidebar-width);
   right: 0;
   height: var(--player-height);
-  background: var(--gl-white);
-  border-top: 1px solid var(--gl-border);
-  z-index: 100;
+  background: var(--fp-surface-raised);
+  border-top: 1px solid var(--fp-border-default);
+  z-index: var(--fp-z-chrome);
   display: flex;
   flex-direction: column;
 }
 
 .player-bar--active {
-  border-top-color: var(--gl-border);
+  border-top-color: var(--fp-border-default);
 }
 
 /* Progress track (thin line at top of player bar) */
 .player-progress-track {
   height: 3px;
-  background: var(--gl-border-light);
+  background: var(--fp-border-subtle);
   cursor: pointer;
   position: relative;
   flex-shrink: 0;
@@ -35,14 +35,14 @@
 
 .player-progress-fill {
   height: 100%;
-  background: var(--gl-orange);
-  border-radius: 0 2px 2px 0;
+  background: var(--fp-accent);
+  border-radius: 0 var(--fp-radius-xs) var(--fp-radius-xs) 0;
   transition: width 0.15s linear;
   position: relative;
 }
 
 .player-bar--active .player-progress-track:hover .player-progress-fill {
-  background: var(--gl-orange-hover);
+  background: var(--fp-accent-hover);
 }
 
 .player-progress-thumb {
@@ -51,8 +51,8 @@
   transform: translate(-50%, -50%);
   width: 10px;
   height: 10px;
-  background: var(--gl-orange);
-  border-radius: 50%;
+  background: var(--fp-accent);
+  border-radius: var(--fp-radius-circle);
   opacity: 0;
   transition: opacity 0.12s ease;
 }
@@ -82,10 +82,10 @@
 .player-cover {
   width: 40px;
   height: 40px;
-  border-radius: var(--gl-radius-sm);
+  border-radius: var(--fp-radius-md);
   overflow: hidden;
   flex-shrink: 0;
-  background: #f0f0f3;
+  background: var(--fp-surface-sunken);
 }
 
 .cover-img {
@@ -100,8 +100,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--gl-text-tertiary);
-  background: #f0f0f3;
+  color: var(--fp-text-subtle);
+  background: var(--fp-surface-sunken);
 }
 
 .player-meta {
@@ -111,22 +111,22 @@
 }
 
 .player-title {
-  font-size: 13px;
+  font-size: var(--fp-font-base);
   font-weight: 500;
-  color: var(--gl-text-primary);
+  color: var(--fp-text-default);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .player-title--empty {
-  color: var(--gl-text-tertiary);
+  color: var(--fp-text-subtle);
   font-weight: 400;
 }
 
 .player-artist {
-  font-size: 11px;
-  color: var(--gl-text-secondary);
+  font-size: var(--fp-font-sm);
+  color: var(--fp-text-muted);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -149,28 +149,28 @@
   height: 32px;
   border: none;
   background: transparent;
-  color: var(--gl-text-secondary);
+  color: var(--fp-text-muted);
   cursor: pointer;
-  border-radius: var(--gl-radius-sm);
+  border-radius: var(--fp-radius-md);
   transition: color 0.12s, background 0.12s;
 }
 
 .ctrl-btn:hover {
-  color: var(--gl-text-primary);
-  background: var(--gl-border-light);
+  color: var(--fp-text-default);
+  background: var(--fp-border-subtle);
 }
 
 .ctrl-btn--play {
   width: 40px;
   height: 40px;
-  background: var(--gl-text-primary);
-  color: #fff;
-  border-radius: 50%;
+  background: var(--fp-text-default);
+  color: var(--fp-surface-raised);
+  border-radius: var(--fp-radius-circle);
 }
 
 .ctrl-btn--play:hover {
   background: #000;
-  color: #fff;
+  color: var(--fp-surface-raised);
 }
 
 /* Extras (right) */
@@ -184,8 +184,8 @@
 }
 
 .player-time {
-  font-size: 11px;
-  color: var(--gl-text-tertiary);
+  font-size: var(--fp-font-sm);
+  color: var(--fp-text-subtle);
   white-space: nowrap;
   letter-spacing: 0.02em;
 }
@@ -197,7 +197,7 @@
 }
 
 .volume-icon {
-  color: var(--gl-text-tertiary);
+  color: var(--fp-text-subtle);
   flex-shrink: 0;
 }
 
@@ -207,8 +207,8 @@
   min-width: 60px;
   flex-shrink: 0;
   height: 4px;
-  background: var(--gl-border-light);
-  border-radius: 2px;
+  background: var(--fp-border-subtle);
+  border-radius: var(--fp-radius-xs);
   outline: none;
   cursor: pointer;
 }
@@ -217,13 +217,13 @@
   -webkit-appearance: none;
   width: 12px;
   height: 12px;
-  border-radius: 50%;
-  background: var(--gl-text-secondary);
+  border-radius: var(--fp-radius-circle);
+  background: var(--fp-text-muted);
   cursor: pointer;
   transition: background 0.12s;
 }
 
 .volume-slider::-webkit-slider-thumb:hover {
-  background: var(--gl-text-primary);
+  background: var(--fp-text-default);
 }
 
