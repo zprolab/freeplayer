@@ -138,6 +138,9 @@ export default function PlayerBar({
               value={volume}
               onChange={(e) => onVolumeChange(parseFloat(e.target.value))}
               className="volume-slider"
+              // Drives the filled portion of the track (see range.css): without
+              // it the slider gives no read of the current level.
+              style={{ '--fp-range-fill': `${Math.round(volume * 100)}%` }}
             />
           </div>
         </div>

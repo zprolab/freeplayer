@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
+import { Button, ModalShell } from '../ui/components';
 
 export default function ImportModal({ onClose, onComplete, importMode }) {
   const [step, setStep] = useState('select-source');
@@ -87,10 +88,12 @@ export default function ImportModal({ onClose, onComplete, importMode }) {
   };
 
   return (
-    <div className="modal-overlay" onClick={(e) => { if (e.target === e.currentTarget && step !== 'importing') onClose(); }}>
-      <div className="modal">
-        <div className="modal-header">
-          <h2 className="modal-title">Import Music</h2>
+    <ModalShell
+      title="Import Music"
+      onClose={onClose}
+      // The wizard must not be dismissed while an import is running.
+      canClose={step !== 'importing'}
+      headerExtra={(
           <span className="import-mode-badge">
             {importMode === 'symlink' ? (
               <>
@@ -110,15 +113,8 @@ export default function ImportModal({ onClose, onComplete, importMode }) {
               </>
             )}
           </span>
-          {step !== 'importing' && (
-            <button className="btn-icon modal-close" onClick={onClose}>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
-                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-              </svg>
-            </button>
-          )}
-        </div>
-
+      )}
+    >
         <div className="modal-body">
           {/* Step indicator */}
           <div className="import-steps">
@@ -189,7 +185,7 @@ export default function ImportModal({ onClose, onComplete, importMode }) {
           {step === 'done' && result && (
             <div className="import-done">
               <div className="done-icon">
-                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--gl-green)" strokeWidth="1.8" strokeLinecap="round">
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--fp-success)" strokeWidth="1.8" strokeLinecap="round">
                   <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
                   <polyline points="22 4 12 14.01 9 11.01"/>
                 </svg>
@@ -197,12 +193,12 @@ export default function ImportModal({ onClose, onComplete, importMode }) {
               <h3>Import Complete</h3>
               <div className="import-results">
                 <div className="result-item">
-                  <span className="result-value" style={{ color: 'var(--gl-green)' }}>{result.imported}</span>
+                  <span className="result-value" style={{ color: 'var(--fp-success)' }}>{result.imported}</span>
                   <span className="result-label">imported</span>
                 </div>
                 {result.errors.length > 0 && (
                   <div className="result-item">
-                    <span className="result-value" style={{ color: 'var(--gl-orange)' }}>{result.errors.length}</span>
+                    <span className="result-value" style={{ color: 'var(--fp-accent)' }}>{result.errors.length}</span>
                     <span className="result-label">failed</span>
                   </div>
                 )}
@@ -214,7 +210,7 @@ export default function ImportModal({ onClose, onComplete, importMode }) {
           {step === 'error' && (
             <div className="import-error-state">
               <div className="error-icon">
-                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--gl-red)" strokeWidth="1.8" strokeLinecap="round">
+                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--fp-danger)" strokeWidth="1.8" strokeLinecap="round">
                   <circle cx="12" cy="12" r="10"/>
                   <line x1="15" y1="9" x2="9" y2="15"/>
                   <line x1="9" y1="9" x2="15" y2="15"/>
@@ -242,35 +238,34 @@ export default function ImportModal({ onClose, onComplete, importMode }) {
         <div className="modal-footer">
           {step === 'confirm' && (
             <>
-              <button className="btn btn-secondary" onClick={() => {
+              <Button variant="secondary" onClick={() => {
                 // Reopen the picker directly: resetting to 'select-source' left
                 // the modal on a step whose only content is "Select a folder…"
                 // with no button that could open one (the auto-start effect is
                 // one-shot), a dead end.
                 setFiles([]);
                 handleSelectSource();
-              }}>Back</button>
-              <button className="btn btn-secondary" onClick={onClose}>Cancel</button>
-              <button className="btn btn-primary" onClick={handleImport}>
+              }}>Back</Button>
+              <Button variant="secondary" onClick={onClose}>Cancel</Button>
+              <Button variant="primary" onClick={handleImport}>
                 Import {files.length} Files
-              </button>
+              </Button>
             </>
           )}
           {step === 'done' && (
-            <button className="btn btn-primary" onClick={() => onComplete({ canceled: false })}>
+            <Button variant="primary" onClick={() => onComplete({ canceled: false })}>
               View Library
-            </button>
+            </Button>
           )}
           {step === 'error' && (
             <>
-              <button className="btn btn-secondary" onClick={onClose}>Close</button>
-              <button className="btn btn-primary" onClick={handleSelectSource}>
+              <Button variant="secondary" onClick={onClose}>Close</Button>
+              <Button variant="primary" onClick={handleSelectSource}>
                 Try Again
-              </button>
+              </Button>
             </>
           )}
         </div>
-      </div>
-    </div>
+    </ModalShell>
   );
 }

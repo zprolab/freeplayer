@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, memo } from 'react';
 import EditModal from './EditModal';
 import PlaylistMenu from './PlaylistMenu';
 import { formatTime } from '../utils/format';
+import { IconButton } from '../ui/components';
 
 const SORT_COLUMNS = [
   { key: 'title', label: 'Title', width: 'auto' },
@@ -199,18 +200,17 @@ const Library = memo(function Library({
                     {track.imported_at ? new Date(track.imported_at + 'Z').toLocaleDateString() : '--'}
                   </td>
                   <td className="cell-action">
-                    <button
-                      className="btn-icon"
+                    <IconButton
+                      label="Play"
                       onClick={(e) => {
                         e.stopPropagation();
                         onPlay(track, tracks);
                       }}
-                      title="Play"
                     >
                       <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
                         <polygon points="5,3 13,8 5,13"/>
                       </svg>
-                    </button>
+                    </IconButton>
                   </td>
                 </tr>
               );

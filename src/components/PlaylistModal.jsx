@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { usePlayer } from '../context/PlayerContext';
+import { Button, ModalShell } from '../ui/components';
 import TrackPicker from './TrackPicker';
 
 export default function PlaylistModal({ mode, playlist, allTracks, onClose, onSubmit }) {
@@ -7,7 +8,9 @@ export default function PlaylistModal({ mode, playlist, allTracks, onClose, onSu
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [selectedIds, setSelectedIds] = useState(new Set());
-  const [isLoadingTracks, setIsLoadingTracks] = useState(false);
+  const [isLoadingTracks, setIsLoadingTracks] = useState(mode === 'edit');
+  const [tracksLoaded, setTracksLoaded] = useState(mode !== 'edit');
+  const [tracksError, setTracksError] = useState(null);
   const inputRef = useRef(null);
 
   const showTrackPicker = mode === 'create' || mode === 'edit';
@@ -30,12 +33,20 @@ export default function PlaylistModal({ mode, playlist, allTracks, onClose, onSu
     let stale = false;
     if (mode === 'edit' && playlist) {
       setIsLoadingTracks(true);
+      setTracksLoaded(false);
+      setTracksError(null);
       window.freeplayer.getPlaylistTracks(playlist.id).then(tracks => {
         if (stale) return;
         setSelectedIds(new Set(tracks.map(t => t.id)));
         setIsLoadingTracks(false);
-      }).catch(() => {
-        if (!stale) setIsLoadingTracks(false);
+        setTracksLoaded(true);
+      }).catch((err) => {
+        if (stale) return;
+        setIsLoadingTracks(false);
+        // Leave tracksLoaded false: submitting an empty selection in edit mode
+        // makes the native side DELETE every row and re-insert nothing, which
+        // silently empties the playlist. A failed load must block Save.
+        setTracksError(err?.message || 'Could not load this playlist');
       });
     }
     return () => { stale = true; };
@@ -80,6 +91,9 @@ export default function PlaylistModal({ mode, playlist, allTracks, onClose, onSu
       if (!trimmed) return;
       onSubmit({ name: trimmed });
     } else if (mode === 'edit') {
+      // Refuse to submit an empty selection: the native handler deletes all
+      // rows first, so an empty array wipes the playlist.
+      if (!tracksLoaded || selectedIds.size === 0) return;
       onSubmit({ trackIds: [...selectedIds] }, playlist?.id);
     }
   };
@@ -96,31 +110,18 @@ export default function PlaylistModal({ mode, playlist, allTracks, onClose, onSu
     : mode === 'rename' ? 'Rename'
     : 'Save';
 
-  const canSubmit = mode === 'edit' ? true
-    : name.trim().length > 0;
+  const canSubmit = mode === 'create' ? name.trim().length > 0
+    : mode === 'rename' ? name.trim().length > 0
+    // Edit mode: Save must stay disabled until the existing tracks have really
+    // loaded, and must never push an empty list (see handleSubmit).
+    : tracksLoaded && !tracksError && selectedIds.size > 0;
 
   return (
-    <div className="modal-overlay" onClick={onClose} onKeyDown={handleKeyDown}>
-      <div
-        className="modal"
-        onClick={(e) => e.stopPropagation()}
-        style={{ width: showTrackPicker ? '680px' : '420px' }}
-      >
-        <div className="modal-header">
-          <h2 className="modal-title">{modalTitle}</h2>
-          {mode === 'edit' && playlist && (
-            <span style={{ fontSize: '12px', color: 'var(--gl-text-secondary)', marginLeft: '8px' }}>
-              — {playlist.name}
-            </span>
-          )}
-          <button className="modal-close btn-icon" onClick={onClose}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
-              <line x1="18" y1="6" x2="6" y2="18"/>
-              <line x1="6" y1="6" x2="18" y2="18"/>
-            </svg>
-          </button>
-        </div>
-
+    <ModalShell
+      title={mode === 'edit' && playlist ? `${modalTitle} — ${playlist.name}` : modalTitle}
+      onClose={onClose}
+      width={showTrackPicker ? 'var(--fp-dialog-width)' : '420px'}
+    >
         <form onSubmit={handleSubmit}>
           <div className="modal-body" style={showTrackPicker ? { display: 'flex', flexDirection: 'column', maxHeight: '70vh', overflow: 'hidden' } : {}}>
             {(mode === 'create' || mode === 'rename') && (
@@ -161,6 +162,10 @@ export default function PlaylistModal({ mode, playlist, allTracks, onClose, onSu
                 <div className="track-picker-empty" style={{ marginTop: '24px' }}>
                   Loading tracks...
                 </div>
+              ) : tracksError ? (
+                <div className="form-error" style={{ marginTop: '24px' }}>
+                  {tracksError} — saving is disabled to avoid emptying the playlist.
+                </div>
               ) : (
                 <TrackPicker
                   tracks={allTracks || []}
@@ -174,13 +179,15 @@ export default function PlaylistModal({ mode, playlist, allTracks, onClose, onSu
           </div>
 
           <div className="modal-footer">
-            <button type="button" className="btn btn-secondary" onClick={onClose}>Cancel</button>
-            <button type="submit" className="btn btn-primary" disabled={!canSubmit}>
+            <Button variant="secondary" onClick={onClose}>Cancel</Button>
+            {/* type="submit" is load-bearing: Button defaults to type="button",
+                which would silently stop Enter-to-submit and the form's
+                onSubmit handler. */}
+            <Button type="submit" variant="primary" disabled={!canSubmit}>
               {submitLabel}
-            </button>
+            </Button>
           </div>
         </form>
-      </div>
-    </div>
+    </ModalShell>
   );
 }

@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import licenseText from '../../LICENSE?raw';
 import logoUrl from '../../assets/logo.svg';
+import { Button } from '../ui/components';
 import { canAdvance, nextStep, prevStep, ONBOARDING_STEPS } from '../data/onboardingSteps';
 
 const STEP_LABELS = {
@@ -123,25 +124,25 @@ export default function OnboardingPage({ onDone }) {
               )}
             </div>
             {error && <p className="ob-error">{error}</p>}
-            <button className="btn btn-secondary" onClick={handleChooseLibrary} disabled={choosing}>
+            <Button variant="secondary" onClick={handleChooseLibrary} disabled={choosing}>
               {choosing ? 'Choosing…' : libraryPath ? 'Change…' : 'Choose Folder…'}
-            </button>
+            </Button>
           </>
         )}
       </div>
 
       <div className="onboarding-footer">
         {stepIndex > 0 && (
-          <button className="btn btn-secondary" onClick={() => setStep(prevStep(step))}>Back</button>
+          <Button variant="secondary" onClick={() => setStep(prevStep(step))}>Back</Button>
         )}
         {step === 'library' ? (
-          <button className="btn btn-primary" disabled={!canAdvance(step, state)} onClick={handleFinish}>
+          <Button variant="primary" disabled={!canAdvance(step, state)} onClick={handleFinish}>
             Finish
-          </button>
+          </Button>
         ) : (
-          <button className="btn btn-primary" disabled={!canAdvance(step, state)} onClick={() => setStep(nextStep(step))}>
+          <Button variant="primary" disabled={!canAdvance(step, state)} onClick={() => setStep(nextStep(step))}>
             Continue
-          </button>
+          </Button>
         )}
       </div>
     </div>

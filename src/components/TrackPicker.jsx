@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
 import { formatTime } from '../utils/format';
+import { Button } from '../ui/components';
 
 export default function TrackPicker({ tracks, selectedIds, onToggle, onSelectAll, onDeselectAll }) {
   const [searchQuery, setSearchQuery] = useState('');
@@ -42,13 +43,13 @@ export default function TrackPicker({ tracks, selectedIds, onToggle, onSelectAll
         </div>
         <div className="track-picker-actions">
           {allFilteredSelected ? (
-            <button type="button" className="btn btn-secondary" onClick={handleDeselectAll}>
+            <Button variant="secondary" onClick={handleDeselectAll}>
               Clear
-            </button>
+            </Button>
           ) : (
-            <button type="button" className="btn btn-secondary" onClick={handleSelectAll}>
+            <Button variant="secondary" onClick={handleSelectAll}>
               Select All
-            </button>
+            </Button>
           )}
         </div>
         <span className="track-picker-count">{selectedIds.size} selected</span>

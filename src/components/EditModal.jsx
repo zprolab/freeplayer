@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import { Button, ModalShell } from '../ui/components';
 
 export default function EditModal({ track, onClose, onSaved }) {
   const [title, setTitle] = useState(track.title || '');
@@ -50,18 +51,11 @@ export default function EditModal({ track, onClose, onSaved }) {
   };
 
   return (
-    <div className="modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="modal">
-        <div className="modal-header">
-          <h2 className="modal-title">Edit Track</h2>
-          <button className="btn-icon modal-close" onClick={onClose}>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
-              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-            </svg>
-          </button>
-        </div>
-
-        <div className="modal-body" onKeyDown={handleKeyDown}>
+    <ModalShell
+      title="Edit Track"
+      onClose={onClose}
+    >
+      <div className="modal-body" onKeyDown={handleKeyDown}>
           {error && <div className="import-error">{error}</div>}
 
           <div className="edit-fields">
@@ -124,16 +118,15 @@ export default function EditModal({ track, onClose, onSaved }) {
               </div>
             </div>
           </div>
-        </div>
+      </div>
 
         <div className="modal-footer">
           <span className="edit-hint mono">⌘↵ to save</span>
-          <button className="btn btn-secondary" onClick={onClose}>Cancel</button>
-          <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
+          <Button variant="secondary" onClick={onClose}>Cancel</Button>
+          <Button variant="primary" onClick={handleSave} disabled={saving}>
             {saving ? 'Saving…' : 'Save'}
-          </button>
+          </Button>
         </div>
-      </div>
-    </div>
+    </ModalShell>
   );
 }

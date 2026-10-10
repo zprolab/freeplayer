@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import ToggleSwitch from './ToggleSwitch';
+import { Button } from '../ui/components';
 import { sanitizeSvgIcon } from '../plugins/svgIcon';
 import { backfillMissing, isBackfillRunning, needsMetadataFill } from '../services/backfill';
 
@@ -285,7 +286,7 @@ export default function PluginPage({ registry, meta, tracks }) {
         {noticePlugins.length > 0 && (
           <div className="plugins-notice">
             <span>{noticePlugins.length} new plugin{noticePlugins.length > 1 ? 's' : ''} found</span>
-            <button className="btn btn-secondary" onClick={() => openPlugin(noticePlugins[0].id)}>View</button>
+            <Button variant="secondary" onClick={() => openPlugin(noticePlugins[0].id)}>View</Button>
             <button
               className="plugins-notice-dismiss"
               onClick={() => {
@@ -333,8 +334,8 @@ export default function PluginPage({ registry, meta, tracks }) {
           </div>
         ))}
         <div className="plugins-footer">
-          <button className="btn btn-secondary" onClick={refresh} disabled={refreshing}>{refreshing ? 'Refreshing…' : 'Refresh'}</button>
-          <button className="btn btn-secondary" onClick={() => window.freeplayer.openPluginsDir()}>Open Plugins Folder</button>
+          <Button variant="secondary" onClick={refresh} disabled={refreshing}>{refreshing ? 'Refreshing…' : 'Refresh'}</Button>
+          <Button variant="secondary" onClick={() => window.freeplayer.openPluginsDir()}>Open Plugins Folder</Button>
           <span className="plugins-dir-path">~/Library/Application Support/FreePlayer/plugins/</span>
         </div>
       </div>
@@ -365,8 +366,8 @@ export default function PluginPage({ registry, meta, tracks }) {
               ))}
             </div>
             <div className="confirm-actions">
-              <button className="btn btn-secondary" onClick={() => setPendingPlugin(null)}>Cancel</button>
-              <button className="btn btn-primary" onClick={confirmEnable}>Enable with selection</button>
+              <Button variant="secondary" onClick={() => setPendingPlugin(null)}>Cancel</Button>
+              <Button variant="primary" onClick={confirmEnable}>Enable with selection</Button>
             </div>
           </div>
         </div>
@@ -380,12 +381,12 @@ export default function PluginPage({ registry, meta, tracks }) {
               This re-downloads {refetchConfirm.kind === 'lyrics' ? 'lyrics' : refetchConfirm.kind === 'cover' ? 'covers' : 'metadata'} for all {tracks?.length || 0} tracks and overwrites existing data — including lyrics or covers you associated manually.
             </p>
             <div className="confirm-actions">
-              <button className="btn btn-secondary" onClick={() => setRefetchConfirm(null)}>Cancel</button>
-              <button className="btn btn-primary" onClick={() => {
+              <Button variant="secondary" onClick={() => setRefetchConfirm(null)}>Cancel</Button>
+              <Button variant="primary" onClick={() => {
                 const { p: p0, kind: k0 } = refetchConfirm;
                 setRefetchConfirm(null);
                 handleBackfill(p0, k0, true);
-              }}>Refetch All</button>
+              }}>Refetch All</Button>
             </div>
           </div>
         </div>
@@ -437,22 +438,22 @@ export default function PluginPage({ registry, meta, tracks }) {
                           </span>
                         </div>
                         <div className="backfill-actions">
-                          <button
-                            className="btn btn-secondary"
+                          <Button
+                            variant="secondary"
                             disabled={isBackfillRunning() || (backfillProgress && backfillProgress.key === `${p.id}:${kind}`)}
                             onClick={() => handleBackfill(p, kind, false)}
                           >
                             {backfillProgress && backfillProgress.key === `${p.id}:${kind}`
                               ? `Fetching ${backfillProgress.done}/${backfillProgress.total} · ${backfillProgress.ok} saved`
                               : 'Fetch Missing'}
-                          </button>
-                          <button
-                            className="btn btn-secondary"
+                          </Button>
+                          <Button
+                            variant="secondary"
                             disabled={isBackfillRunning() || (backfillProgress && backfillProgress.key === `${p.id}:${kind}`)}
                             onClick={() => setRefetchConfirm({ p, kind })}
                           >
                             Refetch All
-                          </button>
+                          </Button>
                         </div>
                       </div>
                     ))}
