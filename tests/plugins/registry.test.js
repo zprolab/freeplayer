@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { createRegistry } from '../../src/plugins/registry';
 import { wrapApi } from '../../src/plugins/api';
 
@@ -230,7 +230,8 @@ describe('createRegistry', () => {
     ]);
     const subCb = vi.fn();
     const subDeactivate = vi.fn();
-    deps.loader.activate.mockImplementation(async (id) => ({
+    // eslint-disable-next-line no-unused-vars -- mirror of the real activate(id) signature
+      deps.loader.activate.mockImplementation(async (id) => ({
       hooks: { onTrackChanged: subCb }, deactivate: subDeactivate,
     }));
     await registry.discover();

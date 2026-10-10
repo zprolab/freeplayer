@@ -62,7 +62,6 @@ export function useAutoMeta(currentTrack, meta, dispatch) {
     const track = currentTrack;
     (async () => {
       try {
-        let out = track;
         let coverPath = track.cover_path;
         let coverSaved = false;
         let lyricsSaved = false;
@@ -93,10 +92,9 @@ export function useAutoMeta(currentTrack, meta, dispatch) {
           // "missing metadata" identically.
           if (needsMetadataFill(track)) {
             const { saved, updated: fetched } = await meta.fetchMetadata(track);
-            // Merge fetched fields into out so a later cover/lyrics dispatch
-            // can never clobber them (reducer replaces the whole track).
+            // Held in `updated` and merged into `fields` below, which is what
+            // the dispatch actually carries.
             if (saved && fetched) {
-              out = { ...out, ...fetched };
               updated = fetched;
               metaSaved = true;
             }

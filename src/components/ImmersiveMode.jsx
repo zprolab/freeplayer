@@ -3,6 +3,9 @@ import { parseLRC } from '../utils/lrc';
 import { formatTime } from '../utils/format';
 import { useActiveLineScroll } from '../hooks/useActiveLineScroll';
 
+// Zoom ladder. Module scope because it is a constant, not state.
+const ZOOM_STEPS = [-2, -1, 0, 1, 2, 3, 4];
+
 export default function ImmersiveMode({
   track, lrcContent, currentTime, duration, coverUrl,
   isPlaying, onSeek, onTogglePlay, onNext, onPrev, onClose,
@@ -10,7 +13,6 @@ export default function ImmersiveMode({
   const lyrics = useMemo(() => parseLRC(lrcContent), [lrcContent]);
   const listRef = useRef(null);
   const [zoom, setZoom] = useState(0); // 0=normal, each ±1 = step
-  const ZOOM_STEPS = [-2, -1, 0, 1, 2, 3, 4];
   const baseSize = 22;
   const fontSize = baseSize + zoom * 4;
 

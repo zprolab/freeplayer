@@ -384,7 +384,7 @@ describe('PlaybackEngine listening accounting', () => {
   }
 
   it('does not count paused time as listening time', async () => {
-    const { engine, audio, bridge } = engineWithAudio(180);
+    const { engine, audio } = engineWithAudio(180);
     engine.bind();
     engine._trackId = 1;
     await engine.openSession(1);

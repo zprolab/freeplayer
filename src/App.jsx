@@ -40,7 +40,7 @@ let pluginRuntime = null;
 // sort semantics here (case-insensitive text, numeric duration/year).
 function compareTracks(a, b, sortBy, sortDir) {
   const sign = sortDir === 'ASC' ? 1 : -1;
-  let cmp = 0;
+    let cmp;  // both branches below assign it
   if (sortBy === 'duration' || sortBy === 'year') {
     cmp = (Number(a[sortBy]) || 0) - (Number(b[sortBy]) || 0);
   } else {
@@ -297,8 +297,10 @@ export default function App() {
         audioEngine.applyEq(s.gains, s.enabled);
         dispatch({ type: 'SET', payload: { eqEnabled: s.enabled } });
       }
-    }).catch((err) => console.warn('Failed to load EQ state:', err));
-  }, []);
+      }).catch((err) => console.warn('Failed to load EQ state:', err));
+    // dispatch comes from useReducer, so its identity is stable and listing it
+    // cannot retrigger the effect.
+  }, [dispatch]);
 
   useEffect(() => {
     if (!window.freeplayer?.onEqChange) return;

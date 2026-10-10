@@ -26,7 +26,9 @@ export default function PlaylistModal({ mode, playlist, allTracks, onClose, onSu
     if (mode === 'rename') {
       inputRef.current?.select();
     }
-  }, []);
+    // `mode` is read here; an empty array pinned its first value, so opening the
+    // dialog in rename right after an edit would not select the existing name.
+  }, [mode]);
 
   // Load existing playlist tracks in edit mode
   useEffect(() => {
@@ -98,9 +100,6 @@ export default function PlaylistModal({ mode, playlist, allTracks, onClose, onSu
     }
   };
 
-  const handleKeyDown = (e) => {
-    if (e.key === 'Escape') onClose();
-  };
 
   const modalTitle = mode === 'create' ? 'New Playlist'
     : mode === 'rename' ? 'Rename Playlist'

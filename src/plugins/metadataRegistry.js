@@ -44,7 +44,7 @@ export function createMetadataRegistry(deps) {
     let content;
     try {
       content = await registry.invokeHook(backend, 'fetchLyrics', track);
-    } catch (err) {
+    } catch {
       registry.logOp(backend, 'fetchLyrics', track.id, false);
       return { saved: false, reason: 'plugin-error' };
     }
@@ -73,7 +73,7 @@ export function createMetadataRegistry(deps) {
     let base64;
     try {
       base64 = await registry.invokeHook(backend, 'fetchCover', track);
-    } catch (err) {
+    } catch {
       registry.logOp(backend, 'fetchCover', track.id, false);
       return { saved: false, reason: 'plugin-error' };
     }
@@ -104,7 +104,7 @@ export function createMetadataRegistry(deps) {
     let result;
     try {
       result = await registry.invokeHook(backend, 'fetchMetadata', track);
-    } catch (err) {
+    } catch {
       registry.logOp(backend, 'fetchMetadata', track.id, false);
       return { saved: false, reason: 'plugin-error' };
     }

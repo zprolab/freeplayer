@@ -5,8 +5,6 @@ export default function ImportModal({ onClose, onComplete, importMode }) {
   const [step, setStep] = useState('select-source');
   const [sourceDir, setSourceDir] = useState('');
   const [files, setFiles] = useState([]);
-  const [scanning, setScanning] = useState(false);
-  const [importing, setImporting] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState('');
   const [errorDetails, setErrorDetails] = useState([]);
@@ -20,8 +18,6 @@ export default function ImportModal({ onClose, onComplete, importMode }) {
         return;
       }
       setSourceDir(result.sourceDir);
-
-      setScanning(true);
       setStep('scanning');
       const foundFiles = await window.freeplayer.scanDirectory(result.sourceDir);
       // Native returns { files, truncated, scannedCount } so the UI can warn on
@@ -30,18 +26,15 @@ export default function ImportModal({ onClose, onComplete, importMode }) {
       // a function) and blanked the whole app.
       setFiles(Array.isArray(foundFiles) ? foundFiles : (foundFiles?.files ?? []));
       window.freeplayer?.logDiagnostic?.('import-ui', 'info', `Scan completed: ${JSON.stringify({ sourceDir: result.sourceDir, files: Array.isArray(foundFiles) ? foundFiles.length : foundFiles?.files?.length || 0, truncated: foundFiles?.truncated, scannedCount: foundFiles?.scannedCount })}`);
-      setScanning(false);
       setStep('confirm');
     } catch (err) {
       console.error('Import scan error:', err);
       setError(err.message || 'Failed to scan directory');
-      setScanning(false);
       setStep('error');
     }
   }, [onComplete]);
 
   const handleImport = async () => {
-    setImporting(true);
     setStep('importing');
     setError('');
     setErrorDetails([]);
@@ -49,7 +42,6 @@ export default function ImportModal({ onClose, onComplete, importMode }) {
       const res = await window.freeplayer.importFiles({ files });
       window.freeplayer?.logDiagnostic?.('import-ui', 'info', `Import response: ${JSON.stringify(res)}`);
       setResult(res);
-      setImporting(false);
       if (res.error) {
         setError(res.error);
         setErrorDetails(res.errors || []);
@@ -65,7 +57,6 @@ export default function ImportModal({ onClose, onComplete, importMode }) {
       console.error('Import error:', err);
       window.freeplayer?.logDiagnostic?.('import-ui', 'error', `Import exception: ${err?.stack || err?.message || String(err)}`);
       setError(err.message || 'Import failed');
-      setImporting(false);
       setStep('error');
     }
   };
@@ -78,14 +69,6 @@ export default function ImportModal({ onClose, onComplete, importMode }) {
     }
   }, [handleSelectSource]);
 
-  const formatFileSize = (bytes) => {
-    if (!bytes) return '';
-    const units = ['B', 'KB', 'MB', 'GB'];
-    let size = bytes;
-    let idx = 0;
-    while (size >= 1024 && idx < units.length - 1) { size /= 1024; idx++; }
-    return `${size.toFixed(idx === 0 ? 0 : 1)} ${units[idx]}`;
-  };
 
   return (
     <ModalShell

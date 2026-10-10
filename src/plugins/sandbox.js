@@ -29,8 +29,7 @@
 //
 // The config line (prepended by the host) must define __fpSandboxConfig:
 //   { entry: <blob url of the plugin main module>, meta: { id, name, version } }
-
-/* global __fpSandboxConfig */
+  // The host prepends this global into the worker scope.
 const config = globalThis.__fpSandboxConfig;
 if (!config || typeof config.entry !== 'string') {
   throw new Error('sandbox: missing __fpSandboxConfig.entry');

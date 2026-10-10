@@ -24,7 +24,8 @@ describe('validateManifest', () => {
     expect(r.manifest.permissions).toContain('metadata:read');
   });
   it('rejects missing id', () => {
-    const { id, ...noId } = base;
+    // eslint-disable-next-line no-unused-vars -- destructure-to-omit idiom
+      const { id, ...noId } = base;
     const r = validateManifest(noId);
     expect(r.ok).toBe(false);
     expect(r.errors.join()).toContain('id');

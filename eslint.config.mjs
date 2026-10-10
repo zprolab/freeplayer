@@ -39,6 +39,32 @@ export default [
       //     to the user where it matters), and
       //   - empty `catch {}` around best-effort cleanup (disconnect/removeItem).
       'no-empty': ['error', { allowEmptyCatch: true }],
+
+      // ── Two React patterns kept as WARNINGS, not silenced ──────────────────
+      // Both are left visible on purpose. Docs: eslint --fix cannot resolve
+      // either, and the honest fix is a restructure, so they stay on the report
+      // until someone does that work.
+      //
+      // 1. refs written during render — the "latest value ref": a ref is
+      //    reassigned every render so a listener registered once (tray menu,
+      //    media keys, plugin api) reads current state at call time.
+      //    The sanctioned replacement, useEffectEvent, only works when the
+      //    event function is called FROM an effect. Here it is called from
+      //    bridge callbacks outside the effect body (App.jsx plugin api
+      //    getState/play/next reads pluginBridgeRef.current), so it cannot be
+      //    swapped mechanically. The alternative — assigning in a
+      //    `useEffect(() => { ref.current = … })` — trades a render-phase write
+      //    (unsafe if React discards the render) for a one-render lag in what
+      //    the listener sees. Neither is free; this is a judgement call, not a
+      //    lint fix.
+      // 2. setState straight inside an effect — resetting derived state when
+      //    its source changes (clear lyrics on track change, adopt a cached
+      //    cover url, recompute the ambient glow colour). The modern answer is
+      //    useSyncExternalStore or render-phase adjustment. Measured cost is
+      //    currently nil (353 DOM nodes, steady 60fps), so this is a design-debt
+      //    item rather than a defect.
+      'react-hooks/refs': 'warn',
+      'react-hooks/set-state-in-effect': 'warn',
     },
   },
 

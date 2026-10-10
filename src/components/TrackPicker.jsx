@@ -15,8 +15,6 @@ export default function TrackPicker({ tracks, selectedIds, onToggle, onSelectAll
     );
   }, [tracks, searchQuery]);
 
-  const filteredIds = useMemo(() => new Set(filtered.map(t => t.id)), [filtered]);
-
   const handleSelectAll = () => {
     onSelectAll(filtered.map(t => t.id));
   };

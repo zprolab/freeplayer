@@ -17,7 +17,8 @@ describe('BUILTIN_PLUGINS', () => {
     const loader = createLoader({
       readFile: vi.fn(async () => null),
       importUrl: vi.fn(async () => { throw new Error('importUrl must not be used for builtins'); }),
-      createApi: vi.fn((id) => ({
+      // eslint-disable-next-line no-unused-vars -- stub keeps the real createApi(id) shape
+        createApi: vi.fn((id) => ({
         http: {
           getJson: vi.fn(async () => ({ ok: true, status: 200, body: { syncedLyrics: '[00:01.00]hi' } })),
           getBase64: vi.fn(async () => ({ ok: true, status: 200, base64: 'b64' })),

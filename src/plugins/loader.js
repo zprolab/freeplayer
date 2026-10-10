@@ -46,7 +46,7 @@ function assertProvides(manifest, hooks) {
 
 export function createLoader(deps) {
   const {
-    readFile, importUrl, createApi, onDenied,
+    readFile, importUrl,
     hookTimeoutMs = 15000, deactivateGraceMs = 50,
   } = deps;
 

@@ -42,7 +42,6 @@ function benchSpectrogram({ binCount, sampleRate }) {
 
   const F_MIN = 20; const F_MAX = 20000;
   const LOG_SPAN = Math.log(F_MAX / F_MIN);
-  const logFracOfFreq = (f) => Math.log(Math.max(f, F_MIN) / F_MIN) / LOG_SPAN;
   const binForColumn = new Int32Array(DPLOT_W);
   const freqAtLogFrac = (x) => F_MIN * Math.exp(LOG_SPAN * Math.min(Math.max(x, 0), 1));
   for (let px = 0; px < DPLOT_W; px++) {

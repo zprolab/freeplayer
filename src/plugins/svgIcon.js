@@ -9,11 +9,6 @@ const ALLOWED_ELEMENTS = new Set([
   'svg', 'path', 'circle', 'rect', 'line', 'polyline', 'polygon', 'ellipse',
 ]);
 
-// Attributes allowed on <svg> itself and on child shapes.
-const SVG_ATTRS = new Set([
-  'viewBox', 'fill', 'stroke', 'stroke-width', 'stroke-linecap',
-  'stroke-linejoin', 'stroke-opacity', 'fill-opacity', 'opacity',
-]);
 const SHAPE_ATTRS = new Set([
   'd', 'cx', 'cy', 'r', 'rx', 'ry', 'x', 'y', 'width', 'height',
   'points', 'fill', 'stroke', 'stroke-width', 'stroke-linecap', 'stroke-linejoin',

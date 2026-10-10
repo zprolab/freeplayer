@@ -1,4 +1,4 @@
-import { normalizeForMatch, similarity, pickBestMatch } from './match.js';
+import { pickBestMatch } from './match.js';
 
 const COOLDOWN_MS = 5000;
 let cooldownUntil = 0;
