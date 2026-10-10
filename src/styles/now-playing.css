@@ -3,15 +3,6 @@
    ═══════════════════════════════════════════════════════════════════ */
 
 .now-playing {
-  --np-bg: #fafafa;
-  --np-panel: #ffffff;
-  --np-panel-hover: #f5f5f8;
-  --np-border: #dbdbdb;
-  --np-text: #303030;
-  --np-text-2: #737278;
-  --np-text-3: #999999;
-  --np-accent: #e24329;
-  --np-accent-soft: rgba(226, 67, 41, 0.08);
 
   max-width: 1120px;
   margin: 0 auto;
@@ -20,7 +11,7 @@
   flex-direction: column;
   height: 100%;
   overflow-y: auto;
-  background: var(--np-bg);
+  background: var(--fp-surface-canvas);
 }
 
 /* ── View Tabs ── */
@@ -32,37 +23,37 @@
   align-self: flex-start;
   padding: 3px;
   margin-bottom: 28px;
-  background: var(--np-panel);
-  border: 1px solid var(--np-border);
-  border-radius: var(--gl-radius-md);
+  background: var(--fp-surface-raised);
+  border: 1px solid var(--fp-border-default);
+  border-radius: var(--fp-radius-lg);
 }
 
 .np-tab-btn {
   padding: 5px 16px;
   border: none;
   background: transparent;
-  color: var(--np-text-2);
+  color: var(--fp-text-muted);
   font-family: var(--font-ui);
-  font-size: 12px;
+  font-size: var(--fp-font-md);
   font-weight: 500;
   cursor: pointer;
-  border-radius: var(--gl-radius-sm);
+  border-radius: var(--fp-radius-md);
   transition: color 0.12s, background 0.12s;
 }
 
 .np-tab-btn:hover {
-  color: var(--np-text);
-  background: var(--np-panel-hover);
+  color: var(--fp-text-default);
+  background: var(--fp-surface-hover);
 }
 
 .np-tab-btn--active {
-  background: var(--np-accent);
-  color: #fff;
+  background: var(--fp-accent);
+  color: var(--fp-surface-raised);
 }
 
 .np-tab-btn--active:hover {
-  background: var(--gl-orange-hover);
-  color: #fff;
+  background: var(--fp-accent-hover);
+  color: var(--fp-surface-raised);
 }
 
 /* ── Overview: cover + track sheet (left) / lyrics (right) ── */
@@ -86,11 +77,11 @@
 .np-cover {
   width: 200px;
   height: 200px;
-  border-radius: var(--gl-radius-lg);
+  border-radius: var(--fp-radius-lg);
   overflow: hidden;
   flex-shrink: 0;
-  background: var(--np-panel);
-  box-shadow: var(--gl-shadow-lg);
+  background: var(--fp-surface-raised);
+  box-shadow: var(--fp-shadow-lg);
 }
 
 .np-cover-img {
@@ -106,8 +97,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--np-text-3);
-  background: linear-gradient(135deg, #f0f0f3 0%, #e5e5ea 100%);
+  color: var(--fp-text-subtle);
+  background: linear-gradient(135deg, var(--fp-surface-sunken) 0%, #e5e5ea 100%);
 }
 
 /* Fetch Cover — revealed on hover inside the placeholder */
@@ -117,23 +108,23 @@
   top: 50%;
   transform: translate(-50%, -50%) translateY(4px);
   padding: 7px 18px;
-  border: 1px solid var(--gl-border);
-  border-radius: var(--gl-radius-sm);
-  background: var(--gl-white);
-  color: var(--gl-text-primary);
+  border: 1px solid var(--fp-border-default);
+  border-radius: var(--fp-radius-md);
+  background: var(--fp-surface-raised);
+  color: var(--fp-text-default);
   font-family: var(--font-ui);
-  font-size: 12px;
+  font-size: var(--fp-font-md);
   font-weight: 500;
   cursor: pointer;
   white-space: nowrap;
   opacity: 0;
   pointer-events: none;
-  box-shadow: var(--gl-shadow-md);
+  box-shadow: var(--fp-shadow-md);
   transition: opacity 0.15s ease, transform 0.15s ease, border-color 0.15s ease;
 }
 .cover-fetch-btn:hover {
-  border-color: var(--gl-orange);
-  color: var(--gl-orange);
+  border-color: var(--fp-accent);
+  color: var(--fp-accent);
 }
 .cover-fetch-btn:active {
   transform: translate(-50%, -50%) translateY(4px) scale(0.97);
@@ -154,9 +145,9 @@
 }
 
 .np-title {
-  font-size: 26px;
+  font-size: var(--fp-font-5xl);
   font-weight: 650;
-  color: var(--np-text);
+  color: var(--fp-text-default);
   margin-bottom: 4px;
   letter-spacing: -0.02em;
   word-break: break-word;
@@ -164,15 +155,15 @@
 }
 
 .np-artist {
-  font-size: 15px;
+  font-size: var(--fp-font-lg);
   font-weight: 500;
-  color: var(--np-text-2);
+  color: var(--fp-text-muted);
   margin-bottom: 2px;
 }
 
 .np-album {
-  font-size: 13px;
-  color: var(--np-text-3);
+  font-size: var(--fp-font-base);
+  color: var(--fp-text-subtle);
   margin-bottom: 12px;
 }
 
@@ -182,21 +173,21 @@
   grid-template-columns: auto 1fr;
   gap: 4px 20px;
   padding-top: 14px;
-  border-top: 1px solid var(--np-border);
+  border-top: 1px solid var(--fp-border-default);
 }
 
 .np-spec-label {
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: var(--fp-font-xs);
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--np-text-3);
+  color: var(--fp-text-subtle);
 }
 
 .np-spec-value {
   font-family: var(--font-mono);
-  font-size: 12px;
-  color: var(--np-text-2);
+  font-size: var(--fp-font-md);
+  color: var(--fp-text-muted);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -211,7 +202,7 @@
   gap: 8px 12px;
   margin-top: 14px;
   padding-top: 12px;
-  border-top: 1px solid var(--np-border);
+  border-top: 1px solid var(--fp-border-default);
 }
 
 .np-baseline-sources {
@@ -228,36 +219,36 @@
 
 .np-baseline-label {
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: var(--fp-font-xs);
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--np-text-3);
+  color: var(--fp-text-subtle);
 }
 
 .np-source {
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: var(--fp-font-xs);
   padding: 2px 7px;
-  border-radius: 3px;
+  border-radius: var(--fp-radius-sm);
   border: 1px solid transparent;
-  color: var(--np-text-2);
+  color: var(--fp-text-muted);
   background: rgba(127, 127, 127, 0.12);
 }
 
 .np-source--file {
-  color: var(--gl-green);
-  background: var(--gl-green-light);
+  color: var(--fp-success);
+  background: var(--fp-success-soft);
   border-color: rgba(16, 133, 72, 0.25);
 }
 
 .np-source--online {
-  color: var(--gl-blue);
-  background: var(--gl-blue-light);
+  color: var(--fp-info);
+  background: var(--fp-info-soft);
   border-color: rgba(31, 117, 203, 0.25);
 }
 
 .np-source--user {
-  color: var(--gl-purple);
+  color: var(--fp-neutral-accent);
   background: rgba(110, 73, 236, 0.08);
   border-color: rgba(110, 73, 236, 0.25);
 }
@@ -265,20 +256,20 @@
 .np-reset-btn {
   margin-left: auto;
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: var(--fp-font-xs);
   letter-spacing: 0.06em;
   text-transform: uppercase;
   padding: 4px 10px;
-  border-radius: var(--gl-radius-sm);
-  border: 1px solid var(--np-border);
+  border-radius: var(--fp-radius-md);
+  border: 1px solid var(--fp-border-default);
   background: transparent;
-  color: var(--np-text-2);
+  color: var(--fp-text-muted);
   cursor: pointer;
 }
 
 .np-reset-btn:hover:not(:disabled) {
-  color: var(--np-text);
-  border-color: var(--np-accent);
+  color: var(--fp-text-default);
+  border-color: var(--fp-accent);
 }
 
 .np-reset-btn:disabled {
@@ -288,8 +279,8 @@
 
 .np-reset-error {
   font-family: var(--font-mono);
-  font-size: 10px;
-  color: var(--gl-red);
+  font-size: var(--fp-font-xs);
+  color: var(--fp-danger);
 }
 
 /* ── Lyrics panes ── */
@@ -341,24 +332,24 @@
   display: flex;
   align-items: baseline;
   gap: 8px;
-  font-size: 11px;
-  color: var(--np-text-3);
+  font-size: var(--fp-font-sm);
+  color: var(--fp-text-subtle);
   min-width: 0;
 }
 
 .np-scope-label {
-  color: var(--np-accent);
+  color: var(--fp-accent);
   font-weight: 600;
-  font-size: 10px;
+  font-size: var(--fp-font-xs);
   letter-spacing: 0.1em;
 }
 
 .np-scope-sep {
-  color: var(--np-border);
+  color: var(--fp-border-default);
 }
 
 .np-scope-title {
-  color: var(--np-text);
+  color: var(--fp-text-default);
   font-weight: 600;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -366,7 +357,7 @@
 }
 
 .np-scope-artist {
-  color: var(--np-text-2);
+  color: var(--fp-text-muted);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -374,7 +365,7 @@
 
 .np-scope-format {
   margin-left: auto;
-  color: var(--np-text-3);
+  color: var(--fp-text-subtle);
   flex-shrink: 0;
 }
 
@@ -387,8 +378,8 @@
   min-height: 280px;
   margin-bottom: 24px;
   background: #1a1a1e;
-  border: 1px solid var(--gl-border);
-  border-radius: var(--gl-radius-md);
+  border: 1px solid var(--fp-border-default);
+  border-radius: var(--fp-radius-lg);
   overflow: hidden;
   box-shadow: inset 0 0 40px rgba(0, 0, 0, 0.3);
   user-select: none;
@@ -424,8 +415,47 @@
   display: flex;
   background: rgba(0, 0, 0, 0.55);
   border: 1px solid rgba(255, 255, 255, 0.10);
-  border-radius: var(--gl-radius-sm);
+  border-radius: var(--fp-radius-md);
   overflow: hidden;
+}
+
+/* Analysis quality (FFT size). Sits left of the mode buttons; text labels make
+   the frequency-vs-time trade-off explicit, which an icon could not. */
+.vis-quality {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 22px;
+  padding: 0 8px;
+  background: rgba(0, 0, 0, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  border-radius: var(--fp-radius-md);
+}
+
+.vis-quality-label {
+  font-size: var(--fp-font-nano);
+  letter-spacing: 0.08em;
+  color: rgba(255, 255, 255, 0.35);
+}
+
+.vis-quality-btn {
+  border: none;
+  background: transparent;
+  padding: 0;
+  font: inherit;
+  font-size: var(--fp-font-micro);
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  color: rgba(255, 255, 255, 0.35);
+  cursor: pointer;
+}
+
+.vis-quality-btn:hover {
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.vis-quality-btn--active {
+  color: var(--fp-accent);
 }
 
 .vis-mode-btn {
@@ -448,25 +478,25 @@
 
 .vis-mode-btn--active {
   background: rgba(226, 67, 41, 0.2);
-  color: var(--gl-orange);
+  color: var(--fp-accent);
 }
 
 .vis-mode-btn--active:hover {
   background: rgba(226, 67, 41, 0.3);
-  color: var(--gl-orange);
+  color: var(--fp-accent);
 }
 
 .vis-mode-btn--off {
   background: rgba(0, 0, 0, 0.55);
   border: 1px solid rgba(255, 255, 255, 0.10);
-  border-radius: var(--gl-radius-sm);
+  border-radius: var(--fp-radius-md);
   width: 26px;
   height: 22px;
 }
 
 .vis-mode-btn--off:hover {
   background: rgba(221, 44, 44, 0.2);
-  color: var(--gl-red);
+  color: var(--fp-danger);
 }
 
 /* ── Visualizer Off State ── */
@@ -494,7 +524,7 @@
 }
 
 .visualizer-off-label {
-  font-size: 10px;
+  font-size: var(--fp-font-xs);
   color: rgba(255, 255, 255, 0.15);
   letter-spacing: 0.1em;
 }
@@ -505,18 +535,18 @@
   gap: 5px;
   padding: 4px 12px;
   border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: var(--gl-radius-sm);
+  border-radius: var(--fp-radius-md);
   background: transparent;
   color: rgba(255, 255, 255, 0.4);
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: var(--fp-font-xs);
   cursor: pointer;
   transition: background 0.12s, color 0.12s, border-color 0.12s;
 }
 
 .visualizer-off-btn:hover {
   background: rgba(226, 67, 41, 0.12);
-  color: var(--gl-orange);
+  color: var(--fp-accent);
   border-color: rgba(226, 67, 41, 0.25);
 }
 
@@ -526,9 +556,9 @@
 }
 
 .np-section-title {
-  font-size: 13px;
+  font-size: var(--fp-font-base);
   font-weight: 600;
-  color: var(--np-text);
+  color: var(--fp-text-default);
   margin-bottom: 12px;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -536,7 +566,7 @@
 
 /* Queue — collapsible */
 .np-queue {
-  border-top: 1px solid var(--np-border);
+  border-top: 1px solid var(--fp-border-default);
   margin-top: 40px;
   padding-top: 12px;
   flex: none;
@@ -551,7 +581,7 @@
   padding: 8px 10px;
   border: none;
   background: transparent;
-  border-radius: var(--gl-radius-sm);
+  border-radius: var(--fp-radius-md);
   cursor: pointer;
   text-align: left;
   font-family: var(--font-ui);
@@ -559,7 +589,7 @@
 }
 
 .np-queue-toggle:hover {
-  background: var(--np-panel-hover);
+  background: var(--fp-surface-hover);
 }
 
 .np-queue-toggle .np-section-title {
@@ -568,17 +598,17 @@
 
 .np-queue-count {
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: var(--fp-font-sm);
   font-weight: 500;
-  color: var(--np-text-2);
-  background: #f0f0f3;
+  color: var(--fp-text-muted);
+  background: var(--fp-surface-sunken);
   padding: 1px 8px;
-  border-radius: 10px;
+  border-radius: var(--fp-radius-lg);
 }
 
 .np-queue-chevron {
   margin-left: auto;
-  color: var(--np-text-3);
+  color: var(--fp-text-subtle);
   transition: transform 0.15s ease;
 }
 
@@ -604,26 +634,26 @@
   padding: 8px 12px;
   border: none;
   background: transparent;
-  border-radius: var(--gl-radius-sm);
+  border-radius: var(--fp-radius-md);
   cursor: pointer;
   transition: background 0.1s;
   width: 100%;
   text-align: left;
   font-family: var(--font-ui);
-  font-size: 13px;
-  color: var(--np-text);
+  font-size: var(--fp-font-base);
+  color: var(--fp-text-default);
 }
 
 .queue-item:hover {
-  background: var(--np-panel-hover);
+  background: var(--fp-surface-hover);
 }
 
 .queue-item--active {
-  background: var(--np-accent-soft);
+  background: var(--fp-accent-soft);
 }
 
 .queue-item--active .queue-title {
-  color: var(--np-accent);
+  color: var(--fp-accent);
 }
 
 .queue-item--played {
@@ -633,8 +663,8 @@
 .queue-idx {
   width: 24px;
   text-align: center;
-  font-size: 11px;
-  color: var(--np-text-3);
+  font-size: var(--fp-font-sm);
+  color: var(--fp-text-subtle);
   flex-shrink: 0;
 }
 
@@ -647,7 +677,7 @@
 }
 
 .queue-artist {
-  color: var(--np-text-2);
+  color: var(--fp-text-muted);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -655,8 +685,8 @@
 }
 
 .queue-duration {
-  font-size: 11px;
-  color: var(--np-text-3);
+  font-size: var(--fp-font-sm);
+  color: var(--fp-text-subtle);
   flex-shrink: 0;
 }
 

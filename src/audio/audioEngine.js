@@ -3,6 +3,19 @@
 
 import { EQ_BANDS } from './eqPresets';
 
+// FFT size for the analyser. 2048 gives a 21.5 Hz bin at 44.1 kHz, which puts
+// the whole 20-40 Hz range (the leftmost 10% of the log-frequency axis) inside
+// a single bin — the bass end of the spectrogram then renders as flat blocks.
+// 8192 (5.4 Hz/bin) gives ~4x the low-band resolution; the cost is a 186 ms
+// analysis window instead of 46 ms, which only shows up as transient smearing.
+// Users can change this at runtime (setFftSize) — see the visualizer quality
+// selector. A per-band split (long window for bass, short for transients) was
+// evaluated and rejected: the two bands' window centres land ~325 ms apart at
+// 32768/4096, so the spectrogram shows bass late enough to read as a replay
+// rather than a visualisation.
+const ANALYSIS_FFT_SIZE = 8192;
+const FFT_SIZES = [2048, 4096, 8192, 16384, 32768];
+
 export class AudioEngine {
   constructor() {
     this.ctx = null;
@@ -14,6 +27,8 @@ export class AudioEngine {
     this._pendingGainDb = 0;
     this._pendingVolume = 1;
     this._resumeRetrying = false;
+    this._fftSize = ANALYSIS_FFT_SIZE;
+    this._fftListeners = new Set();
     // WKWebView/Safari freeze the AudioContext without a user gesture;
     // any interaction unlocks it so late-mounted visualizers get data.
     this._unlock = () => this.resume();
@@ -45,6 +60,46 @@ export class AudioEngine {
     this.connectedElement = null;
   }
 
+  // Change the analysis resolution at runtime. The analyser is part of the
+  // pass-through chain, so reassigning fftSize is audible-safe and takes
+  // effect on the next getByteFrequencyData(); the caller resets its
+  // spectrogram history because the bin count changes underneath it.
+  setFftSize(size) {
+    const next = FFT_SIZES.includes(size) ? size : ANALYSIS_FFT_SIZE;
+    const changed = next !== this._fftSize;
+    this._fftSize = next;
+    if (this.analyser && this.analyser.fftSize !== next) {
+      this.analyser.fftSize = next;
+      this._emitFftSize(next);
+    } else if (changed && !this.analyser) {
+      // No analyser yet (nothing has played): the value is pending, and
+      // subscribers still need to see the choice for their own UI state.
+      this._emitFftSize(next);
+    }
+    return next;
+  }
+
+  getFftSize() {
+    return this.analyser ? this.analyser.fftSize : this._fftSize;
+  }
+
+  // Both the Settings page and the visualizer control show this value; whoever
+  // changes it must be reflected on the other surface.
+  subscribeFftSize(listener) {
+    this._fftListeners.add(listener);
+    return () => this._fftListeners.delete(listener);
+  }
+
+  _emitFftSize(size) {
+    for (const listener of this._fftListeners) {
+      try {
+        listener(size);
+      } catch (err) {
+        console.error('fftSize listener failed:', err);
+      }
+    }
+  }
+
   connect(audioElement) {
     if (!audioElement) return null;
     if (this.ctx && this.ctx.state !== 'closed'
@@ -62,7 +117,7 @@ export class AudioEngine {
       }
       if (!this.analyser) {
         this.analyser = this.ctx.createAnalyser();
-        this.analyser.fftSize = 2048;
+        this.analyser.fftSize = this._fftSize;
         this.analyser.smoothingTimeConstant = 0.65;
         this.analyser.minDecibels = -90;
         this.analyser.maxDecibels = -10;

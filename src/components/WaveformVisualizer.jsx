@@ -2,6 +2,7 @@ import { useRef, useEffect, useCallback } from 'react';
 import { audioEngine } from '../audio/audioEngine';
 import { monoFontStack } from '../utils/fonts';
 import { pushSpectrogramFrame } from '../utils/spectrogram';
+import { useVisualizerQuality } from '../hooks/useVisualizerQuality';
 
 // ── Constants ──
 const WAVEFORM_COLOR = '#e24329';
@@ -21,6 +22,49 @@ const LAYOUT = {
 
 const MIN_SPECTROGRAM_ROWS = 100;
 const MAX_SPECTROGRAM_ROWS = 800;
+
+// ── Log-frequency axis ──
+// FFT bins are linear in frequency, so a linear axis squeezes everything above
+// a few kHz into the last few percent of the width (a 2048-point FFT at 44.1k
+// puts 20 kHz at bin 928/1024 — 91% of the plot, but musically almost empty).
+// Both the spectrogram and the spectrum bars are therefore drawn on a log axis
+// spanning F_MIN..F_MAX, which is also the only way the fixed 20/100/500/2k/8k/
+// 20k labels can be honestly placed.
+const F_MIN = 20;
+const F_MAX = 20000;
+const LOG_SPAN = Math.log(F_MAX / F_MIN);
+
+// Frequency shown at a normalised position (0..1 → 20 Hz..20 kHz) and its
+// inverse. Shared by the axis mapping and the label placement so the two can
+// never disagree.
+function freqAtLogFrac(frac) {
+  return F_MIN * Math.exp(LOG_SPAN * Math.min(Math.max(frac, 0), 1));
+}
+
+function logFracOfFreq(freq) {
+  return Math.log(Math.max(freq, F_MIN) / F_MIN) / LOG_SPAN;
+}
+
+// Per-column FFT bin index for a plot of `plotW` pixels. Cached because the
+// spectrogram inner loop runs once per pixel per frame — calling Math.log there
+// would cost ~1M calls/frame.
+let logBinMap = { key: '', map: null };
+function getLogBinMap(plotW, binCount, sampleRate) {
+  const key = `${plotW}:${binCount}:${sampleRate}`;
+  if (logBinMap.key === key && logBinMap.map) return logBinMap.map;
+  const map = new Int32Array(plotW);
+  for (let px = 0; px < plotW; px++) {
+    map[px] = binIndexAt(px, plotW, binCount, sampleRate);
+  }
+  logBinMap = { key, map };
+  return map;
+}
+
+function binIndexAt(px, plotW, binCount, sampleRate) {
+  const nyquist = sampleRate / 2;
+  const freq = freqAtLogFrac(px / Math.max(plotW - 1, 1));
+  return Math.min(binCount - 1, Math.max(0, Math.round((freq / nyquist) * binCount)));
+}
 
 // ── Spectrogram color gradient (thermal camera style) ──
 function spectrogramColor(t) {
@@ -71,6 +115,7 @@ let spectrogramBuffer = null;
 let sharedTimeData = null;
 let sharedFreqData = null;
 let specImageData = null;
+let scratchRow = new Uint8ClampedArray(0);
 
 // ═══════════════════════════════════════════════════════════════
 //  Component
@@ -80,11 +125,17 @@ export default function WaveformVisualizer({ audioElement, trackId, mode, onMode
   const canvasRef = useRef(null);
   const ctxRef = useRef(null);
   const animFrameRef = useRef(null);
+  // Shared with the Settings page: the engine owns the live fftSize and both
+  // surfaces subscribe, so changing it in one place updates the other.
+  const { quality: qualitySize, changeQuality, tiers: qualityTiers } = useVisualizerQuality();
+  const quality = qualitySize;
 
-  // Reset spectrogram history when track changes
+  // Reset spectrogram history when the track changes, and again when the
+  // analysis resolution changes: the history rows are allocated per bin count,
+  // so rows filled at the previous fftSize would render at the wrong width.
   useEffect(() => {
     spectrogramBuffer = null;
-  }, [trackId]);
+  }, [trackId, quality]);
 
   // Resume suspended context on play
   useEffect(() => {
@@ -158,17 +209,22 @@ export default function WaveformVisualizer({ audioElement, trackId, mode, onMode
       }
 
       const bufferLen = an.frequencyBinCount;
-      if (!sharedFreqData || sharedFreqData.length !== bufferLen) {
+      // getByteTimeDomainData needs an fftSize-long array (the FFT input
+      // window), not frequencyBinCount (its half): handing it a shorter buffer
+      // silently drops the tail of every analysis window.
+      if (!sharedFreqData || sharedFreqData.length !== bufferLen
+          || !sharedTimeData || sharedTimeData.length !== an.fftSize) {
         sharedFreqData = new Uint8Array(bufferLen);
-        sharedTimeData = new Uint8Array(bufferLen);
+        sharedTimeData = new Uint8Array(an.fftSize);
       }
       an.getByteFrequencyData(sharedFreqData);
       an.getByteTimeDomainData(sharedTimeData);
 
+      const sampleRate = audioEngine.ctx?.sampleRate || 44100;
       if (mode === 'spectrogram') {
-        drawSpectrogramMode(ctx, sharedFreqData, bufferLen, W, H);
+        drawSpectrogramMode(ctx, sharedFreqData, bufferLen, W, H, sampleRate);
       } else {
-        drawWaveformMode(ctx, sharedFreqData, sharedTimeData, bufferLen, W, H);
+        drawWaveformMode(ctx, sharedFreqData, sharedTimeData, bufferLen, W, H, sampleRate);
       }
 
       schedule();
@@ -206,8 +262,27 @@ export default function WaveformVisualizer({ audioElement, trackId, mode, onMode
     <div className="visualizer">
       <canvas ref={canvasRef} className="visualizer-canvas" />
 
-      {/* Mode switch controls */}
+      {/* Mode + analysis quality. Quality trades frequency against time
+          resolution; the two are inversely proportional for any window, so it
+          is a preference the listener has to pick, not a value with a
+          "correct" setting. */}
       <div className="visualizer-controls">
+        <div className="vis-quality" role="group" aria-label="Analysis quality">
+          <span className="vis-quality-label mono">FFT</span>
+          {qualityTiers.map((tier) => (
+            <button
+              key={tier.id}
+              type="button"
+              className={`vis-quality-btn ${quality === tier.fftSize ? 'vis-quality-btn--active' : ''}`}
+              aria-pressed={quality === tier.fftSize}
+              onClick={() => changeQuality(tier.id)}
+              title={`${tier.label} — ${tier.hint} (${tier.detail})`}
+            >
+              {tier.label}
+            </button>
+          ))}
+        </div>
+
         <div className="vis-mode-group">
           <button
             className={`vis-mode-btn ${mode === 'waveform' ? 'vis-mode-btn--active' : ''}`}
@@ -251,7 +326,7 @@ export default function WaveformVisualizer({ audioElement, trackId, mode, onMode
 //  Mode: Waveform + Spectrum bars
 // ═══════════════════════════════════════════════════════════════
 
-function drawWaveformMode(ctx, freqData, timeData, bufferLen, W, H) {
+function drawWaveformMode(ctx, freqData, timeData, bufferLen, W, H, sampleRate) {
   // Solid background — prevents transparent-canvas bleed-through
   ctx.fillStyle = BG_COLOR;
   ctx.fillRect(0, 0, W, H);
@@ -272,8 +347,11 @@ function drawWaveformMode(ctx, freqData, timeData, bufferLen, W, H) {
   for (let i = 0; i < freqData.length; i++) {
     if (freqData[i] > maxFreq) maxFreq = freqData[i];
   }
-  if (maxFreq > 5) {
-    drawSpectrum(ctx, freqData, W, spTop, spH);
+  // Noise floor for the spectrum panel. Kept low because a larger FFT spreads
+  // the same energy over more bins, so the low bands sit close to 0 even with
+  // music playing — a high threshold would blank the panel's left third.
+  if (maxFreq > 2) {
+    drawSpectrum(ctx, freqData, W, spTop, spH, sampleRate);
   }
 
   drawLabels(ctx, W, H, wfTop, wfH, spBaseline);
@@ -288,7 +366,7 @@ function drawWaveformMode(ctx, freqData, timeData, bufferLen, W, H) {
 //  Mode: Spectrogram (waterfall heatmap)
 // ═══════════════════════════════════════════════════════════════
 
-function drawSpectrogramMode(ctx, freqData, bufferLen, W, H) {
+function drawSpectrogramMode(ctx, freqData, bufferLen, W, H, sampleRate) {
   ctx.fillStyle = BG_COLOR;
   ctx.fillRect(0, 0, W, H);
 
@@ -344,9 +422,6 @@ function drawSpectrogramMode(ctx, freqData, bufferLen, W, H) {
     }
   }
 
-  const binStep = bufferLen / plotW;
-  const rowH = Math.max(1, Math.ceil(plotH / numRows));
-
   // ── Render spectrogram via putImageData at device-pixel resolution ──
   // Reuse the ImageData buffer across frames (only realloc on size change).
   // dpr MUST match sizeCanvas' cap (min(devicePixelRatio, 1.5)) — putImageData
@@ -367,26 +442,39 @@ function drawSpectrogramMode(ctx, freqData, bufferLen, W, H) {
   }
   const pixels = specImageData.data;
 
-  const dRowH = Math.max(1, Math.round(dplotH / numRows));
+  // Log-frequency column → FFT bin map (precomputed; see getLogBinMap).
+  // Below ~150 Hz one bin covers many columns, so the bass shows as flat
+  // blocks however the value is read — the resolution there is the FFT's, not
+  // the mapping's (see the quality tiers). Reading the mapped bin is therefore
+  // the honest rendering: no interpolation invents detail the FFT lacks.
+  const binForColumn = getLogBinMap(dplotW, bufferLen, sampleRate);
+  // Build one row into scratch and blit it, instead of writing every pixel in
+  // a nested (row, column, duplicate-line) loop. The old shape wrote each
+  // logical row dRowH times — 2x the pixels at 1.5x DPR — and cost ~3.3 ms a
+  // frame; blitting a prepared row brings that to ~1 ms.
+  if (scratchRow.length < dplotW * 4) scratchRow = new Uint8ClampedArray(dplotW * 4);
   for (let row = 0; row < numRows; row++) {
-    const imgY = dplotH - 1 - Math.round((row / (numRows - 1)) * (dplotH - 1));
     const srcRow = spectrogramBuffer[row];
 
     for (let px = 0; px < dplotW; px++) {
-      const binIdx = Math.floor((px / dpr) * binStep);
-      const srcVal = srcRow[Math.min(binIdx, bufferLen - 1)];
+      const srcVal = srcRow[binForColumn[px]];
       const lo = srcVal * 4;
-      const r = SPECTRO_LUT[lo];
-      const g = SPECTRO_LUT[lo + 1];
-      const b = SPECTRO_LUT[lo + 2];
+      const o = px * 4;
+      scratchRow[o] = SPECTRO_LUT[lo];
+      scratchRow[o + 1] = SPECTRO_LUT[lo + 1];
+      scratchRow[o + 2] = SPECTRO_LUT[lo + 2];
+      scratchRow[o + 3] = 255;
+    }
 
-      for (let dy = 0; dy < dRowH && (imgY + dy) < dplotH; dy++) {
-        const base = ((imgY + dy) * dplotW + px) * 4;
-        pixels[base] = r;
-        pixels[base + 1] = g;
-        pixels[base + 2] = b;
-        pixels[base + 3] = 255;
-      }
+    // row 0 is the oldest frame. Paint it into the band [y0, y1) so the whole
+    // plot is covered exactly once with no gaps or repeated writes.
+    const y0 = Math.round(((numRows - 1 - row) / numRows) * dplotH);
+    const y1 = row === 0 ? dplotH : Math.round(((numRows - row) / numRows) * dplotH);
+    if (y1 <= y0) continue;
+    const blit = scratchRow.subarray(0, dplotW * 4);
+    const base = y0 * dplotW * 4;
+    for (let y = y0; y < y1; y++) {
+      pixels.set(blit, base + (y - y0) * dplotW * 4);
     }
   }
 
@@ -409,10 +497,12 @@ function drawSpectrogramMode(ctx, freqData, bufferLen, W, H) {
   ctx.fillStyle = LABEL_COLOR;
   ctx.textBaseline = 'bottom';
   ctx.textAlign = 'center';
+  // Frequency labels — placed through the same log mapping the pixels use, so
+  // each label sits on the band it names.
   const freqLabels = [
-    { hz: '20',  xFrac: 0.04 }, { hz: '100', xFrac: 0.22 },
-    { hz: '500', xFrac: 0.40 }, { hz: '2k',  xFrac: 0.58 },
-    { hz: '8k',  xFrac: 0.76 }, { hz: '20k', xFrac: 0.94 },
+    { hz: '20',  xFrac: logFracOfFreq(20) }, { hz: '100', xFrac: logFracOfFreq(100) },
+    { hz: '500', xFrac: logFracOfFreq(500) }, { hz: '2k',  xFrac: logFracOfFreq(2000) },
+    { hz: '8k',  xFrac: logFracOfFreq(8000) }, { hz: '20k', xFrac: logFracOfFreq(20000) },
   ];
   freqLabels.forEach(({ hz, xFrac }) => {
     ctx.fillText(hz, marginLeft + plotW * xFrac, freqY);
@@ -496,43 +586,92 @@ function drawGrid(ctx, W, H, wfTop, wfH, spTop, spH, spBaseline) {
   ctx.stroke();
 }
 
+// Min/max envelope scratch buffers (module-level, sized on demand)
+let waveMinBuf = null;
+let waveMaxBuf = null;
+
 function drawWaveform(ctx, timeData, W, wfTop, wfH) {
   const midY = wfTop + wfH / 2;
-  const sliceW = W / timeData.length;
   const amplitude = wfH * 0.46;
+  const n = timeData.length;
+  const cols = Math.max(1, Math.round(W));
+  if (!waveMinBuf || waveMinBuf.length !== cols) {
+    waveMinBuf = new Float32Array(cols);
+    waveMaxBuf = new Float32Array(cols);
+  }
 
-  const trace = (color, width) => {
-    ctx.strokeStyle = color;
-    ctx.lineWidth = width;
-    ctx.beginPath();
-    for (let i = 0; i < timeData.length; i++) {
-      const v = timeData[i] / 128.0;
-      const y = midY + (v - 1) * amplitude;
-      const x = i * sliceW;
-      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  // One min/max pair per pixel column instead of one sampled point. Drawing
+  // every Nth sample aliases: at 1.5x DPR on an 800px panel the trace only
+  // reads ~6.8 of every 8192 samples, an effective rate of ~6.5 kHz — so a
+  // 4 kHz tone folded down on screen and a 12 kHz tone showed up as a phantom
+  // ~900 Hz wave. The envelope keeps the band a real dense signal occupies,
+  // which is also what makes it read as "louder" rather than "differently
+  // shaped" as the frequency rises.
+  const perCol = n / cols;
+  for (let px = 0; px < cols; px++) {
+    const start = Math.floor(px * perCol);
+    const end = px === cols - 1 ? n : Math.min(n, Math.max(start + 1, Math.floor((px + 1) * perCol)));
+    let lo = timeData[start];
+    let hi = lo;
+    for (let i = start + 1; i < end; i++) {
+      const v = timeData[i];
+      if (v < lo) lo = v;
+      if (v > hi) hi = v;
     }
-    ctx.stroke();
+    waveMinBuf[px] = midY + (lo / 128.0 - 1) * amplitude;
+    waveMaxBuf[px] = midY + (hi / 128.0 - 1) * amplitude;
+  }
+
+  const buildPath = () => {
+    ctx.beginPath();
+    ctx.moveTo(0, waveMaxBuf[0]);
+    for (let px = 1; px < cols; px++) ctx.lineTo(px, waveMaxBuf[px]);
+    for (let px = cols - 1; px >= 0; px--) ctx.lineTo(px, waveMinBuf[px]);
+    ctx.lineTo(0, waveMaxBuf[0]);
+    ctx.closePath();
   };
 
-  trace(WAVEFORM_GLOW, 5);
-  trace('rgba(226, 67, 41, 0.38)', 2);
-  ctx.globalAlpha = 0.92;
-  trace(WAVEFORM_COLOR, 1);
-  ctx.globalAlpha = 1;
+  ctx.strokeStyle = WAVEFORM_GLOW;
+  ctx.lineWidth = 4;
+  buildPath();
+  ctx.stroke();
+  ctx.fillStyle = WAVEFORM_GLOW;
+  ctx.fill();
+
+  ctx.strokeStyle = WAVEFORM_COLOR;
+  ctx.lineWidth = 0.9;
+  buildPath();
+  ctx.fillStyle = 'rgba(226, 67, 41, 0.55)';
+  ctx.fill();
+  ctx.stroke();
 }
 
-function drawSpectrum(ctx, dataArray, W, spTop, spH) {
+function drawSpectrum(ctx, dataArray, W, spTop, spH, sampleRate) {
   const barCount = 128;
-  const step = Math.floor(dataArray.length / barCount);
   const totalW = W - 20;
   const startX = 10;
   const barW = (totalW / barCount) * 0.68;
   const gapW = (totalW / barCount) * 0.32;
+  const binForColumn = getLogBinMap(barCount, dataArray.length, sampleRate);
+
+  // Bars are cut on the same log axis the labels use: a linear split would
+  // give the whole 10-20 kHz range the same visual weight as 20-40 Hz.
+  // Below ~150 Hz one FFT bin still spans a group of these bars, so the bass
+  // repeats a single measurement — that granularity is the FFT's, not the
+  // mapping's (see ANALYSIS_FFT_SIZE), and no amount of per-bar blending adds
+  // information the analyser never measured.
+  const levels = new Float64Array(barCount);
+  for (let i = 0; i < barCount; i++) {
+    const binLo = binForColumn[i];
+    const binHi = i + 1 < barCount ? Math.max(binForColumn[i + 1], binLo + 1) : dataArray.length;
+    let sum = 0;
+    let n = 0;
+    for (let j = binLo; j < binHi && j < dataArray.length; j++) { sum += dataArray[j]; n++; }
+    levels[i] = n ? sum / n : 0;
+  }
 
   for (let i = 0; i < barCount; i++) {
-    let sum = 0;
-    for (let j = 0; j < step; j++) sum += dataArray[i * step + j];
-    const avg = sum / step;
+    const avg = levels[i];
     const barH = (avg / 255) * spH;
     const x = startX + i * (barW + gapW);
     const y = spTop + spH - barH;
@@ -582,12 +721,12 @@ function drawLabels(ctx, W, H, wfTop, wfH, spBaseline) {
   ctx.textBaseline = 'top';
   ctx.textAlign = 'center';
   const freqLabels = [
-    { hz: '20',  xFrac: 0.04 },
-    { hz: '100', xFrac: 0.22 },
-    { hz: '500', xFrac: 0.40 },
-    { hz: '2k',  xFrac: 0.58 },
-    { hz: '8k',  xFrac: 0.76 },
-    { hz: '20k', xFrac: 0.94 },
+    { hz: '20',  xFrac: logFracOfFreq(20) },
+    { hz: '100', xFrac: logFracOfFreq(100) },
+    { hz: '500', xFrac: logFracOfFreq(500) },
+    { hz: '2k',  xFrac: logFracOfFreq(2000) },
+    { hz: '8k',  xFrac: logFracOfFreq(8000) },
+    { hz: '20k', xFrac: logFracOfFreq(20000) },
   ];
   freqLabels.forEach(({ hz, xFrac }) => {
     ctx.fillText(hz, 10 + (W - 20) * xFrac, freqY);
