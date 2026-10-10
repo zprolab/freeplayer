@@ -21,31 +21,54 @@ export default function EditModal({ track, onClose, onSaved }) {
       setError('Title cannot be empty');
       return;
     }
+    // Validate the year before it reaches the bridge. parseInt('') is NaN, which
+    // JSON-serialises to null, binds as SQL NULL and silently CLEARS a year the
+    // track already had; negative and out-of-range values were stored as-is
+    // because the column carries no constraint.
+    let yearValue = null;
+    const rawYear = year.trim();
+    if (rawYear) {
+      const parsed = Number.parseInt(rawYear, 10);
+      if (!/^[0-9]{1,4}$/.test(rawYear) || parsed < 1 || parsed > 9999) {
+        setError('Year must be a number between 1 and 9999');
+        return;
+      }
+      yearValue = parsed;
+    }
+
     setSaving(true);
     setError('');
     try {
+      // The native handler reads a FLAT payload (`d["id"]` plus one key per
+      // column) — the shape App.jsx and the plugin api already send. Nesting the
+      // columns under `fields` left the native whitelist loop with nothing to
+      // match, so Database.updateTrack returned false and EVERY edit was
+      // silently discarded while the dialog still closed as though it saved.
       await window.freeplayer.updateTrack({
         id: track.id,
-        fields: {
-          title: title.trim(),
-          artist: artist.trim() || 'Unknown Artist',
-          album: album.trim() || 'Unknown Album',
-          genre: genre.trim() || null,
-          year: year ? parseInt(year, 10) : null,
-          // Provenance: these values were hand-edited rather than read from
-          // the file, so the track stops claiming a file baseline for its tags.
-          meta_source: 'user',
-        },
+        title: title.trim(),
+        artist: artist.trim() || 'Unknown Artist',
+        album: album.trim() || 'Unknown Album',
+        genre: genre.trim() || null,
+        year: yearValue,
+        // Provenance: these values were hand-edited rather than read from the
+        // file, so the track stops claiming a file baseline for its tags.
+        meta_source: 'user',
       });
       onSaved();
     } catch (err) {
       setError(err.message || 'Failed to save');
+    } finally {
+      // Released on success too: the caller may keep the dialog mounted, and a
+      // stuck `saving` leaves the Save button disabled forever.
       setSaving(false);
     }
   };
 
   const handleKeyDown = (e) => {
-    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+    // Ignore while a save is in flight so the shortcut cannot queue a second one.
+    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && !saving) {
+      e.preventDefault();
       handleSave();
     }
   };
