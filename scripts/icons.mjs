@@ -8,6 +8,7 @@
 //   - renders the iOS AppIcon (square — iOS applies its own mask) into
 //     shell/Assets.xcassets/AppIcon.appiconset/
 // Requires: node + @resvg/resvg-js (devDependency); iconutil ships with macOS.
+// Output PNGs are quantised to an 8-bit palette by ./lib/pngQuantize.mjs.
 // CI-safe on macOS runners; the web build never invokes this.
 import { readFileSync, writeFileSync, mkdtempSync, mkdirSync, rmSync } from 'node:fs';
 import { join, dirname } from 'node:path';
@@ -15,6 +16,7 @@ import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
 import os from 'node:os';
 import { Resvg } from '@resvg/resvg-js';
+import { quantizePng, quantizeIcns } from './lib/pngQuantize.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const SRC = join(ROOT, 'assets', 'logo.svg');
@@ -60,9 +62,13 @@ function composedSvg(radius) {
 </svg>`;
 }
 
+// resvg emits 8-bit RGBA, which costs ~4x what flat artwork needs. Quantising
+// to an indexed palette takes the .icns from 109 KB to 27 KB with no visible
+// difference (the 1024px result was compared by eye). Done here so every output
+// below — master PNG, iconset entries, iOS AppIcon — is quantised in one place.
 function render(svg, px) {
   const resvg = new Resvg(svg, { fitTo: { mode: 'width', value: px } });
-  return resvg.render().asPng();
+  return quantizePng(resvg.render().asPng());
 }
 
 const svg = composedSvg(TILE_RADIUS);
@@ -78,6 +84,9 @@ mkdirSync(iconset);
 try {
   for (const [name, px] of ICONSET) writeFileSync(join(iconset, name), render(svg, px));
   execFileSync('iconutil', ['-c', 'icns', iconset, '-o', OUT_ICNS]);
+  // iconutil re-encodes the indexed iconset PNGs back to RGBA, so the container
+  // is quantised after the fact (87 KB -> 27 KB on this artwork).
+  writeFileSync(OUT_ICNS, quantizeIcns(readFileSync(OUT_ICNS)));
 } finally {
   rmSync(tmp, { recursive: true, force: true });
 }

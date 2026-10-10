@@ -40,6 +40,15 @@ echo "[bundle] packing $BUNDLE"
 rm -rf "$BUNDLE"
 mkdir -p "$BUNDLE/Contents/MacOS" "$BUNDLE/Contents/Resources/web"
 cp "$BIN" "$BUNDLE/Contents/MacOS/FreePlayer"
+
+# ── 4b. strip local symbols ──
+# The unstripped binary carries a symbol table the app never reads at runtime
+# (Swift's reflection metadata lives in __swift5_* sections, not in the symbol
+# table), and it is a third of the executable: 662 KB -> 436 KB. Must run BEFORE
+# codesign — modifying the Mach-O afterwards invalidates the signature.
+# The build tree keeps its unstripped copy for debugging (shell/build/).
+strip -x "$BUNDLE/Contents/MacOS/FreePlayer"
+echo "[bundle] stripped binary: $(du -h "$BUNDLE/Contents/MacOS/FreePlayer" | cut -f1)"
 cp -R "$DIST"/. "$BUNDLE/Contents/Resources/web/"
 cp "$SHELL/FreePlayer.icns" "$BUNDLE/Contents/Resources/FreePlayer.icns"
 cp "$ROOT/LICENSE" "$BUNDLE/Contents/Resources/LICENSE"
