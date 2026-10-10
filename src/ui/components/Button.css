@@ -1,0 +1,131 @@
+/* ═══════════════════════════════════════════════════════════════════
+   FreePlayer UI — Button  (authoritative)
+   ═══════════════════════════════════════════════════════════════════
+
+   Phase 3: the design system now OWNS the button look. This file is imported
+   after styles/buttons.css, so these rules win, and every screen has been
+   migrated to <Button>/<IconButton> — no raw `className="btn"` remains in src/.
+
+   The legacy `.btn*` block in styles/buttons.css and the `.btn-danger` copy in
+   styles/settings.css are still present but now fully shadowed; they are dead
+   weight and will be deleted in the cleanup pass, together with the button
+   half of controls.css.
+
+   Consolidation applied (reviewed in the unification demo):
+     11 control heights  → 3 (28 / 32 / 36px)
+     17 radius values    → control radius token (4px / 6px)
+     `.btn-danger` copy  → one variant of one component
+   ─────────────────────────────────────────────────────────────────── */
+
+.fp-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--fp-space-3);
+  border: 1px solid transparent;
+  border-radius: var(--fp-radius-control);
+  font-family: var(--font-ui);
+  font-weight: var(--fp-weight-medium);
+  /* Long labels wrap instead of overflowing the fixed control height; short
+     labels stay on one line, which is every button currently in the app. */
+  white-space: normal;
+  text-align: center;
+  cursor: pointer;
+  transition: background var(--fp-duration-fast) var(--fp-ease-standard),
+              border-color var(--fp-duration-fast) var(--fp-ease-standard),
+              color var(--fp-duration-fast) var(--fp-ease-standard);
+  -webkit-app-region: no-drag;
+}
+
+/* ── Sizes ── one scale for every control in the app ── */
+.fp-btn--sm { height: var(--fp-control-h-sm); padding: 0 var(--fp-space-6); font-size: var(--fp-font-md); }
+.fp-btn--md { height: var(--fp-control-h-md); padding: 0 var(--fp-space-7); font-size: var(--fp-font-base); }
+.fp-btn--lg { height: var(--fp-control-h-lg); padding: 0 var(--fp-space-9); font-size: var(--fp-font-lg); }
+
+/* ── Variants ── */
+.fp-btn--primary {
+  background: var(--fp-accent);
+  border-color: var(--fp-accent);
+  color: var(--fp-accent-on);
+}
+.fp-btn--primary:hover:not(:disabled) {
+  background: var(--fp-accent-hover);
+  border-color: var(--fp-accent-hover);
+}
+
+.fp-btn--secondary {
+  background: var(--fp-surface-raised);
+  border-color: var(--fp-border-default);
+  color: var(--fp-text-default);
+}
+.fp-btn--secondary:hover:not(:disabled) {
+  background: var(--fp-surface-hover);
+  border-color: var(--fp-border-strong);
+}
+
+.fp-btn--danger {
+  background: transparent;
+  border-color: var(--fp-danger);
+  color: var(--fp-danger);
+  flex-shrink: 0;   /* carried over: it must not shrink in the settings row */
+}
+.fp-btn--danger:hover:not(:disabled) {
+  background: var(--fp-danger-soft);
+}
+
+.fp-btn--ghost {
+  background: transparent;
+  border-color: transparent;
+  color: var(--fp-text-muted);
+}
+.fp-btn--ghost:hover:not(:disabled) {
+  background: var(--fp-surface-hover);
+  color: var(--fp-text-default);
+}
+
+/* ── Disabled ──
+   Previously nothing styled `:disabled`, so a disabled primary action looked
+   enabled. The accent fill keeps enough contrast to read as a button but is
+   visibly inert. */
+.fp-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+.fp-btn--primary:disabled {
+  background: var(--fp-grey-650);
+  border-color: var(--fp-grey-650);
+  color: var(--fp-white);
+  opacity: 1;
+}
+
+/* ── Icon button ──
+   Was 8 distinct square sizes (the "close" affordance alone existed as 24, 28
+   and 32px). Now three, on the same scale as the text buttons. */
+.fp-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  border-radius: var(--fp-radius-control);
+  background: transparent;
+  color: var(--fp-text-muted);
+  cursor: pointer;
+  transition: background var(--fp-duration-fast) var(--fp-ease-standard),
+              color var(--fp-duration-fast) var(--fp-ease-standard);
+  -webkit-app-region: no-drag;
+}
+.fp-icon-btn--sm { width: 24px; height: 24px; }
+.fp-icon-btn--md { width: 28px; height: 28px; }
+.fp-icon-btn--lg { width: 32px; height: 32px; }
+.fp-icon-btn:hover:not(:disabled) {
+  background: var(--fp-surface-hover);
+  color: var(--fp-text-default);
+}
+.fp-icon-btn:disabled { cursor: not-allowed; opacity: 0.55; }
+
+/* ── Focus ── one treatment, visible on light and dark surfaces ── */
+.fp-btn:focus-visible,
+.fp-icon-btn:focus-visible {
+  outline: 2px solid var(--fp-info);
+  outline-offset: 2px;
+}

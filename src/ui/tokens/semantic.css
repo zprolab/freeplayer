@@ -1,0 +1,123 @@
+/* ═══════════════════════════════════════════════════════════════════
+   FreePlayer UI — Semantic tokens
+   ═══════════════════════════════════════════════════════════════════
+
+   Every token here answers "what is this FOR", and every value is resolved
+   from a primitive in primitive.css. Page and component styles should use
+   ONLY these (plus the layout/z tokens below) — the moment a component
+   reaches for `--fp-grey-350` directly, a future re-theme has to edit that
+   component too.
+
+   IMPORTANT — phase 1 is visually neutral by construction:
+   each token below resolves to the exact value the app renders today, and
+   `src/styles/tokens.css` still defines the legacy `--gl-*` names, so not
+   adopting a token yet cannot change a pixel. Migration happens per screen in
+   phase 3, where any intended visual change is reviewed on its own.
+   ─────────────────────────────────────────────────────────────────── */
+
+:root {
+  /* ── Surfaces ──
+     The app is a light UI with dark "instrument" panels (visualiser canvas,
+     immersive overlay). Both live here so a dark re-theme is one file. */
+  --fp-surface-canvas: var(--fp-grey-25);     /* page background          = --gl-content-bg */
+  --fp-surface-raised: var(--fp-white);       /* cards, dialogs, panels   = --gl-card-bg  */
+  --fp-surface-sunken: var(--fp-grey-125);    /* wells, chips, table head */
+  --fp-surface-hover: var(--fp-grey-50);
+  --fp-surface-selected: var(--fp-alpha-blue-08);    /* active row (data-table.css:79) */
+  --fp-surface-selected-hover: var(--fp-alpha-blue-12);
+  --fp-surface-chrome: var(--fp-ink-600);     /* sidebar / shell chrome   = --gl-sidebar-bg */
+  --fp-surface-chrome-hover: var(--fp-ink-500);
+  --fp-surface-chrome-active: var(--fp-grey-725);
+  --fp-surface-app: var(--fp-ink-700);        /* window background        = body background */
+  --fp-surface-scrim: rgba(0, 0, 0, 0.45);
+
+  /* Dark instrument surfaces (visualiser, spectrogram, immersive mode) */
+  --fp-surface-instrument: var(--fp-ink-750);
+  --fp-surface-instrument-deep: var(--fp-ink-800);
+  --fp-surface-instrument-raised: var(--fp-ink-900);
+
+  /* ── Text ── */
+  --fp-text-default: var(--fp-grey-750);      /* = --gl-text-primary   */
+  --fp-text-muted: var(--fp-grey-700);        /* contrast pass: was #737278 (4.19 on sunken) */
+  --fp-text-subtle: var(--fp-grey-675); /* contrast pass: was #999999 (2.50–2.85) */
+  --fp-text-disabled: var(--fp-grey-475);
+  --fp-text-inverse: var(--fp-grey-400);      /* text on chrome        = --gl-text-inverse */
+  --fp-text-chrome-muted: var(--fp-grey-550); /* was #737278 @ 2.98 on chrome */
+  --fp-text-on-instrument: var(--fp-text-on-dark);
+  --fp-text-on-instrument-muted: var(--fp-on-instrument-muted);
+
+  /* ── Borders ── */
+  --fp-border-default: var(--fp-grey-300);    /* = --gl-border        */
+  --fp-border-subtle: var(--fp-grey-175);     /* = --gl-border-light  */
+  --fp-border-strong: var(--fp-grey-325);
+  --fp-border-chrome: var(--fp-grey-725);     /* = --gl-border-dark   */
+  --fp-border-instrument: rgba(255, 255, 255, 0.10);
+
+  /* ── Accents ──
+     `accent` is the primary action / brand colour (orange); `info`,
+     `success`, `danger` are semantic status colours. */
+  --fp-accent: var(--fp-accent-base);
+  --fp-accent-hover: var(--fp-accent-hover);
+  --fp-accent-soft: var(--fp-alpha-accent-08);
+  --fp-accent-on: var(--fp-white);
+  --fp-info: var(--fp-blue-base);
+  --fp-info-hover: var(--fp-blue-hover);
+  --fp-info-soft: var(--fp-alpha-blue-08);
+  --fp-success: var(--fp-green-base);
+  --fp-success-soft: var(--fp-alpha-green-08);
+  --fp-danger: var(--fp-red-base);
+  --fp-danger-soft: var(--fp-alpha-red-08);
+  --fp-neutral-accent: var(--fp-purple-base);
+
+  /* ── Interaction states ── */
+  --fp-focus-ring: 0 0 0 2px var(--fp-alpha-blue-08), 0 0 0 1px var(--fp-info);
+  /* Instrument panels sit on dark surfaces, so their focus ring is light. */
+  --fp-focus-ring-instrument: 0 0 0 1px rgba(255, 255, 255, 0.35);
+
+  /* ── Control sizes ──
+     One height scale for every interactive control. The app previously had 11
+     distinct control heights (24/26/28/30/32/34/36/38/40/44 + a padding-derived
+     button); these three replace them. */
+  --fp-control-h-sm: 28px;
+  --fp-control-h-md: 32px;
+  --fp-control-h-lg: 40px;   /* the circular play button's size */
+
+  /* ── Shape / type / motion aliases ── */
+  /* Aliases exist so a component never picks a raw step. Legacy mapping:
+     --gl-radius-sm (4px) → --fp-radius-md, --gl-radius-lg (8px) →
+     --fp-radius-lg. The 8px dialogs therefore stay 8px until phase 3
+     consolidates them onto the 6px surface step — that change is deliberate
+     and visible, so it is not smuggled in here. */
+  --fp-radius-circle: 50%;            /* avatars, the circular play button */
+  --fp-radius-control: var(--fp-radius-md);
+  --fp-radius-surface: var(--fp-radius-lg);
+  --fp-font-body: var(--fp-font-base);
+
+  /* ── Layout ── */
+  --fp-sidebar-width: 220px;                  /* = --sidebar-width    */
+  --fp-sidebar-width-collapsed: 52px;
+  --fp-player-height: 72px;                   /* = --player-height    */
+  --fp-topbar-height: calc(56px + env(safe-area-inset-bottom, 0px));
+  --fp-dialog-width: 680px;                   /* = --gl-dialog-width  */
+  --fp-dialog-width-narrow: 460px;
+
+  /* ── Z-index scale ──
+     Replaces 18 ad-hoc values. The band layout is the point: overlays never
+     interleave, so "dialog above dialog" is a property of the scale rather
+     than something each file negotiates.
+       100  docked chrome (player bar)
+       200  popovers / context menus
+       300  scrim + modal
+       400  nested overlay (a dialog opened FROM a dialog)
+       500  immersive / full-window takeover
+     NOTE (phase 3): today modal.css:9 = 200 collides with equalizer.css:257
+     = 200, responsive.css:196 lifts .modal-overlay to 300 while
+     settings.css:316 uses 250, so on narrow windows the confirm dialog drops
+     BELOW the modal that opened it. Adopting the scale fixes those three
+     files; the values above are what they will become. */
+  --fp-z-chrome: 100;
+  --fp-z-popover: 200;
+  --fp-z-modal: 300;
+  --fp-z-modal-nested: 400;
+  --fp-z-immersive: 500;
+}

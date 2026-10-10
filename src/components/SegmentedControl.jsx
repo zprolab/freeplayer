@@ -1,17 +1,4 @@
-export default function SegmentedControl({ options, value, onChange, disabled }) {
-  return (
-    <div className={`seg-control${disabled ? ' seg-control--disabled' : ''}`}>
-      {options.map((opt) => (
-        <button
-          key={opt.value}
-          type="button"
-          className={`seg-control-btn${opt.value === value ? ' seg-control-btn--active' : ''}`}
-          disabled={disabled}
-          onClick={() => onChange?.(opt.value)}
-        >
-          {opt.label}
-        </button>
-      ))}
-    </div>
-  );
-}
+// Moved into the design system (src/ui/components). Kept as a re-export so the
+// existing call sites keep working while screens migrate one at a time.
+export { SegmentedControl } from '../ui/components/SegmentedControl';
+export { SegmentedControl as default } from '../ui/components/SegmentedControl';

@@ -1,12 +1,17 @@
 /* FreePlayer styles — split of the former App.css.
    Order is load-bearing (cascade): keep @imports in this exact sequence. */
 
+/* Design system tokens first: primitives, then the semantic layer that
+   resolves from them. Both are additive — the legacy `--gl-*` layer below
+   still defines every name the existing stylesheets use, so importing these
+   changes nothing on screen. */
+@import '../ui/tokens/primitive.css';
+@import '../ui/tokens/semantic.css';
 @import './tokens.css';
 @import './base.css';
 @import './app-shell.css';
 @import './sidebar.css';
 @import './main-content.css';
-@import './buttons.css';
 @import './data-table.css';
 @import './player-bar.css';
 @import './now-playing.css';
@@ -29,3 +34,11 @@
 @import './plugins.css';
 @import './onboarding.css';
 @import './responsive.css';
+
+/* ── Design-system component layer ──
+   Loaded AFTER the legacy styles so it can layer focus/disabled states and
+   shared radii on top of the existing class names without re-declaring the
+   base look (which still lives in buttons.css/controls.css until each screen
+   is migrated). */
+@import '../ui/components/Button.css';
+@import '../ui/components/Control.css';

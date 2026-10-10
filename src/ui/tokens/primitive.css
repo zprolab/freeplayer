@@ -1,0 +1,146 @@
+/* ═══════════════════════════════════════════════════════════════════
+   FreePlayer UI — Primitives
+   ═══════════════════════════════════════════════════════════════════
+
+   Raw values only. Nothing in this file knows what a colour or a size is
+   FOR — that is what semantic.css does. Component and page styles must
+   never reference `--fp-<primitive>` directly; they reference semantic
+   tokens, which is what makes a re-theme a single-file change.
+
+   The greys are the ones actually in use across the app (extracted from the
+   44 distinct hex values previously hardcoded in src/styles/*.css), ordered
+   by luminance so the scale is continuous rather than a set of one-offs.
+   ─────────────────────────────────────────────────────────────────── */
+
+:root {
+  /* ── Neutrals (light UI chrome) ──
+     One luminance-monotonic scale, generated: every grey the app uses has a
+     slot so no component needs a raw hex. A test asserts the numbering stays
+     ordered. */
+  --fp-grey-25: #fafafa;
+  --fp-grey-50: #f5f5f8;
+  --fp-grey-75: #f5f5f5;
+  --fp-grey-100: #f2f2f4;
+  --fp-grey-125: #f0f0f3;
+  --fp-grey-150: #ececef;
+  --fp-grey-175: #e8e8e8;
+  --fp-grey-200: #e7e7eb;
+  --fp-grey-225: #e6e6e6;
+  --fp-grey-250: #e5e5ea;
+  --fp-grey-275: #e0e0e3;
+  --fp-grey-300: #dbdbdb;
+  --fp-grey-325: #d4d4d8;
+  --fp-grey-350: #d3d3d8;
+  --fp-grey-375: #d1d1d6;
+  --fp-grey-400: #ceced0;
+  --fp-grey-425: #cccccc;
+  --fp-grey-450: #c9c9ce;
+  --fp-grey-475: #b9b9c0;
+  --fp-grey-500: #aaaaaa;
+  --fp-grey-525: #a9a9b0;
+  --fp-grey-550: #a8a8b0;
+  --fp-grey-575: #9d9da3;
+  --fp-grey-600: #999999;
+  --fp-grey-625: #8c8c93;
+  --fp-grey-650: #737278;
+  --fp-grey-675: #6b6b73;
+  --fp-grey-700: #58585f;
+  --fp-grey-725: #3a3c42;
+  --fp-grey-750: #303030;
+
+  /* ── Neutrals (dark surfaces: visualiser canvas, immersive overlay) ── */
+  --fp-ink-900: #17171a;
+  --fp-ink-800: #0d0d10;
+  --fp-ink-750: #1a1a1e;
+  --fp-ink-700: #1f1f23;
+  --fp-ink-600: #292b2f;
+  --fp-ink-500: #34363b;
+
+  --fp-white: #ffffff;
+
+  /* ── Accents ── */
+  --fp-accent-base:  #e24329;   /* primary action / brand */
+  --fp-accent-hover: #c5361f;
+  --fp-blue-base:    #1f75cb;
+  --fp-blue-hover:   #1a5ca1;
+  --fp-blue-soft:    #8ab8f0;
+  --fp-blue-strong:  #3b73e6;   /* edit-form.css:111 — a second blue, unified in phase 3 */
+  --fp-alpha-blue-12: rgba(31, 117, 203, 0.12);   /* active row hover (data-table.css:84) */
+  --fp-alpha-blue-15: rgba(59, 115, 230, 0.15);   /* focus ring, second blue (edit-form.css:111) */
+  --fp-green-base:   #108548;
+  --fp-purple-base:  #6e49ec;
+  --fp-red-base:     #dd2c2c;
+  --fp-text-on-dark: #ceced0;
+  /* Visualiser axis labels: rgba(255,255,255,0.25) measured 2.05 on the
+     instrument surface. A solid value keeps the drawn labels readable. */
+  --fp-on-instrument-muted: #b4b4bc;
+  --fp-text-on-dark-strong: #e6e6e6;
+
+  /* ── Alpha ramps ──
+     Used for focus tints, hover washes and the visualiser glow. Kept as
+     primitives because the SAME alpha is reused at very different luminance
+     levels; the semantic layer picks which ramp belongs to which role. */
+  --fp-alpha-accent-08: rgba(226, 67, 41, 0.08);
+  --fp-alpha-accent-22: rgba(226, 67, 41, 0.22);
+  --fp-alpha-accent-38: rgba(226, 67, 41, 0.38);
+  --fp-alpha-accent-15: rgba(226, 67, 41, 0.15);
+  --fp-alpha-blue-08:   rgba(31, 117, 203, 0.08);
+  --fp-alpha-green-08:  rgba(16, 133, 72, 0.08);
+  --fp-alpha-green-14:  rgba(16, 133, 72, 0.14);
+  --fp-alpha-green-28:  rgba(16, 133, 72, 0.28);
+  --fp-alpha-red-08:    rgba(221, 44, 44, 0.08);
+
+  /* ── Space scale (4px base) ── */
+  --fp-space-0: 0;
+  --fp-space-1: 2px;
+  --fp-space-2: 4px;
+  --fp-space-3: 6px;
+  --fp-space-4: 8px;
+  --fp-space-5: 10px;
+  --fp-space-6: 12px;
+  --fp-space-7: 16px;
+  --fp-space-8: 20px;
+  --fp-space-9: 24px;
+  --fp-space-10: 32px;
+
+  /* ── Type scale ──
+     Nine steps replacing the 13 sizes previously in use. 9/8px were used for
+     canvas labels only and stay available as `--fp-font-micro`. */
+  --fp-font-nano: 8px;      /* canvas rulers only */
+  --fp-font-micro: 9px;     /* canvas labels */
+  --fp-font-xs: 10px;       /* chips, badges, table meta */
+  --fp-font-sm: 11px;       /* hints, secondary meta */
+  --fp-font-md: 12px;       /* dense table text, controls */
+  --fp-font-base: 13px;     /* body */
+  --fp-font-lg: 14px;       /* emphasised body, dialog copy */
+  --fp-font-xl: 16px;       /* dialog titles */
+  --fp-font-2xl: 18px;      /* section headings */
+  --fp-font-3xl: 20px;      /* page headings */
+  --fp-font-4xl: 22px;      /* stat values */
+  --fp-font-5xl: 26px;      /* hero numbers */
+  --fp-font-6xl: 28px;      /* onboarding headline */
+
+  --fp-weight-regular: 400;
+  --fp-weight-medium: 500;
+  --fp-weight-semibold: 600;
+
+  /* ── Radius ──
+     Three steps + a pill. The previous 14 distinct values (token mix, raw px,
+     percentages and per-corner shorthands) collapse onto these. */
+  --fp-radius-xs: 2px;
+  --fp-radius-sm: 3px;
+  --fp-radius-md: 4px;
+  --fp-radius-lg: 6px;
+  --fp-radius-pill: 999px;
+
+  /* ── Elevation ── */
+  --fp-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.06);
+  --fp-shadow-md: 0 2px 8px rgba(0, 0, 0, 0.08);
+  --fp-shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.12);
+  --fp-shadow-xl: 0 16px 48px rgba(0, 0, 0, 0.16);
+
+  /* ── Motion ── */
+  --fp-duration-fast: 120ms;
+  --fp-duration-base: 180ms;
+  --fp-ease-standard: cubic-bezier(0.2, 0, 0.2, 1);
+}

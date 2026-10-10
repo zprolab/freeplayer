@@ -1,0 +1,36 @@
+/* ═══════════════════════════════════════════════════════════════════
+   FreePlayer UI — Controls (segmented, toggle, text field, select)
+   ═══════════════════════════════════════════════════════════════════
+
+   Same scope rule as Button.css: the base look of `.seg-control`,
+   `.fp-toggle`, `.edit-input`, `.plugin-select` and `.search-input` stays in
+   controls.css / edit-form.css / main-content.css during the drop-in phase.
+   Only the states those sheets are missing are added here, so no property is
+   declared twice.
+
+   Added:
+     - a focus state for controls (only equalizer.css had :focus-visible, and
+       `.volume-slider` removed its outline with no replacement)
+     - the toggle needs its focus ring on the visible track, since the real
+       input is visually hidden
+   ─────────────────────────────────────────────────────────────────── */
+
+.seg-control-btn:focus-visible,
+.edit-input:focus-visible,
+.plugin-select:focus-visible,
+.search-input:focus-visible {
+  outline: 2px solid var(--fp-info);
+  outline-offset: 2px;
+}
+
+/* The checkbox itself is visually hidden; show focus on the track it drives. */
+.fp-toggle input:focus-visible + .fp-toggle-track {
+  outline: 2px solid var(--fp-info);
+  outline-offset: 3px;
+}
+
+/* Disabled segmented control: the group already dims via
+   `.seg-control--disabled`; make the intent explicit for pointer feedback. */
+.seg-control-btn:disabled {
+  cursor: not-allowed;
+}
