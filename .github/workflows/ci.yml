@@ -88,13 +88,11 @@ jobs:
 
   # ── iOS XCTest suite ──
   # shell/Tests had no CI at all: 147 lines of test-simulator.sh, three npm
-  # scripts, and nothing invoking them. Unit tests are the cheap half of it.
-  # Not gating yet — this job has never run on a runner, so the branch has to
-  # prove green before it can block merges.
+  # scripts, and nothing invoking them. First runner run (v1.3.0) came back green
+  # in 6m36s, so it gates now rather than carrying a continue-on-error.
   ios-tests:
     name: iOS simulator unit tests
     runs-on: macos-26
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v5
         with:
