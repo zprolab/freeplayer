@@ -21,9 +21,9 @@
 #                          --simulator and Release for device builds
 #
 # Examples:
-#   bash scripts/build-ipad.sh --iphone --simulator
-#   bash scripts/build-ipad.sh --ipad --no-simulator --device XXX --team YYY --ipa
-#   bash scripts/build-ipad.sh --iphone --ipa   # unsigned device ipa
+#   bash scripts/build-ios.sh --iphone --simulator
+#   bash scripts/build-ios.sh --ipad --no-simulator --device XXX --team YYY --ipa
+#   bash scripts/build-ios.sh --iphone --ipa   # unsigned device ipa
 set -e
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"

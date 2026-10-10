@@ -10,8 +10,12 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  test:
-    name: Unit tests
+  # ── Web layer: lint, tests, bundle ──
+  # One job rather than three: the previous layout ran each on its own runner, so
+  # setup-node + pnpm install happened three times to do three commands that all
+  # need the same checkout and the same dependencies.
+  web:
+    name: Web (lint + test + build)
     runs-on: ubuntu-latest
     steps:
       # full history + tags: vite.config.js derives __APP_VERSION__ from git
@@ -24,82 +28,40 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm test
+      # The lint gate existed in the repo long before it was real: five
+      # eslint-disable comments, no config, no dependency and no script. Running
+      # it here is what keeps it from rot repeating.
+      - name: Lint
+        run: pnpm lint
+      - name: Unit tests
+        run: pnpm test
+      - name: Build web bundle
+        run: pnpm build
 
-  build:
-    name: Vite build
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v5
-        with:
-          fetch-depth: 0
-      - uses: pnpm/action-setup@v6
-      - uses: actions/setup-node@v5
-        with:
-          node-version: 22
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm build
-
+  # ── macOS shell ──
   shell:
-    name: macOS shell compile
+    name: macOS shell
     runs-on: macos-26
     steps:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
-      - name: Build shell
+      - name: Compile (Release)
         # Swift requires the Ninja generator (macos-26 runners ship Ninja);
         # SDKROOT lets the absolute-path swiftc find the SDK stdlib.
         run: |
           export SDKROOT="$(xcrun --sdk macosx --show-sdk-path)"
-          cmake -S shell -B shell/build -G Ninja && cmake --build shell/build
+          cmake -S shell -B shell/build -G Ninja -DCMAKE_BUILD_TYPE=Release
+          cmake --build shell/build
 
-  ipad:
-    name: iPad build (simulator)
-    runs-on: macos-26
-    steps:
-      - uses: actions/checkout@v5
-        with:
-          fetch-depth: 0
-      - uses: pnpm/action-setup@v6
-      - uses: actions/setup-node@v5
-        with:
-          node-version: 22
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - name: Install XcodeGen
-        run: brew install xcodegen
-      # build:ipad = icons (assets/logo.svg) → xcodegen → xcodebuild (simulator).
-      # SIM_DEST=generic keeps the runner's Xcode version agnostic (its
-      # simulator list lacks the newest iPad models; generic builds fine).
-      - name: Build iPad app
-        run: pnpm build:ipad --ipad --simulator
-        env:
-          SIM_DEST: generic/platform=iOS Simulator
-
-  iphone:
-    name: iPhone build (simulator)
-    runs-on: macos-26
-    steps:
-      - uses: actions/checkout@v5
-        with:
-          fetch-depth: 0
-      - uses: pnpm/action-setup@v6
-      - uses: actions/setup-node@v5
-        with:
-          node-version: 22
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - name: Install XcodeGen
-        run: brew install xcodegen
-      - name: Build iPhone app
-        run: pnpm build:iphone --iphone --simulator
-        env:
-          SIM_DEST: generic/platform=iOS Simulator
-
+  # ── iOS device builds ──
+  # Both targets, one runner. The simulator variants that used to live here were
+  # dropped: they compiled the same sources for the same targets, and a device
+  # build exercises strictly more of the configuration than a simulator one.
+  # `--ipa` is deliberately not passed — release.yml owns packaging, and the
+  # binary-platform check inside build-ios.sh only runs on that path.
   ios-device:
-    name: iOS device build (Release, unsigned)
+    name: iOS device builds (Release, unsigned)
     runs-on: macos-26
     steps:
       - uses: actions/checkout@v5
@@ -113,10 +75,39 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - name: Install XcodeGen
         run: brew install xcodegen
+      - name: Build for icon assets
+        run: pnpm build
       # Exercise the exact path the release workflow ships (generic device,
       # Release, unsigned, no ipa packaging) on every push — release.yml only
-      # runs at tag time, and a broken device build otherwise surfaces there.
-      - name: Build iPad (device, Release)
-        run: pnpm build:ipad --ipad --no-simulator
-      - name: Build iPhone (device, Release)
-        run: pnpm build:iphone --iphone --no-simulator
+      # runs at tag time, so a broken device build would otherwise first surface
+      # during a release.
+      - name: iPad (device, Release)
+        run: pnpm build:ipad:device
+      - name: iPhone (device, Release)
+        run: pnpm build:iphone:device
+
+  # ── iOS XCTest suite ──
+  # shell/Tests had no CI at all: 147 lines of test-simulator.sh, three npm
+  # scripts, and nothing invoking them. Unit tests are the cheap half of it.
+  # Not gating yet — this job has never run on a runner, so the branch has to
+  # prove green before it can block merges.
+  ios-tests:
+    name: iOS simulator unit tests
+    runs-on: macos-26
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Install XcodeGen
+        run: brew install xcodegen
+      # No destination override needed: test-simulator.sh resolves the device by
+      # name and falls back to any available iPad simulator, which is what keeps
+      # it working across runner Xcode versions.
+      - run: pnpm test:simulator:unit

@@ -55,7 +55,7 @@ cp "$ROOT/LICENSE" "$BUNDLE/Contents/Resources/LICENSE"
 cp "$SHELL/Info.plist" "$BUNDLE/Contents/Info.plist"
 
 # ── 5. build version: <pkg.version> on tag builds, else <version>-<git-hash> ──
-# (mirrors build-ipad.sh so macOS and iPad carry the same version string)
+# (mirrors build-ios.sh so macOS and iPad carry the same version string)
 VER=$(node -p "require('$ROOT/package.json').version")
 if git -C "$ROOT" describe --tags --exact-match >/dev/null 2>&1; then
   BUILD_VERSION="$VER"

@@ -13,7 +13,7 @@ jobs:
     name: Package and publish
     runs-on: macos-26
     steps:
-      # full history + tags so bundle.sh/package.sh/build-ipad.sh detect the
+      # full history + tags so bundle.sh/package.sh/build-ios.sh detect the
       # tag and stamp the clean <version> (no -g<hash> suffix) into the apps
       - uses: actions/checkout@v5
         with:
@@ -38,11 +38,11 @@ jobs:
       # sideloadable on jailbroken devices / via any signing tool — no cert
       # or device needed on the runner.
       - name: Build iPad ipa (unsigned, device arm64)
-        run: pnpm build:ipad --ipad --no-simulator --ipa
+        run: pnpm build:ipad:ipa
 
       # ── iPhone ipa ──
       - name: Build iPhone ipa (unsigned, device arm64)
-        run: pnpm build:iphone --iphone --no-simulator --ipa
+        run: pnpm build:iphone:ipa
 
       # ── release notes ──
       - name: Generate release notes
@@ -75,7 +75,7 @@ jobs:
         run: |
           VER=$(node -p "require('./package.json').version")
           # iPad ipa is named FreePlayer-$VER-... (TARGET=FreePlayer in
-          # build-ipad.sh); iPhone carries the FreePlayer-iPhone- prefix.
+          # build-ios.sh); iPhone carries the FreePlayer-iPhone- prefix.
           MAC_ARTIFACTS=$(ls shell/release/FreePlayer-$VER-mac-arm64-* | tr '\n' ' ')
           IPAD_IPA=$(ls shell/release/FreePlayer-$VER-ios-arm64-unsigned-* 2>/dev/null || true)
           IPHONE_IPA=$(ls shell/release/FreePlayer-iPhone-$VER-ios-arm64-unsigned-* 2>/dev/null || true)

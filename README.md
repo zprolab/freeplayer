@@ -102,7 +102,7 @@ pnpm build:iphone                # iPhone 模拟器构建
 自定义构建参数：
 
 ```sh
-bash scripts/build-ipad.sh --iphone --simulator          # iPhone 模拟器
-bash scripts/build-ipad.sh --ipad --no-simulator         # iPad 通用设备 (unsigned)
+bash scripts/build-ios.sh --iphone --simulator          # iPhone 模拟器
+bash scripts/build-ios.sh --ipad --no-simulator         # iPad 通用设备 (unsigned)
 bash scripts/build/ipad.sh --iphone --no-simulator --device XXX --team YYY --ipa
 ```
