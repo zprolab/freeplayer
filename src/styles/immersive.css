@@ -228,7 +228,7 @@
   width: 40px;
   flex-shrink: 0;
   text-align: right;
-  font-family: var(--font-mono);
+  font-family: var(--fp-font-mono);
   transition: color 0.5s cubic-bezier(0.25, 0.1, 0.25, 1);
 }
 
@@ -369,7 +369,7 @@
 }
 
 .immersive-no-lyrics-hint code {
-  font-family: var(--font-mono);
+  font-family: var(--fp-font-mono);
   font-size: var(--fp-font-sm);
   background: rgba(255, 255, 255, 0.06);
   padding: 1px 6px;

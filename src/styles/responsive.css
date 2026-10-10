@@ -60,7 +60,7 @@
 
   /* 主内容让出底部两段（player + tabbar） */
   .main-content {
-    padding-bottom: calc(var(--player-height) + 56px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: calc(var(--fp-player-height) + 56px + env(safe-area-inset-bottom, 0px));
   }
 }
 
@@ -174,7 +174,7 @@
 
 /* PlayerBar：更大的触控目标，紧凑布局 */
 @media (max-width: 767px) {
-  .player-bar { height: auto; min-height: var(--player-height); }
+  .player-bar { height: auto; min-height: var(--fp-player-height); }
   .player-progress-track { height: 4px; }
   .player-progress-track:hover { height: 4px; margin-top: 0; }
   .player-inner { padding: 6px 10px; gap: 6px; }

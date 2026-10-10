@@ -92,6 +92,8 @@
   --fp-radius-control: var(--fp-radius-md);
   --fp-radius-surface: var(--fp-radius-lg);
   --fp-font-body: var(--fp-font-base);
+  --fp-font-family: var(--fp-font-ui);
+  --fp-font-family-mono: var(--fp-font-mono);
 
   /* ── Layout ── */
   --fp-sidebar-width: 220px;                  /* = --sidebar-width    */

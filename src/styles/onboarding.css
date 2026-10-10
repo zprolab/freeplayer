@@ -5,7 +5,7 @@
   flex-direction: column;
   background: var(--fp-surface-canvas);
   color: var(--fp-text-default);
-  font-family: var(--font-ui);
+  font-family: var(--fp-font-ui);
   user-select: none;
 }
 .onboarding-steps {

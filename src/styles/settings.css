@@ -59,7 +59,7 @@
   cursor: pointer;
   background: transparent;
   transition: border-color 0.15s ease, background 0.15s ease;
-  font-family: var(--font-ui);
+  font-family: var(--fp-font-ui);
   text-align: left;
 }
 
@@ -136,7 +136,7 @@
 .library-dir-path {
   font-size: var(--fp-font-md);
   color: var(--fp-text-default);
-  font-family: var(--font-mono);
+  font-family: var(--fp-font-mono);
   flex: 1;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -266,7 +266,7 @@
 
 .volume-value {
   font-size: var(--fp-font-md);
-  font-family: var(--font-mono);
+  font-family: var(--fp-font-mono);
   color: var(--fp-text-muted);
   width: 32px;
   text-align: right;
@@ -352,6 +352,6 @@
   border-radius: var(--fp-radius-lg);
   background: var(--fp-info-soft);
   color: var(--fp-info);
-  font-family: var(--font-mono);
+  font-family: var(--fp-font-mono);
 }
 

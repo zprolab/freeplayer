@@ -3,8 +3,8 @@
    ═══════════════════════════════════════════════════════════════════ */
 
 .sidebar {
-  width: var(--sidebar-width);
-  min-width: var(--sidebar-width);
+  width: var(--fp-sidebar-width);
+  min-width: var(--fp-sidebar-width);
   height: 100%;
   background: var(--fp-surface-chrome);
   display: flex;
@@ -62,7 +62,7 @@
   border: none;
   background: transparent;
   color: var(--fp-text-inverse);
-  font-family: var(--font-ui);
+  font-family: var(--fp-font-ui);
   font-size: var(--fp-font-base);
   cursor: pointer;
   transition: background 0.12s ease, color 0.12s ease;
@@ -109,7 +109,7 @@
   font-weight: 500;
   padding: 1px 6px;
   border-radius: var(--fp-radius-lg);
-  font-family: var(--font-mono);
+  font-family: var(--fp-font-mono);
   min-width: 20px;
   text-align: center;
 }

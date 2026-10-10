@@ -2,12 +2,16 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
 import { execSync } from 'child_process';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 
 // Build version — same rule as scripts/bundle.sh / build-ipad.sh:
 // <pkg.version> on an exact git tag, otherwise <pkg.version>-<git-short-hash>.
 // Injected as __APP_VERSION__ so the About page matches the native bundles.
 function buildVersion() {
-  const pkg = require('./package.json');
+  // readFileSync rather than require(): this file is ESM (it uses import), and
+  // `require` only worked because vite bundled the config as CJS.
+  const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8'));
   try {
     execSync('git describe --tags --exact-match', { stdio: 'ignore' });
     return pkg.version; // tagged build
@@ -55,7 +59,7 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      '@': path.resolve(__dirname, 'src'),
+      '@': fileURLToPath(new URL('./src', import.meta.url)),
     },
   },
 });

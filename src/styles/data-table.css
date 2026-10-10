@@ -103,7 +103,7 @@
 }
 
 .index-num {
-  font-family: var(--font-mono);
+  font-family: var(--fp-font-mono);
   font-size: var(--fp-font-sm);
 }
 
@@ -161,7 +161,7 @@
   padding: 1px 6px;
   border-radius: var(--fp-radius-md);
   text-transform: uppercase;
-  font-family: var(--font-mono);
+  font-family: var(--fp-font-mono);
   flex-shrink: 0;
 }
 

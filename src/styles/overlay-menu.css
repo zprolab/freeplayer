@@ -28,7 +28,7 @@
   padding: 8px 12px;
   border: none;
   background: transparent;
-  font-family: var(--font-ui);
+  font-family: var(--fp-font-ui);
   font-size: var(--fp-font-md);
   color: var(--fp-text-default);
   cursor: pointer;

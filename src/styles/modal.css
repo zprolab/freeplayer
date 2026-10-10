@@ -252,7 +252,7 @@
 .result-value {
   font-size: var(--fp-font-6xl);
   font-weight: 700;
-  font-family: var(--font-mono);
+  font-family: var(--fp-font-mono);
 }
 
 .result-label {
@@ -267,7 +267,7 @@
   color: var(--fp-danger);
   border-radius: var(--fp-radius-md);
   font-size: var(--fp-font-md);
-  font-family: var(--font-mono);
+  font-family: var(--fp-font-mono);
 }
 
 .import-error-state {

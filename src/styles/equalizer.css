@@ -16,7 +16,7 @@
   flex-direction: column;
   background: var(--fp-surface-canvas);
   color: var(--fp-text-default);
-  font-family: var(--font-ui);
+  font-family: var(--fp-font-ui);
   font-size: var(--fp-font-base);
   user-select: none;
 }
@@ -46,7 +46,7 @@
 .eq-badge {
   font-size: var(--fp-font-sm);
   font-weight: 500;
-  font-family: var(--font-mono);
+  font-family: var(--fp-font-mono);
   padding: 2px 8px;
   border-radius: var(--fp-radius-lg);
   background: var(--fp-surface-sunken);
@@ -120,7 +120,7 @@
 .eq-readout {
   height: var(--eq-readout, 16px);
   line-height: var(--eq-readout, 16px);
-  font-family: var(--font-mono);
+  font-family: var(--fp-font-mono);
   font-size: var(--fp-font-xs);
   font-variant-numeric: tabular-nums;
   color: var(--fp-text-subtle);
@@ -216,7 +216,7 @@
   min-width: 0;
   height: 26px;
   padding: 0 8px;
-  font-family: var(--font-ui);
+  font-family: var(--fp-font-ui);
   font-size: var(--fp-font-md);
   font-weight: 500;
   color: var(--fp-text-muted);
@@ -294,7 +294,7 @@
   background: transparent; border: 1px solid var(--fp-border-default);
   color: var(--fp-text-subtle); cursor: pointer;
   transition: all 0.12s;
-  font-family: var(--font-ui);
+  font-family: var(--fp-font-ui);
 }
 .eq-btn:hover { color: var(--fp-text-default); border-color: var(--fp-border-chrome); background: var(--fp-border-subtle); }
 .eq-btn--active { color: var(--fp-accent); border-color: var(--fp-accent); }

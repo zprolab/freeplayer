@@ -32,13 +32,13 @@
   background: var(--fp-accent-soft);
   padding: 2px 8px;
   border-radius: var(--fp-radius-sm);
-  font-family: var(--font-mono);
+  font-family: var(--fp-font-mono);
 }
 
 .lyrics-meta-count {
   font-size: var(--fp-font-xs);
   color: var(--fp-text-subtle);
-  font-family: var(--font-mono);
+  font-family: var(--fp-font-mono);
 }
 
 /* Where the lyrics came from: the audio file / a sidecar .lrc / online. */
@@ -46,7 +46,7 @@
   font-size: var(--fp-font-micro);
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  font-family: var(--font-mono);
+  font-family: var(--fp-font-mono);
   padding: 2px 7px;
   border-radius: var(--fp-radius-sm);
   color: var(--fp-text-subtle);
@@ -237,7 +237,7 @@
 }
 
 .lyrics-empty-hint code {
-  font-family: var(--font-mono);
+  font-family: var(--fp-font-mono);
   font-size: var(--fp-font-sm);
   background: var(--fp-surface-sunken);
   padding: 1px 6px;
@@ -254,7 +254,7 @@
   border-radius: var(--fp-radius-md);
   background: transparent;
   color: var(--fp-text-muted);
-  font-family: var(--font-ui);
+  font-family: var(--fp-font-ui);
   font-size: var(--fp-font-md);
   font-weight: 500;
   cursor: pointer;

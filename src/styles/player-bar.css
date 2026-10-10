@@ -5,9 +5,9 @@
 .player-bar {
   position: fixed;
   bottom: 0;
-  left: var(--sidebar-width);
+  left: var(--fp-sidebar-width);
   right: 0;
-  height: var(--player-height);
+  height: var(--fp-player-height);
   background: var(--fp-surface-raised);
   border-top: 1px solid var(--fp-border-default);
   z-index: var(--fp-z-chrome);

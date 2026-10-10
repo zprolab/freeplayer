@@ -1,6 +1,5 @@
 import { useState, useEffect, memo } from 'react';
-import ToggleSwitch from './ToggleSwitch';
-import SegmentedControl from './SegmentedControl';
+import { ToggleSwitch, SegmentedControl } from '../ui/components';
 import { useTraySettings } from '../hooks/useTraySettings';
 import { Button } from '../ui/components';
 import { applyMonoFont } from '../utils/fonts';

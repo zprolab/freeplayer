@@ -33,7 +33,7 @@
   border: none;
   background: transparent;
   color: var(--fp-text-muted);
-  font-family: var(--font-ui);
+  font-family: var(--fp-font-ui);
   font-size: var(--fp-font-md);
   font-weight: 500;
   cursor: pointer;
@@ -112,7 +112,7 @@
   border-radius: var(--fp-radius-md);
   background: var(--fp-surface-raised);
   color: var(--fp-text-default);
-  font-family: var(--font-ui);
+  font-family: var(--fp-font-ui);
   font-size: var(--fp-font-md);
   font-weight: 500;
   cursor: pointer;
@@ -177,7 +177,7 @@
 }
 
 .np-spec-label {
-  font-family: var(--font-mono);
+  font-family: var(--fp-font-mono);
   font-size: var(--fp-font-xs);
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -185,7 +185,7 @@
 }
 
 .np-spec-value {
-  font-family: var(--font-mono);
+  font-family: var(--fp-font-mono);
   font-size: var(--fp-font-md);
   color: var(--fp-text-muted);
   overflow: hidden;
@@ -218,7 +218,7 @@
 }
 
 .np-baseline-label {
-  font-family: var(--font-mono);
+  font-family: var(--fp-font-mono);
   font-size: var(--fp-font-xs);
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -226,7 +226,7 @@
 }
 
 .np-source {
-  font-family: var(--font-mono);
+  font-family: var(--fp-font-mono);
   font-size: var(--fp-font-xs);
   padding: 2px 7px;
   border-radius: var(--fp-radius-sm);
@@ -255,7 +255,7 @@
 
 .np-reset-btn {
   margin-left: auto;
-  font-family: var(--font-mono);
+  font-family: var(--fp-font-mono);
   font-size: var(--fp-font-xs);
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -278,7 +278,7 @@
 }
 
 .np-reset-error {
-  font-family: var(--font-mono);
+  font-family: var(--fp-font-mono);
   font-size: var(--fp-font-xs);
   color: var(--fp-danger);
 }
@@ -538,7 +538,7 @@
   border-radius: var(--fp-radius-md);
   background: transparent;
   color: rgba(255, 255, 255, 0.4);
-  font-family: var(--font-mono);
+  font-family: var(--fp-font-mono);
   font-size: var(--fp-font-xs);
   cursor: pointer;
   transition: background 0.12s, color 0.12s, border-color 0.12s;
@@ -584,7 +584,7 @@
   border-radius: var(--fp-radius-md);
   cursor: pointer;
   text-align: left;
-  font-family: var(--font-ui);
+  font-family: var(--fp-font-ui);
   transition: background 0.12s ease;
 }
 
@@ -597,7 +597,7 @@
 }
 
 .np-queue-count {
-  font-family: var(--font-mono);
+  font-family: var(--fp-font-mono);
   font-size: var(--fp-font-sm);
   font-weight: 500;
   color: var(--fp-text-muted);
@@ -639,7 +639,7 @@
   transition: background 0.1s;
   width: 100%;
   text-align: left;
-  font-family: var(--font-ui);
+  font-family: var(--fp-font-ui);
   font-size: var(--fp-font-base);
   color: var(--fp-text-default);
 }

@@ -20,3 +20,16 @@ shell/Assets.xcassets/AppIcon.appiconset/AppIcon-1024.png
 shell/FreePlayer.xcodeproj/
 shell/Info-iOS.plist
 shell/Info-iPhone.plist
+
+# Android — the platform was dropped, but its build output once reached the
+# history (1863 files, 104 MB: 40 MB classes.dex, 22 MB app-debug.apk, four
+# release APKs). Those artifacts are gone from history now; these rules keep a
+# returning Android/ tree from putting them back.
+Android/
+.gradle/
+local.properties
+*.apk
+*.aab
+*.dex
+*.class
+captures/

@@ -1,13 +1,11 @@
 /* FreePlayer styles — split of the former App.css.
    Order is load-bearing (cascade): keep @imports in this exact sequence. */
 
-/* Design system tokens first: primitives, then the semantic layer that
-   resolves from them. Both are additive — the legacy `--gl-*` layer below
-   still defines every name the existing stylesheets use, so importing these
-   changes nothing on screen. */
+/* Design system tokens first: primitives, then the semantic layer that resolves
+   from them. Every stylesheet below reads these — the legacy `--gl-*` token
+   layer that used to sit here has been migrated and removed. */
 @import '../ui/tokens/primitive.css';
 @import '../ui/tokens/semantic.css';
-@import './tokens.css';
 @import './base.css';
 @import './app-shell.css';
 @import './sidebar.css';

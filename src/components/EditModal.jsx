@@ -78,6 +78,8 @@ export default function EditModal({ track, onClose, onSaved }) {
       title="Edit Track"
       onClose={onClose}
     >
+      {/* The shell owns Escape; Cmd/Ctrl+Enter is this dialog's own shortcut,
+          so it stays on the body element it belongs to. */}
       <div className="modal-body" onKeyDown={handleKeyDown}>
           {error && <div className="import-error">{error}</div>}
 

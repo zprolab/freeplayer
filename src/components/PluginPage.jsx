@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import ToggleSwitch from './ToggleSwitch';
+import { ToggleSwitch } from '../ui/components';
 import { Button } from '../ui/components';
 import { sanitizeSvgIcon } from '../plugins/svgIcon';
 import { backfillMissing, isBackfillRunning, needsMetadataFill } from '../services/backfill';

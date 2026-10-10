@@ -9,7 +9,7 @@
   min-width: 0;
   height: 100%;
   background: var(--fp-surface-canvas);
-  padding-bottom: var(--player-height);
+  padding-bottom: var(--fp-player-height);
 }
 
 /* Unified: the light content card floats over the dark L-frame. Paint the
@@ -25,8 +25,8 @@
   align-items: center;
   justify-content: space-between;
   padding: 0 24px;
-  height: var(--topbar-height);
-  min-height: var(--topbar-height);
+  height: var(--fp-topbar-height);
+  min-height: var(--fp-topbar-height);
   background: var(--fp-surface-raised);
   color: var(--fp-text-default);
   border-bottom: 1px solid var(--fp-border-default);
@@ -65,7 +65,7 @@
   border-radius: var(--fp-radius-lg);
   background: var(--fp-info-soft);
   color: var(--fp-info);
-  font-family: var(--font-mono);
+  font-family: var(--fp-font-mono);
 }
 
 .ui-mode-unified .track-count-badge {
@@ -101,7 +101,7 @@
   padding: 0 32px 0 32px;
   border: 1px solid var(--fp-border-default);
   border-radius: var(--fp-radius-md);
-  font-family: var(--font-ui);
+  font-family: var(--fp-font-ui);
   font-size: var(--fp-font-base);
   color: var(--fp-text-default);
   background: var(--fp-surface-raised);

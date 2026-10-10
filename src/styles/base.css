@@ -14,7 +14,7 @@ html, body, #root {
 }
 
 body {
-  font-family: var(--font-ui);
+  font-family: var(--fp-font-ui);
   font-size: var(--fp-font-base);
   line-height: 1.5;
   color: var(--fp-text-default);
@@ -26,7 +26,7 @@ body {
 }
 
 .mono {
-  font-family: var(--font-mono);
+  font-family: var(--fp-font-mono);
   font-variant-numeric: tabular-nums;
   font-size: var(--fp-font-md);
   letter-spacing: -0.01em;

@@ -23,7 +23,7 @@
   gap: var(--fp-space-3);
   border: 1px solid transparent;
   border-radius: var(--fp-radius-control);
-  font-family: var(--font-ui);
+  font-family: var(--fp-font-ui);
   font-weight: var(--fp-weight-medium);
   /* Long labels wrap instead of overflowing the fixed control height; short
      labels stay on one line, which is every button currently in the app. */

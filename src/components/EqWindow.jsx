@@ -3,7 +3,7 @@ import {
   EQ_BANDS, EQ_MIN, EQ_MAX, EQ_STEP, EQ_PRESETS, sliderFrac, normalizePreset,
   eqOctaveAt, eqResponseDb,
 } from '../audio/eqPresets';
-import ToggleSwitch from './ToggleSwitch';
+import { ToggleSwitch } from '../ui/components';
 
 /* The face is one shared coordinate space: fader caps and the response
    curve map through the same dB → pixel function, so the drawn curve

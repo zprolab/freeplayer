@@ -18,7 +18,7 @@
 
 /* Segmented Control */
 .seg-control { display: inline-flex; border: 1px solid var(--fp-border-default); border-radius: var(--fp-radius-md); background: var(--fp-surface-raised); overflow: hidden; height: 30px; box-sizing: border-box; }
-.seg-control-btn { border: none; background: transparent; padding: 0 14px; font-family: var(--font-ui); font-size: var(--fp-font-md); font-weight: 500; color: var(--fp-text-muted); cursor: pointer; border-left: 1px solid var(--fp-border-default); border-radius: var(--fp-radius-xs); transition: background 0.15s, color 0.15s; margin-left: -1px; }
+.seg-control-btn { border: none; background: transparent; padding: 0 14px; font-family: var(--fp-font-ui); font-size: var(--fp-font-md); font-weight: 500; color: var(--fp-text-muted); cursor: pointer; border-left: 1px solid var(--fp-border-default); border-radius: var(--fp-radius-xs); transition: background 0.15s, color 0.15s; margin-left: -1px; }
 .seg-control-btn:first-child { border-left: none; margin-left: 0; }
 .seg-control-btn:hover { background: var(--fp-border-subtle); }
 .seg-control-btn--active { background: var(--fp-accent); color: var(--fp-surface-raised); }

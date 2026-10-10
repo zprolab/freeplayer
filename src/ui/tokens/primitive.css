@@ -90,6 +90,12 @@
   --fp-alpha-green-28:  rgba(16, 133, 72, 0.28);
   --fp-alpha-red-08:    rgba(221, 44, 44, 0.08);
 
+  /* ── Font stacks ──
+     `--fp-font-mono` is also written at runtime by utils/fonts.js when the user
+     picks a mono font, so this is the name that has to survive. */
+  --fp-font-ui: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  --fp-font-mono: 'JetBrains Mono', 'Fira Code', 'SF Mono', 'Cascadia Code', 'Consolas', monospace;
+
   /* ── Space scale (4px base) ── */
   --fp-space-0: 0;
   --fp-space-1: 2px;

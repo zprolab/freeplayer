@@ -28,7 +28,6 @@ export function ModalShell({
   labelledBy = 'fp-modal-title',
   closeLabel = 'Close',
   canClose = true,
-  bodyProps,
   headerExtra,
 }) {
   const onKeyDown = (e) => {

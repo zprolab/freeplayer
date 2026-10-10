@@ -28,7 +28,7 @@
   padding: 0 10px;
   border: 1px solid var(--fp-border-default);
   border-radius: var(--fp-radius-md);
-  font-family: var(--font-ui);
+  font-family: var(--fp-font-ui);
   font-size: var(--fp-font-base);
   color: var(--fp-text-default);
   background: var(--fp-surface-raised);
@@ -130,7 +130,7 @@
   font-size: var(--fp-font-sm);
   font-weight: 500;
   color: var(--fp-info);
-  font-family: var(--font-mono);
+  font-family: var(--fp-font-mono);
   padding: 2px 8px;
   border-radius: var(--fp-radius-lg);
   background: var(--fp-info-soft);
@@ -202,7 +202,7 @@
 .track-picker-duration {
   width: 52px;
   text-align: right;
-  font-family: var(--font-mono);
+  font-family: var(--fp-font-mono);
   font-size: var(--fp-font-sm);
   color: var(--fp-text-subtle);
   flex-shrink: 0;

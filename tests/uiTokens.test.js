@@ -27,7 +27,6 @@ function referencedVars(css) {
 
 const primitiveCss = read(join(uiTokens, 'primitive.css'));
 const semanticCss = read(join(uiTokens, 'semantic.css'));
-const legacyCss = read(join(cssDir, 'tokens.css'));
 
 const primitiveVars = declaredVars(primitiveCss);
 const semanticVars = declaredVars(semanticCss);
@@ -84,7 +83,7 @@ describe('design system tokens', () => {
     // A var() with neither a declaration nor a fallback resolves to nothing and
     // the declaration is dropped silently — how UI drift starts. Phase 3 fixed
     // the last two (--gl-text in edit-form.css).
-    const declared = new Set([...declaredVars(legacyCss), ...primitiveVars, ...semanticVars]);
+    const declared = new Set([...primitiveVars, ...semanticVars]);
     const missing = [];
     for (const file of readdirSync(cssDir).filter((f) => f.endsWith('.css'))) {
       const css = read(join(cssDir, file));
