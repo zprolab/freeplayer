@@ -40,6 +40,15 @@ enum FPBridge {
                 guard allowed.contains(mode) else { call.reply(false); return }
                 call.reply(Database.setSetting(key, mode)); return
             }
+            if key == "visualizer_quality" {
+                // The quality tier picks the analyser's fftSize, so the value has
+                // to be one the renderer can map to a real size. Without this key
+                // in the allowlist below, every write answered false and the
+                // preference silently reverted to the default on each launch.
+                let tier = "\(d["value"] ?? "")"
+                guard ["reactive", "balanced", "precise"].contains(tier) else { call.reply(false); return }
+                call.reply(Database.setSetting(key, tier)); return
+            }
             let plain: Set<String> = [
                 "volume", "tray_enabled", "tray_notify", "start_hidden",
                 "start_on_boot", "default_volume", "default_visualizer",

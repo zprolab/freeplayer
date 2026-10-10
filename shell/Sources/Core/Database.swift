@@ -22,6 +22,17 @@ enum Database {
     private static var gTracksDb: OpaquePointer?
     private static var gTracksDbPath: String?
 
+    /// Serialises every read and write of the two static handles above.
+    ///
+    /// They are plain statics mutated by open/close/switchTracksDb while bridge
+    /// handlers run on DispatchQueue.global: a thread could capture a handle in
+    /// runQueryOn/runExecOn and then prepare a statement on a connection that
+    /// close() had already freed (use-after-free), and Swift static access was
+    /// itself an unsynchronised data race. Recursive so a query issued from
+    /// inside another locked section (e.g. migrateToSplitDb calling back into
+    /// runTracks*) does not deadlock.
+    private static let dbLock = NSRecursiveLock()
+
     // MARK: - row helpers
 
     private static func colValue(_ stmt: OpaquePointer, _ i: Int32) -> Any {
@@ -108,22 +119,30 @@ enum Database {
 
     // Config DB query/exec (settings, symlinks)
     private static func runQuery(_ sql: String, _ params: [Any]) -> [[String: Any]] {
-        runQueryOn(gDb, sql, params)
+        dbLock.lock()
+        defer { dbLock.unlock() }
+        return runQueryOn(gDb, sql, params)
     }
 
     @discardableResult
     private static func runExec(_ sql: String, _ params: [Any]) -> Bool {
-        runExecOn(gDb, sql, params)
+        dbLock.lock()
+        defer { dbLock.unlock() }
+        return runExecOn(gDb, sql, params)
     }
 
     // Tracks DB query/exec (tracks, playlists, history)
     private static func runTracksQuery(_ sql: String, _ params: [Any]) -> [[String: Any]] {
-        runQueryOn(gTracksDb, sql, params)
+        dbLock.lock()
+        defer { dbLock.unlock() }
+        return runQueryOn(gTracksDb, sql, params)
     }
 
     @discardableResult
     private static func runTracksExec(_ sql: String, _ params: [Any]) -> Bool {
-        runExecOn(gTracksDb, sql, params)
+        dbLock.lock()
+        defer { dbLock.unlock() }
+        return runExecOn(gTracksDb, sql, params)
     }
 
     // MARK: - lifecycle
@@ -160,6 +179,8 @@ enum Database {
 
     @discardableResult
     static func open(_ path: String) -> Bool {
+        dbLock.lock()
+        defer { dbLock.unlock() }
         gDbPath = path
         // sqlite3 creates the file but not its parent directory
         try? FileManager.default.createDirectory(
@@ -201,6 +222,8 @@ enum Database {
     /// P: Open the tracks database in the library root.
     @discardableResult
     static func openTracksDb(_ path: String) -> Bool {
+        dbLock.lock()
+        defer { dbLock.unlock() }
         gTracksDbPath = path
         try? FileManager.default.createDirectory(
             atPath: (path as NSString).deletingLastPathComponent,
@@ -288,6 +311,8 @@ enum Database {
     /// `<library>/tracks.db` and the tracks looked lost.
     static func switchTracksDb(libraryDir: String) {
         guard !libraryDir.isEmpty else { return }
+        dbLock.lock()
+        defer { dbLock.unlock() }
         let path = (libraryDir as NSString).appendingPathComponent("tracks.db")
         if gTracksDb != nil, gTracksDbPath == path { return }
         if let old = gTracksDb {
@@ -407,6 +432,8 @@ enum Database {
     }
 
     static func close() {
+        dbLock.lock()
+        defer { dbLock.unlock() }
         guard let db = gDb else { return }
         // NEW-6: a still-running statement (import tail) makes sqlite3_close return
         // BUSY — retry briefly instead of dropping the connection mid-insert
@@ -596,10 +623,27 @@ enum Database {
 
     // MARK: - playlists (tracks DB)
 
-    @discardableResult
-    static func createPlaylist(_ name: String, _ description: String?) -> Bool {
-        runTracksExec("INSERT INTO playlists (name, description) VALUES (?, ?)",
-                [name, description ?? NSNull()])
+    /// Inserts the playlist and returns its new rowid (0 on failure).
+    ///
+    /// Must not return the exec success flag: the bridge wrapped that Bool in
+    /// NSNumber, which serialises as JSON `true`, and the renderer read it as
+    /// `lastInsertRowid` — so `true` became rowid 1 and every track of a newly
+    /// created playlist was appended to playlist 1 (or lost on an FK failure).
+    static func createPlaylist(_ name: String, _ description: String?) -> Int64 {
+        guard let db = gTracksDb else { return 0 }
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, "INSERT INTO playlists (name, description) VALUES (?, ?)", -1, &stmt, nil) == SQLITE_OK else {
+            return 0
+        }
+        defer { sqlite3_finalize(stmt) }
+        sqlite3_bind_text(stmt, 1, name, -1, SQLITE_TRANSIENT)
+        if let description {
+            sqlite3_bind_text(stmt, 2, description, -1, SQLITE_TRANSIENT)
+        } else {
+            sqlite3_bind_null(stmt, 2)
+        }
+        guard sqlite3_step(stmt) == SQLITE_DONE else { return 0 }
+        return sqlite3_last_insert_rowid(db)
     }
 
     static func getPlaylists() -> [[String: Any]] {

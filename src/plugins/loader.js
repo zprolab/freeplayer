@@ -85,7 +85,17 @@ export function createLoader(deps) {
   async function activateWorker(pluginId, entry) {
     const { manifest, granted } = entry;
     const blobUrls = new Set();
-    const graph = await collectModuleGraph(manifest.main, (rel) => readFile(pluginId, rel));
+    // The host readFile hands back the file's TEXT (a plain String from the
+    // native bridge, or null when the file is missing), while collectModuleGraph
+    // expects {source, bytes} so it can enforce its size caps. Passing the raw
+    // string through left `file.source` undefined, so every user plugin threw
+    // "Cannot read properties of undefined (reading 'length')" inside scanSource
+    // and both byte caps silently evaluated to false/NaN.
+    const graph = await collectModuleGraph(manifest.main, async (rel) => {
+      const text = await readFile(pluginId, rel);
+      if (typeof text !== 'string') return text;
+      return { source: text, bytes: new TextEncoder().encode(text).length };
+    });
     if (graph.error) throw new Error(graph.error);
     // collectModuleGraph outputs post-order (deps first); by the time a
     // module is rewritten, its dependencies' final URLs are already in the map.

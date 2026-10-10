@@ -71,12 +71,19 @@ final class BridgeHandler: NSObject, WKScriptMessageHandler {
                 NSLog("[shell] reply: json encoding failed for %@", mid)
                 return
             }
-            DebugLog.file("BRIDGE_REPLY id=\(mid.int64Value) method=\(method) payload=\(json)")
+            DebugLog.file("BRIDGE_REPLY id=\(mid.int64Value) method=\(method) bytes=\(json.utf8.count) from=\(Self.summarise(obj))")
             webView.evaluateJavaScript("window.freeplayer._resolve(\(mid.int64Value), \(json))")
         }
 
         func reject(_ mid: NSNumber, _ why: String?) {
-            let data = try? JSONSerialization.data(withJSONObject: why ?? "error")
+            // A bare String is a valid JS value but an INVALID JSONSerialization
+            // top-level object: it raises NSInvalidArgumentException, which `try?`
+            // cannot catch (it is an ObjC exception, not a Swift error), so the
+            // old `?? "\"error\""` fallback was unreachable and every rejection
+            // aborted the process. Any page script could trigger it with a single
+            // unknown `_invoke('...')`. Use the same fragmentsAllowed path reply()
+            // already uses.
+            let data = try? JSONSerialization.data(withJSONObject: why ?? "error", options: [.fragmentsAllowed])
             let json = data.flatMap { String(data: $0, encoding: .utf8) } ?? "\"error\""
             // P1: JSON is safe from JSONSerialization; defense-in-depth: verify encoding
             guard json.data(using: .utf8) != nil else {
@@ -106,10 +113,27 @@ final class BridgeHandler: NSObject, WKScriptMessageHandler {
 
         // M7: verbose IPC logging
         if AppContext.shared.verboseLogging { NSLog("[shell] method=%@", method) }
-        DebugLog.file("BRIDGE method=\(method) args=\(String(describing: args))")
+        DebugLog.file("BRIDGE method=\(method) args=\(args.map { Self.summarise($0) }.joined(separator: ";"))")
 
         // Everything else goes to the shared generic core (fp + platform layers)
         BridgeBootstrap.install().dispatch(method: method, args: args, idNum: idNum,
                                            reply: reply, reject: reject)
+    }
+
+    /// Bridge payloads are summarised, never dumped: arguments and replies carry
+    /// secrets and bulk data (plugin.<id>.apiToken, cover base64, LRC text,
+    /// imported file lists) and the diagnostics log is written to disk. The
+    /// page-console path already redacts; this covers the bridge path, which
+    /// used to log the whole payload verbatim.
+    static func summarise(_ value: Any?) -> String {
+        guard let value else { return "nil" }
+        switch value {
+        case is NSNull: return "null"
+        case let s as String: return "string(len=\(s.count))"
+        case let a as [Any]: return "array(count=\(a.count))"
+        case let d as [String: Any]: return "dict(keys=\(d.keys.sorted().joined(separator: ",")))"
+        case let n as NSNumber: return "number(\(n))"
+        default: return String(describing: type(of: value))
+        }
     }
 }

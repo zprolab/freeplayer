@@ -17,8 +17,12 @@ extension FPBridge {
             let d = call.args.first as? [String: Any] ?? [:]
             guard let name = d["name"] as? String, !name.isEmpty, name.count <= 512,
                   (d["description"] as? String ?? "").count <= 4096 else { call.reply(["lastInsertRowid": 0, "error": "invalid playlist"]); return }
-            call.reply(["lastInsertRowid": NSNumber(value: Database.createPlaylist(
-                name, d["description"] as? String))])
+            let newId = Database.createPlaylist(name, d["description"] as? String)
+            guard newId > 0 else {
+                call.reply(["lastInsertRowid": 0, "error": "could not create playlist"])
+                return
+            }
+            call.reply(["lastInsertRowid": NSNumber(value: newId)])
         }
 
         core.register("renamePlaylist") { call in

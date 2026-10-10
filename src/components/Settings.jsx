@@ -2,6 +2,7 @@ import { useState, useEffect, memo } from 'react';
 import ToggleSwitch from './ToggleSwitch';
 import SegmentedControl from './SegmentedControl';
 import { useTraySettings } from '../hooks/useTraySettings';
+import { Button } from '../ui/components';
 import { applyMonoFont } from '../utils/fonts';
 import logoUrl from '../../assets/logo.svg';
 import licenseText from '../../LICENSE?raw';
@@ -31,9 +32,13 @@ const Settings = memo(function Settings({
   onDefaultVolumeChange,
   defaultVisualizer,
   onDefaultVisualizerChange,
+  qualityTier,
+  qualityTiers,
+  onQualityChange,
   onResetDatabase,
 }) {
   const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const qualityDetail = qualityTier?.detail;
   const [monoFont, setMonoFont] = useState('');
   const [uiMode, setUiMode] = useState('unified');
   const [platform, setPlatform] = useState('macos');
@@ -155,9 +160,9 @@ const Settings = memo(function Settings({
             <span className="library-dir-empty">No library directory set</span>
           )}
           {platform !== 'ios' && (
-            <button className="btn btn-secondary" onClick={handleChangeLibraryDir} style={{ flexShrink: 0 }}>
+            <Button variant="secondary" onClick={handleChangeLibraryDir} style={{ flexShrink: 0 }}>
               Change...
-            </button>
+            </Button>
           )}
         </div>
       </div>
@@ -199,6 +204,24 @@ const Settings = memo(function Settings({
             ]}
             value={defaultVisualizer}
             onChange={onDefaultVisualizerChange}
+            disabled={settingsLoaded === false}
+          />
+        </div>
+
+        <div className="playback-row">
+          <div className="playback-label-group">
+            <span className="playback-label">Analysis Quality</span>
+            {/* Deliberately short: the row is a single flex line, so a long
+                sentence would push the control out of the card. The per-tier
+                trade-off (window size vs bin width) is on each button's title. */}
+            <span className="playback-hint">
+              Bass detail vs. transient response{qualityDetail ? ` · ${qualityDetail}` : ''}
+            </span>
+          </div>
+          <SegmentedControl
+            options={qualityTiers.map((t) => ({ value: t.id, label: t.label, title: t.hint }))}
+            value={qualityTier?.id}
+            onChange={onQualityChange}
             disabled={settingsLoaded === false}
           />
         </div>
@@ -339,12 +362,12 @@ const Settings = memo(function Settings({
         </div>
 
         <div className="about-actions">
-          <button className="btn btn-secondary" onClick={() => openLegal('license')}>
+          <Button variant="secondary" onClick={() => openLegal('license')}>
             View License
-          </button>
-          <button className="btn btn-secondary" onClick={() => openLegal('notices')}>
+          </Button>
+          <Button variant="secondary" onClick={() => openLegal('notices')}>
             Third-Party Notices
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -362,9 +385,9 @@ const Settings = memo(function Settings({
               Remove all tracks, play history, and playlists. Files on disk are not affected.
             </span>
           </div>
-          <button className="btn-danger" onClick={() => setShowResetConfirm(true)}>
+          <Button variant="danger" onClick={() => setShowResetConfirm(true)}>
             Reset...
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -377,9 +400,9 @@ const Settings = memo(function Settings({
             </h3>
             <pre className="legal-text">{legalText}</pre>
             <div className="confirm-actions">
-              <button className="btn btn-secondary" onClick={() => setLegalModal(null)}>
+              <Button variant="secondary" onClick={() => setLegalModal(null)}>
                 Close
-              </button>
+              </Button>
             </div>
           </div>
         </div>
@@ -397,12 +420,12 @@ const Settings = memo(function Settings({
               This action cannot be undone.
             </p>
             <div className="confirm-actions">
-              <button className="btn btn-secondary" onClick={() => setShowResetConfirm(false)}>
+              <Button variant="secondary" onClick={() => setShowResetConfirm(false)}>
                 Cancel
-              </button>
-              <button className="btn btn-primary" onClick={handleReset}>
+              </Button>
+              <Button variant="primary" onClick={handleReset}>
                 Reset Everything
-              </button>
+              </Button>
             </div>
           </div>
         </div>

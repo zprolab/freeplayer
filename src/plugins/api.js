@@ -3,6 +3,14 @@ import { createPermissionProxy } from './permissions';
 const UPDATE_WHITELIST = ['title', 'artist', 'album', 'genre', 'year', 'track_number'];
 const RATE_WINDOW_MS = 10000;
 const RATE_MAX = 20;
+// Per-call payload caps. The rate limit alone does not bound SIZE: 20 calls per
+// 10s of an unbounded lyrics/cover payload let a metadata:write plugin write
+// arbitrarily large files into the user's library. Mirrors the 512KB cap the
+// metadataRegistry fetch path already applies to the same native writers.
+const MAX_LYRICS_CHARS = 256 * 1024;
+const MAX_COVER_B64_CHARS = 512 * 1024;
+const MAX_FIELD_CHARS = 4096;
+const MAX_YEAR = 9999;
 
 function makeRateLimit() {
   let hits = [];
@@ -71,11 +79,38 @@ export function createPluginApi(pluginId, granted, deps) {
       getTrackInfo: (id) => deps.bridge.metadata.getTrackInfo(id),
       getLyrics: (id) => deps.bridge.metadata.getLyrics(id),
       getCover: (id) => deps.bridge.metadata.getCover(id),
-      saveLyrics: gateWrite((id, content) => deps.bridge.metadata.saveLyrics(id, content)),
-      saveCover: gateWrite((id, base64) => deps.bridge.metadata.saveCover(id, base64)),
+      saveLyrics: gateWrite((id, content) => {
+        const text = typeof content === 'string' ? content : '';
+        if (text.length > MAX_LYRICS_CHARS) return Promise.reject(new Error('lyrics too large'));
+        return deps.bridge.metadata.saveLyrics(id, text);
+      }),
+      saveCover: gateWrite((id, base64) => {
+        const data = typeof base64 === 'string' ? base64 : '';
+        if (data.length > MAX_COVER_B64_CHARS) return Promise.reject(new Error('cover too large'));
+        return deps.bridge.metadata.saveCover(id, data);
+      }),
       updateTrack: gateWrite((id, fields) => {
         const clean = {};
-        for (const k of UPDATE_WHITELIST) if (fields[k] !== undefined) clean[k] = fields[k];
+        for (const k of UPDATE_WHITELIST) {
+          const v = fields?.[k];
+          if (v === undefined) continue;
+          if (k === 'year') {
+            const y = Number(v);
+            if (!Number.isFinite(y) || y < 0 || y > MAX_YEAR) continue;
+            clean[k] = Math.round(y);
+            continue;
+          }
+          if (k === 'track_number') {
+            const n = Number(v);
+            if (!Number.isFinite(n) || n < 0) continue;
+            clean[k] = Math.round(n);
+            continue;
+          }
+          // Text fields: bound the length and drop null (a NULL artist/album
+          // reaches UI code that assumes strings — e.g. TrackPicker's search).
+          if (v == null) continue;
+          clean[k] = String(v).slice(0, MAX_FIELD_CHARS);
+        }
         return deps.bridge.metadata.updateTrack(id, clean);
       }),
       removeLyrics: gateWrite((id) => deps.bridge.metadata.removeLyrics(id)),

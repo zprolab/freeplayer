@@ -38,6 +38,27 @@ function displayManifest(raw, status) {
   }
   if (typeof m.icon === 'string') m.icon = sanitizeSvgIcon(m.icon) || undefined;
   else m.icon = undefined;
+  // These records were never validated, so every field the UI iterates or
+  // renders as text must be normalised: a manifest with `settings: {}` (or
+  // `permissions: "x"`, or a settings entry with no `options`) made
+  // `(p.manifest.settings || []).map(...)` throw and blank the whole page —
+  // and src/ has no ErrorBoundary to catch a render throw.
+  m.settings = (Array.isArray(m.settings) ? m.settings : [])
+    .filter((s) => s && typeof s === 'object')
+    .map((s) => ({
+      ...s,
+      key: String(s.key ?? ''),
+      label: s.label == null ? String(s.key ?? '') : String(s.label),
+      description: s.description == null ? undefined : String(s.description),
+      // The <select> branch maps over options unconditionally.
+      options: Array.isArray(s.options) ? s.options : [],
+    }));
+  m.permissions = Array.isArray(m.permissions) ? m.permissions.filter((p) => typeof p === 'string') : [];
+  m.activationEvents = Array.isArray(m.activationEvents) ? m.activationEvents : [];
+  m.provides = m.provides && typeof m.provides === 'object' ? m.provides : {};
+  for (const key of ['name', 'version', 'description', 'author']) {
+    if (m[key] != null && typeof m[key] !== 'string') m[key] = String(m[key]);
+  }
   return m;
 }
 
