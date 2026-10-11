@@ -3,6 +3,7 @@ import { usePlayer } from '@/app/PlayerProvider.jsx';
 import { applyMonoFont } from '@/utils/fonts.js';
 import * as client from '@/core/client.js';
 import { KEYS } from '@/core/settings.js';
+import { fetchTracks } from '@/features/library/store.js';
 
 export function useLibrary() {
   const { state, dispatch } = usePlayer();
@@ -14,7 +15,7 @@ export function useLibrary() {
   const loadTracks = useCallback(async () => {
     const seq = ++loadSeqRef.current;
     try {
-      const data = await client.library.tracks({
+      const data = await fetchTracks({
         search: state.searchQuery,
         sortBy: state.sortBy,
         sortDir: state.sortDir,

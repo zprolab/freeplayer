@@ -15,6 +15,7 @@ import { usePlayer, VIEWS } from '@/app/PlayerProvider.jsx';
 import { usePlayback } from '@/features/playback/usePlayback.js';
 import { buildShuffleOrder } from '@/features/playback/queue.js';
 import { useLibrary } from '@/features/library/useLibrary.js';
+import { sortTracks } from '@/features/library/store.js';
 import { usePlaylists } from '@/features/playlists/usePlaylists.js';
 import { useAutoMeta } from '@/features/metadata/useAutoMeta.js';
 import { useVisualizerQuality } from '@/features/preferences/useVisualizerQuality.js';
@@ -36,22 +37,6 @@ import { KEYS } from '@/core/settings.js';
 // window.__fpRuntimeState (written below), so lazily-activated plugins always
 // see the live player bridge.
 let pluginRuntime = null;
-
-// Client-side sort for playlist views: getPlaylistTracks accepts no sort
-// params and returns tracks in playlist position order, so replicate the DB
-// sort semantics here (case-insensitive text, numeric duration/year).
-function compareTracks(a, b, sortBy, sortDir) {
-  const sign = sortDir === 'ASC' ? 1 : -1;
-    let cmp;  // both branches below assign it
-  if (sortBy === 'duration' || sortBy === 'year') {
-    cmp = (Number(a[sortBy]) || 0) - (Number(b[sortBy]) || 0);
-  } else {
-    const av = String(a[sortBy] ?? '').toLowerCase();
-    const bv = String(b[sortBy] ?? '').toLowerCase();
-    cmp = av < bv ? -1 : av > bv ? 1 : 0;
-  }
-  return cmp * sign;
-}
 
 async function getPluginRuntime() {
   if (pluginRuntime) return pluginRuntime;
@@ -324,9 +309,10 @@ useEffect(() => {
 
   const displayedTracks = useMemo(() => {
     if (state.activePlaylistId === null) return state.tracks;
-    return state.playlistTracks
-      .slice()
-      .sort((a, b) => compareTracks(a, b, state.sortBy, state.sortDir));
+    // The playlist view cannot ask the host to sort — getPlaylistTracks takes no
+    // sort parameters — so it uses the shared comparator that mirrors the host's
+    // semantics (see features/library/store.js).
+    return sortTracks(state.playlistTracks, state.sortBy, state.sortDir);
     // state.tracks is a deps prerequisite: loadTracks replaces it on startup
     // while the other deps stay identical, and without it the memo would
     // freeze at the initial [] and show an empty library forever.
