@@ -1,21 +1,24 @@
 // Ambient palette for immersive mode.
 //
-// The background is derived from the cover art (an 8×8 average), but the fixed
-// brand red was NOT: it sat on top of that teal as a complementary pair, which
-// reads as "dirty" rather than deliberate — near-complementary saturated colours
-// vibrate against each other.
+// The background is derived from the cover art (an 8×8 average). The accent used
+// to be the fixed brand red, which on a teal cover sat on its own complement —
+// near-complementary saturated colours vibrate against each other, and that is
+// what read as "dirty" rather than deliberate.
 //
-// Measured on a real cover (Ed Sheeran / Celestial — teal artwork, so the
-// average is teal): the brand red #e24329 reaches only 3.32:1 on the tinted
-// background, because red contributes little to relative luminance. Its long
-// wavelength is exactly why it looks muddy on a teal field.
+// So the accent now comes from the same source as the background, by two simple
+// rules:
 //
-// So the accent is DERIVED from the same source colour as the background:
-// rotate the cover's hue into the warm half of the wheel and raise its
-// lightness until it is comfortably readable. A teal cover (182°) lands at 32° —
-// amber, still the warm family the brand lives in, but at 7.46:1 instead of
-// 3.32:1. A warm cover keeps a warm accent; the hue is never forced to a fixed
-// value.
+//   1. HUE — the cover's own hue. A cool cover is pulled into the warm half of
+//      the wheel so the accent never lands on the field's complement (teal 182°
+//      → 32° amber); a warm cover keeps its hue, so the accent never contradicts
+//      the artwork it came from.
+//   2. LIGHTNESS — two fixed steps, inverted against the field: dark field →
+//      light accent, light field → dark accent.
+//
+// Deliberately simple, and worth recording why: an earlier version of this file
+// searched for the maximum WCAG contrast and converged on rgb(252,236,217) for a
+// teal cover — effectively white, i.e. no accent at all. Two fixed steps keep the
+// hue recognisable, which is the actual goal of a colour derived from artwork.
 //
 // Pure functions, no DOM: the maths is testable even though the look is not.
 
@@ -55,30 +58,39 @@ export function hslToRgb(h, s, l) {
   return rgb.map((v) => Math.round((v + m) * 255));
 }
 
+/** WCAG relative luminance — used only to decide which side of the field to sit on. */
+export function relativeLuminance({ r, g, b }) {
+  const chan = (c) => {
+    const v = c / 255;
+    return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+  };
+  return 0.2126 * chan(r) + 0.7152 * chan(g) + 0.0722 * chan(b);
+}
+
+/** WCAG contrast ratio, for tests and for checking a palette choice. */
+export function contrastRatio(a, b) {
+  const la = relativeLuminance(a);
+  const lb = relativeLuminance(b);
+  return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
+}
+
 /**
- * The readable accent for an ambient background colour.
+ * The accent for the immersive view, derived from the ambient colour.
  *
- * Two rules, in order:
- *  1. A COOL cover is rotated into the warm half of the wheel, so the accent
- *     never lands on the background's own complement (that pairing is what reads
- *     as dirty). Teal (182°) lands at 32° — amber.
- *  2. A WARM cover keeps its own hue, merely brightened. A fixed +210° rotation
- *     is wrong here: an orange cover (22°) would land at 232°, i.e. blue, so the
- *     accent would contradict the artwork it came from. The hue is derived, not
- *     forced — that is the whole point of deriving it.
- *
- * Lightness is what actually buys readability: red contributes little to
- * relative luminance, which is why the brand red reached only 3.32:1 on a dark
- * cover-derived background no matter how it was paired.
+ * `warmTarget` is the hue a cool cover is brought to. `saturation` is high enough
+ * that the result always reads as a colour rather than a grey.
  */
-export function accentFor(color, { warmTarget = 32, saturation = 0.85, lightness = 0.68 } = {}) {
+export function accentFor(color, { warmTarget = 32, saturation = 0.8 } = {}) {
   if (!color) return null;
   const { h } = rgbToHsl(color.r, color.g, color.b);
   const isWarm = h < 90 || h > 330;
   const hue = isWarm ? h : warmTarget;
+  // Inverted against the field: a dark ambient field gets the light step, a light
+  // one gets the dark step.
+  const lightness = relativeLuminance(color) > 0.5 ? 0.42 : 0.68;
   const [r, g, b] = hslToRgb(hue, saturation, lightness);
   return { r, g, b };
 }
 
-/** `rgb(r, g, b)` for inline styles. */
+/** `rgb(r, g, b)` for inline styles; undefined lets the CSS fallback apply. */
 export const cssRgb = (c) => (c ? `rgb(${c.r}, ${c.g}, ${c.b})` : undefined);

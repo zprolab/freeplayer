@@ -300,9 +300,9 @@
   transform: translateY(-50%);
   width: 3px;
   height: 50%;
-  background: linear-gradient(to bottom, transparent, var(--fp-accent) 30%, var(--fp-accent) 70%, transparent);
+  background: linear-gradient(to bottom, transparent, var(--immersive-accent, var(--fp-accent)) 30%, var(--immersive-accent, var(--fp-accent)) 70%, transparent);
   border-radius: 0 var(--fp-radius-sm) var(--fp-radius-sm) 0;
-  opacity: 0.7;
+  opacity: 0.85;
 }
 
 .immersive-line {
@@ -420,7 +420,10 @@
 
 .immersive-progress-fill {
   height: 100%;
-  background: linear-gradient(to right, rgba(226, 67, 41, 0.8), var(--fp-accent));
+  /* Same accent as the active lyric and its indicator: one derived colour for
+     the whole view, so the three read as one system rather than brand-red
+     against a cover-derived background. */
+  background: linear-gradient(to right, var(--immersive-accent, var(--fp-accent)), var(--immersive-accent, var(--fp-accent)));
   border-radius: inherit;
   transition: width 0.2s linear;
 }

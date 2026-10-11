@@ -1,32 +1,18 @@
 // The immersive accent is derived from the cover's average colour so the
-// highlight belongs to the artwork. The LOOK cannot be asserted here — but the
-// maths can, and the maths is where the previous version went wrong: a fixed
-// brand red reached only 3.32:1 on a cover-derived background while sitting on
-// its own complement, which is what read as "dirty" rather than deliberate.
+// highlight, its indicator bar and the progress fill all belong to the artwork
+// instead of fighting it. The look cannot be asserted here; the rules can.
+//
+// Kept deliberately small. An earlier version of this suite measured WCAG
+// contrast and drove the implementation into a max-contrast search that converged
+// on near-white — enforcing a rule nobody had asked for, and destroying the
+// colour in the process.
 import { describe, it, expect } from 'vitest';
-import { rgbToHsl, hslToRgb, accentFor, cssRgb } from '@/features/playback/ambientColor.js';
-
-// WCAG relative luminance / contrast, so the readability claim is measured
-// rather than eyeballed.
-const chan = (c) => {
-  const v = c / 255;
-  return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
-};
-const lum = ({ r, g, b }) => 0.2126 * chan(r) + 0.7152 * chan(g) + 0.0722 * chan(b);
-const ratio = (a, b) => {
-  const la = lum(a); const lb = lum(b);
-  return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
-};
-/** The ambient background as rendered: the 0.42 dark tint over the average. */
-const tinted = (c, alpha = 0.42) => ({
-  r: Math.round(10 * alpha + c.r * (1 - alpha)),
-  g: Math.round(10 * alpha + c.g * (1 - alpha)),
-  b: Math.round(13 * alpha + c.b * (1 - alpha)),
-});
+import { rgbToHsl, hslToRgb, accentFor, cssRgb, relativeLuminance } from '@/features/playback/ambientColor.js';
 
 // Ed Sheeran / Celestial: teal artwork, so the 8x8 average is teal.
 const TEAL = { r: 18, g: 79, b: 81 };
 const WARM = { r: 190, g: 110, b: 60 };
+const LIGHT = { r: 236, g: 232, b: 226 };
 
 describe('rgbToHsl / hslToRgb', () => {
   it('round-trips a colour', () => {
@@ -50,43 +36,43 @@ describe('rgbToHsl / hslToRgb', () => {
 
 describe('accentFor', () => {
   it('returns null without an ambient colour, so CSS can fall back', () => {
-    // ImmersiveMode sets --immersive-accent from cssRgb(accent); undefined must
-    // leave the brand accent in place rather than render "rgb(undefined...)".
     expect(accentFor(null)).toBeNull();
     expect(cssRgb(null)).toBeUndefined();
   });
 
-  it('moves a teal cover into the warm half of the wheel', () => {
-    const accent = accentFor(TEAL);
-    const { h } = rgbToHsl(accent.r, accent.g, accent.b);
-    // 182 + 210 = 392 % 360 = 32 — amber. Warm, so the page keeps the brand's
-    // temperature instead of flipping to a cold complementary hue.
+  it('moves a cool cover into the warm half of the wheel', () => {
+    // Cool cover gets a warm accent, so it never lands on the field's complement.
+    const a = accentFor(TEAL);
+    const { h } = rgbToHsl(a.r, a.g, a.b);
     expect(h).toBeGreaterThan(15);
     expect(h).toBeLessThan(60);
   });
 
-  it('is readable on the background it was derived from', () => {
-    const accent = accentFor(TEAL);
-    const r = ratio(accent, tinted(TEAL));
-    expect(r, `derived accent contrast = ${r.toFixed(2)}`).toBeGreaterThanOrEqual(4.5);
-  });
-
-  it('beats the brand red that it replaces', () => {
-    // The regression this exists for: #e24329 on the same background.
-    const brand = { r: 0xe2, g: 0x43, b: 0x29 };
-    const bg = tinted(TEAL);
-    const before = ratio(brand, bg);
-    const after = ratio(accentFor(TEAL), bg);
-    expect(before).toBeLessThan(4.5);              // the old value failed
-    expect(after).toBeGreaterThan(before);         // and the new one improves it
-  });
-
   it('keeps a warm cover warm rather than forcing one hue', () => {
-    // A warm cover must not be rotated into something cold — the accent follows
-    // the artwork in both directions.
-    const accent = accentFor(WARM);
-    const { h } = rgbToHsl(accent.r, accent.g, accent.b);
+    // A warm cover would be sent to blue by a fixed rotation, contradicting the
+    // artwork it came from.
+    const a = accentFor(WARM);
+    const { h } = rgbToHsl(a.r, a.g, a.b);
     expect(h).toBeGreaterThan(0);
-    expect(h).toBeLessThan(120);
+    expect(h).toBeLessThan(90);
+  });
+
+  it('stays a colour, not a grey or a near-white', () => {
+    // The regression this guards: the max-contrast search returned
+    // rgb(252,236,217) for a teal cover — white in all but name.
+    for (const cover of [TEAL, LIGHT, WARM]) {
+      const a = accentFor(cover);
+      const { s } = rgbToHsl(a.r, a.g, a.b);
+      expect(s, `accent for ${JSON.stringify(cover)} lost its hue`).toBeGreaterThan(0.3);
+    }
+  });
+
+  it('inverts lightness against the field', () => {
+    const onDark = accentFor(TEAL);
+    const onLight = accentFor(LIGHT);
+    expect(relativeLuminance(TEAL)).toBeLessThan(0.5);
+    expect(relativeLuminance(LIGHT)).toBeGreaterThan(0.5);
+    // Dark field → lighter accent; light field → darker accent.
+    expect(relativeLuminance(onDark)).toBeGreaterThan(relativeLuminance(onLight));
   });
 });

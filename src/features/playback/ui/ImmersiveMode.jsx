@@ -93,7 +93,15 @@ export default function ImmersiveMode({
   }, [coverUrl]);
 
   return (
-    <div className="immersive-overlay">
+    <div
+      className="immersive-overlay"
+      // One accent for the whole view — the active lyric, its left indicator and
+      // the progress fill all read this. Derived from the cover's average colour
+      // with lightness inverted against the background, so it stays legible on
+      // dark and light artwork alike (see ambientColor.js). Falls back to the
+      // brand accent in CSS while the cover resolves.
+      style={accent ? { '--immersive-accent': cssRgb(accent) } : undefined}
+    >
       {/* Ambient background: blurred cover + dark tint + dominant-color glow */}
       <div className="immersive-bg">
         {coverUrl && <img src={coverUrl} alt="" className="immersive-bg-img" />}
@@ -181,14 +189,7 @@ export default function ImmersiveMode({
               <div
                 key={idx}
                 className={`immersive-line${isActive ? ' immersive-line--active' : ''}${isPast ? ' immersive-line--past' : ''}${!isActive && !isPast && !isNear ? ' immersive-line--distant' : ''}`}
-                style={{
-                  fontSize: `${isActive ? fontSize : Math.max(12, fontSize - 6)}px`,
-                  // The accent follows the ambient colour rather than the fixed
-                  // brand red: on a cover-derived background the brand red reached
-                  // only 3.32:1 and sat on its own complement, which reads as dirty.
-                  // See ambientColor.js.
-                  '--immersive-accent': isActive ? cssRgb(accent) : undefined,
-                }}
+                style={{ fontSize: `${isActive ? fontSize : Math.max(12, fontSize - 6)}px` }}
               >
                 <span className="immersive-time mono">{formatTime(entry.time)}</span>
                 <span className="immersive-text">{entry.text}</span>
