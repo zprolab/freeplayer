@@ -157,9 +157,15 @@ export default function WaveformVisualizer({ audioElement, trackId, mode, onMode
     if (!canvas) return;
     const rect = canvas.getBoundingClientRect();
     const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
-    if (canvas.width !== rect.width * dpr || canvas.height !== rect.height * dpr) {
-      canvas.width = rect.width * dpr;
-      canvas.height = rect.height * dpr;
+    // Compare against the values the DOM will actually store. canvas.width is an
+    // integer while rect.width * dpr is not, so comparing the raw float was
+    // always true: every call reset the canvas and re-applied the scale, even
+    // when nothing had changed.
+    const nextW = Math.round(rect.width * dpr);
+    const nextH = Math.round(rect.height * dpr);
+    if (canvas.width !== nextW || canvas.height !== nextH) {
+      canvas.width = nextW;
+      canvas.height = nextH;
       const ctx = canvas.getContext('2d');
       ctx.scale(dpr, dpr);
       ctxRef.current = ctx;
@@ -500,11 +506,15 @@ function drawSpectrogramMode(ctx, freqData, bufferLen, W, H, sampleRate) {
   // Frequency labels — placed through the same log mapping the pixels use, so
   // each label sits on the band it names.
   const freqLabels = [
-    { hz: '20',  xFrac: logFracOfFreq(20) }, { hz: '100', xFrac: logFracOfFreq(100) },
-    { hz: '500', xFrac: logFracOfFreq(500) }, { hz: '2k',  xFrac: logFracOfFreq(2000) },
-    { hz: '8k',  xFrac: logFracOfFreq(8000) }, { hz: '20k', xFrac: logFracOfFreq(20000) },
+    { hz: '20',  xFrac: logFracOfFreq(20), align: 'left' },
+    { hz: '100', xFrac: logFracOfFreq(100) },
+    { hz: '500', xFrac: logFracOfFreq(500) },
+    { hz: '2k',  xFrac: logFracOfFreq(2000) },
+    { hz: '8k',  xFrac: logFracOfFreq(8000) },
+    { hz: '20k', xFrac: logFracOfFreq(20000), align: 'right' },
   ];
-  freqLabels.forEach(({ hz, xFrac }) => {
+  freqLabels.forEach(({ hz, xFrac, align }) => {
+    ctx.textAlign = align || 'center';
     ctx.fillText(hz, marginLeft + plotW * xFrac, freqY);
   });
   ctx.textAlign = 'right';
@@ -550,13 +560,26 @@ function drawGrid(ctx, W, H, wfTop, wfH, spTop, spH, spBaseline) {
   const spBot = spTop + spH;
   const gridVCount = 16;
 
+  // The waveform panel's x axis IS linear time, so its divisions are even.
   ctx.strokeStyle = GRID_COLOR;
   ctx.lineWidth = 0.5;
   for (let i = 1; i < gridVCount; i++) {
     const x = Math.round((W / gridVCount) * i) + 0.5;
     ctx.beginPath(); ctx.moveTo(x, wfTop); ctx.lineTo(x, wfBot); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(x, spTop); ctx.lineTo(x, spBot); ctx.stroke();
   }
+
+  // The spectrum panel's x axis is LOG frequency, so its divisions have to be
+  // log-spaced too. They used to reuse the even spacing above, which put the
+  // lines at 29/46/71/110/170/263/408 Hz — numbers nothing else on the panel
+  // refers to — while the bars and labels sat on 20/100/500/2k/8k/20k. The grid
+  // therefore marked nothing; it just implied a linear axis the data does not
+  // have. Same mapping as the bars and labels, so all three agree.
+  const spInset = 10;
+  const spPlotW = W - spInset * 2;
+  [100, 500, 2000, 8000].forEach((hz) => {
+    const x = Math.round(spInset + spPlotW * logFracOfFreq(hz)) + 0.5;
+    ctx.beginPath(); ctx.moveTo(x, spTop); ctx.lineTo(x, spBot); ctx.stroke();
+  });
 
   const wfMid = wfTop + wfH / 2;
   ctx.strokeStyle = GRID_COLOR;
@@ -721,14 +744,17 @@ function drawLabels(ctx, W, H, wfTop, wfH, spBaseline) {
   ctx.textBaseline = 'top';
   ctx.textAlign = 'center';
   const freqLabels = [
-    { hz: '20',  xFrac: logFracOfFreq(20) },
+    { hz: '20',  xFrac: logFracOfFreq(20), align: 'left' },
     { hz: '100', xFrac: logFracOfFreq(100) },
     { hz: '500', xFrac: logFracOfFreq(500) },
     { hz: '2k',  xFrac: logFracOfFreq(2000) },
     { hz: '8k',  xFrac: logFracOfFreq(8000) },
-    { hz: '20k', xFrac: logFracOfFreq(20000) },
+    // The last label sits exactly on the plot's right edge; centred, half of it
+    // hung outside the panel. Anchor the ends inward instead.
+    { hz: '20k', xFrac: logFracOfFreq(20000), align: 'right' },
   ];
-  freqLabels.forEach(({ hz, xFrac }) => {
+  freqLabels.forEach(({ hz, xFrac, align }) => {
+    ctx.textAlign = align || 'center';
     ctx.fillText(hz, 10 + (W - 20) * xFrac, freqY);
   });
   ctx.textAlign = 'right';
