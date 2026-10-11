@@ -91,7 +91,7 @@
   width: 20px;
   height: 20px;
   flex-shrink: 0;
-  color: #8c8c93;
+  color: var(--fp-text-chrome-muted);
   transition: color 0.12s ease;
 }
 
@@ -104,7 +104,7 @@
 
 .nav-badge {
   background: var(--fp-surface-chrome-hover);
-  color: #9d9da3;
+  color: var(--fp-text-chrome-muted);
   font-size: var(--fp-font-sm);
   font-weight: 500;
   padding: 1px 6px;
@@ -123,11 +123,14 @@
   -webkit-app-region: no-drag;
 }
 
-/* Sidebar collapsed: icon-only rail (48px via --sidebar-width cascade) */
+/* Sidebar collapsed: icon-only rail */
 .app--sidebar-collapsed {
-  /* 72px: wide enough to fully contain the macOS traffic lights (~12-70px
-     from the window's left edge) so they stay over the rail when collapsed */
-  --sidebar-width: 72px;
+  /* Must be --fp-sidebar-width. The token migration renamed every `var()`
+     reference but missed this DECLARATION, so collapsing set a variable nothing
+     read and the sidebar never actually narrowed. 72px: wide enough to fully
+     contain the macOS traffic lights (~12-70px from the window's left edge) so
+     they stay over the rail when collapsed. */
+  --fp-sidebar-width: 72px;
 }
 
 .app--sidebar-collapsed .sidebar-title,
@@ -165,7 +168,7 @@
   border: none;
   border-radius: var(--fp-radius-md);
   background: transparent;
-  color: #8c8c93;
+  color: var(--fp-text-chrome-muted);
   cursor: pointer;
   transition: color 0.12s, background 0.12s;
 }

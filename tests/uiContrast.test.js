@@ -37,10 +37,29 @@ function toRgb(css) {
   const rgba = hex.match(/^rgba?\(([^)]+)\)$/i);
   if (rgba) {
     const parts = rgba[1].split(',').map((p) => parseFloat(p));
-    if (parts.length === 4 && parts[3] < 1) return null; // needs compositing; skip
+    if (parts.length === 4 && parts[3] < 1) return null; // handled by composite()
     return parts.slice(0, 3);
   }
   return null;
+}
+
+/**
+ * Composite a translucent colour over an opaque one.
+ *
+ * Without this, every token declared as an alpha value returned null and was
+ * skipped — which is precisely how `.track-count-badge` shipped at 1.72:1
+ * (pale blue text on `--fp-info-soft`, an 8%-alpha blue) while this suite
+ * reported green.
+ */
+function composite(fgCss, bgCss) {
+  const m = fgCss.trim().match(/^rgba?\(([^)]+)\)$/i);
+  if (!m) return null;
+  const parts = m[1].split(',').map((p) => parseFloat(p));
+  if (parts.length < 4) return null;
+  const bg = toRgb(bgCss);
+  if (!bg) return null;
+  const alpha = parts[3];
+  return [0, 1, 2].map((i) => Math.round(parts[i] * alpha + bg[i] * (1 - alpha)));
 }
 
 function channel(c) {
@@ -54,8 +73,9 @@ function luminance(rgb) {
 }
 
 function contrast(fgCss, bgCss) {
-  const fg = toRgb(fgCss);
-  const bg = toRgb(bgCss);
+  // Accepts a CSS colour or an already-composited [r,g,b] from composite().
+  const fg = Array.isArray(fgCss) ? fgCss : toRgb(fgCss);
+  const bg = Array.isArray(bgCss) ? bgCss : toRgb(bgCss);
   if (!fg || !bg) return null;
   const a = luminance(fg);
   const b = luminance(bg);
@@ -113,6 +133,30 @@ describe('readability (WCAG AA) of the token layer', () => {
       if (r < AA_NORMAL) failures.push(`${role} = ${r.toFixed(2)}`);
     }
     expect(failures).toEqual([]);
+  });
+
+  // Tinted (alpha) surfaces: the badge/muted-info case. These were invisible to
+  // this suite before composite() existed, because a translucent background
+  // resolved to null and every pairing was skipped — `.track-count-badge` read
+  // 1.72:1 in the shipped UI while the tests were green.
+  //
+  // Only pairs whose tokens actually exist are checked, so the "at least one"
+  // assertion below matters: without it this test would pass by skipping
+  // everything the moment a token got renamed.
+  it('text on the soft info surface passes AA once composited', () => {
+    const bg = composite(resolve('--fp-info-soft'), resolve('--fp-surface-canvas'));
+    const fg = resolve('--fp-info-ink');
+    expect(bg, '--fp-info-soft must be a translucency over --fp-surface-canvas').not.toBeNull();
+    expect(fg, '--fp-info-ink must be defined').not.toBeNull();
+
+    const r = contrast(fg, bg);
+    expect(r).not.toBeNull();
+    expect(r, `--fp-info-ink on the composited --fp-info-soft = ${r.toFixed(2)}`).toBeGreaterThanOrEqual(AA_NORMAL);
+
+    // The colour this replaced: it was inlined as a literal in main-content.css
+    // and measured 1.72:1 on the same background.
+    const old = contrast(resolve('--fp-blue-soft'), bg);
+    expect(old, `--fp-blue-soft would still fail at ${old.toFixed(2)}`).toBeLessThan(AA_NORMAL);
   });
 
   it('keeps the brand accent above the AA large/graphics floor on cards', () => {

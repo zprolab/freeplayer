@@ -20,7 +20,7 @@
 .sidebar-playlists-label {
   font-size: var(--fp-font-xs);
   font-weight: 600;
-  color: #8c8c93;
+  color: var(--fp-text-chrome-muted);
   text-transform: uppercase;
   letter-spacing: 0.08em;
 }
@@ -33,7 +33,7 @@
   height: 20px;
   border: none;
   background: transparent;
-  color: #8c8c93;
+  color: var(--fp-text-chrome-muted);
   cursor: pointer;
   border-radius: var(--fp-radius-md);
   transition: color 0.12s, background 0.12s;

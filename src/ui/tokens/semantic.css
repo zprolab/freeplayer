@@ -63,6 +63,7 @@
   --fp-info: var(--fp-blue-base);
   --fp-info-hover: var(--fp-blue-hover);
   --fp-info-soft: var(--fp-alpha-blue-08);
+  --fp-info-ink: var(--fp-blue-ink);
   --fp-success: var(--fp-green-base);
   --fp-success-soft: var(--fp-alpha-green-08);
   --fp-danger: var(--fp-red-base);

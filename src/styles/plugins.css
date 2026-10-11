@@ -289,7 +289,7 @@
   margin-top: 14px;
   padding: 10px 12px;
   border-radius: var(--fp-radius-lg);
-  background: var(--fp-border-subtle);
+  background: var(--fp-surface-sunken);
   color: var(--fp-text-subtle);
   font-size: var(--fp-font-sm);
   line-height: 1.6;

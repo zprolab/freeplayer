@@ -1,16 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Sidebar from '@/ui/shell/Sidebar.jsx';
-import Library from '@/features/library/ui/Library.jsx';
-import NowPlaying from '@/features/playback/ui/NowPlaying.jsx';
-import Stats from '@/features/library/ui/Stats.jsx';
 import PlayerBar from '@/features/playback/ui/PlayerBar.jsx';
 import MobileTabBar from '@/ui/shell/MobileTabBar.jsx';
 import ImportModal from '@/features/metadata/ui/ImportModal.jsx';
-import Settings from '@/features/preferences/ui/Settings.jsx';
-import PluginPage from '@/features/plugins/ui/PluginPage.jsx';
 import PlaylistModal from '@/features/playlists/ui/PlaylistModal.jsx';
 import EqWindow from '@/features/playback/ui/EqWindow.jsx';
-import { AppLoading, AppWelcome } from '@/app/AppStates.jsx';
+import { AppLoading } from '@/app/AppStates.jsx';
+import MainContent from '@/app/MainContent.jsx';
 import { usePlayer, VIEWS } from '@/app/PlayerProvider.jsx';
 import { usePlayback } from '@/features/playback/usePlayback.js';
 import { buildShuffleOrder } from '@/features/playback/queue.js';
@@ -28,7 +24,7 @@ import * as diagnosticsMain from '@/plugins/builtin/diagnostics/main.js';
 import { createLoader } from '@/plugins/loader.js';
 import { createPluginApi } from '@/plugins/api.js';
 import { createEventBus } from '@/plugins/hooks.js';
-import { Button, IconButton } from '@/ui/components/index.js';
+import { IconButton } from '@/ui/components/index.js';
 import * as client from '@/core/client.js';
 import { KEYS } from '@/core/settings.js';
 
@@ -339,156 +335,54 @@ useEffect(() => {
         collapsed={state.sidebarCollapsed}
         onToggleCollapse={() => handleSidebarCollapsedChange(!state.sidebarCollapsed)}
       />
-      <main className="main-content">
-        <header className="top-bar">
-          <div className="top-bar-left">
-            <h1 className="page-title">
-              {state.view === VIEWS.LIBRARY && (state.activePlaylistId !== null
-                ? (state.playlists.find(p => p.id === state.activePlaylistId)?.name || 'Playlist')
-                : 'Library'
-              )}
-              {state.view === VIEWS.NOW_PLAYING && 'Now Playing'}
-              {state.view === VIEWS.STATS && 'Statistics'}
-              {state.view === VIEWS.PLUGINS && 'Plugins'}
-              {state.view === VIEWS.SETTINGS && 'Settings'}
-            </h1>
-            {state.view === VIEWS.LIBRARY && (
-              <span className="track-count-badge">{displayedTracks.length} tracks</span>
-            )}
-          </div>
-          <div className="top-bar-right">
-            {state.view === VIEWS.LIBRARY && (
-              <>
-                <div className="search-box">
-                  <svg className="search-icon" width="16" height="16" viewBox="0 0 16 16" fill="none">
-                    <path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85-.017.016zm-5.242.156a5 5 0 1 1 0-10 5 5 0 0 1 0 10z" fill="currentColor"/>
-                  </svg>
-                  <input
-                    type="text"
-                    placeholder="Search your library..."
-                    value={state.searchQuery}
-                    onChange={(e) => dispatch({ type: 'SET', payload: { searchQuery: e.target.value } })}
-                    className="search-input"
-                  />
-                  {state.searchQuery && (
-                    <button className="search-clear" onClick={() => dispatch({ type: 'SET', payload: { searchQuery: '' } })}>
-                      <svg width="12" height="12" viewBox="0 0 12 12"><path d="M1 1l10 10M11 1L1 11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
-                    </button>
-                  )}
-                </div>
-                <Button variant="primary" onClick={() => dispatch({ type: 'SET', payload: { importModalOpen: true } })}>
-                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                    <path d="M8 1v14M1 8h14" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
-                  </svg>
-                  <span className="btn-label">Import</span>
-                </Button>
-              </>
-            )}
-          </div>
-        </header>
-
-        <div className="content-area">
-          {state.view === VIEWS.PLUGINS ? (
-            pluginRuntime ? (
-              <PluginPage registry={pluginRuntime.registry} meta={meta} tracks={state.tracks} />
-            ) : (
-              <div className="empty-state">
-                <div className="empty-state-icon">
-                  <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2">
-                    <rect x="3" y="3" width="18" height="18" rx="2"/>
-                    <path d="M12 8v8M8 12h8"/>
-                  </svg>
-                </div>
-                <h2>Plugins unavailable</h2>
-                <p>Plugin runtime failed to initialize. Restart FreePlayer and try again.</p>
-              </div>
-            )
-          ) : state.view === VIEWS.SETTINGS ? (
-            <Settings
-              importMode={state.importMode}
-              onImportModeChange={handleImportModeChange}
-              libraryDir={state.libraryDir}
-              onLibraryDirChange={(dir) => {
-                dispatch({ type: 'SET', payload: { libraryDir: dir } });
-                // Minor-1: the library changed — drop stale tracks so the
-                // list reflects the new directory instead of erroring on play
-                dispatch({ type: 'SET', payload: { tracks: [], currentTrack: null, queue: [], queueIndex: -1 } });
-                loadTracks();
-              }}
-              defaultVolume={state.defaultVolume}
-              onDefaultVolumeChange={handleDefaultVolumeChange}
-              defaultVisualizer={state.defaultVisualizer}
-              onDefaultVisualizerChange={handleDefaultVisualizerChange}
-              qualityTier={visualizerQualityTier}
-              qualityTiers={visualizerQualityTiers}
-              onQualityChange={changeVisualizerQuality}
-              onResetDatabase={handleResetDatabase}
-            />
-          ) : !state.isSetup ? (
-            <AppWelcome onSetup={() => dispatch({ type: 'SET', payload: { importModalOpen: true } })} />
-          ) : (
-            <>
-              {state.view === VIEWS.LIBRARY && (
-                <Library
-                  tracks={displayedTracks}
-                  onPlay={playTrackFromList}
-                  currentTrack={state.currentTrack}
-                  isPlaying={state.isPlaying}
-                  sortBy={state.sortBy}
-                  sortDir={state.sortDir}
-                  onTracksChanged={state.activePlaylistId === null
-                    ? loadTracks
-                    : () => handleSelectPlaylist(state.activePlaylistId)
-                  }
-                  onSort={(col) => {
-                    if (state.sortBy === col) {
-                      dispatch({ type: 'SET', payload: { sortDir: state.sortDir === 'ASC' ? 'DESC' : 'ASC' } });
-                    } else {
-                      dispatch({ type: 'SET', payload: { sortBy: col, sortDir: (col === 'title' || col === 'artist') ? 'ASC' : 'DESC' } });
-                    }
-                  }}
-                  activePlaylistId={state.activePlaylistId}
-                  playlists={state.playlists}
-                  onAddToPlaylist={handleAddToPlaylist}
-                  onRemoveFromPlaylist={handleRemoveFromPlaylist}
-                  onCreatePlaylistForTrack={handleOpenCreateForTrack}
-                  onSelectPlaylist={handleSelectPlaylist}
-                />
-              )}
-              {state.view === VIEWS.NOW_PLAYING && (
-                <NowPlaying
-                  currentTrack={state.currentTrack}
-                  isPlaying={state.isPlaying}
-                  currentTime={state.currentTime}
-                  duration={state.duration}
-                  onSeek={handleSeek}
-                  onTogglePlay={togglePlayPause}
-                  onNext={handleNext}
-                  onPrev={handlePrev}
-                  queue={state.queue}
-                  queueIndex={state.queueIndex}
-                  onPlayFromQueue={playTrackFromList}
-                  audioElement={audioRef.current}
-                  visualizerMode={state.visualizerMode}
-                  onVisualizerModeChange={(m) => dispatch({ type: 'SET', payload: { visualizerMode: m } })}
-                  onCoverSaved={(coverPath) => dispatch({ type: 'SET_TRACK_FIELDS', payload: { id: state.currentTrack?.id, fields: { cover_path: coverPath, cover_source: 'plugin' } } })}
-                  onTrackReset={(fresh) => {
-                    // "Reset from file" rewrote tags/cover in the DB from the
-                    // audio file: mirror the fresh row (sources included) into
-                    // the current track and the lists so the badges and cover
-                    // follow immediately.
-                    if (!fresh || !fresh.id) return;
-                    const { id, ...fields } = fresh;
-                    dispatch({ type: 'SET_TRACK_FIELDS', payload: { id, fields } });
-                  }}
-                  meta={meta}
-                />
-              )}
-              {state.view === VIEWS.STATS && <Stats />}
-            </>
-          )}
-        </div>
-      </main>
+      <MainContent
+        state={state}
+        dispatch={dispatch}
+        displayedTracks={displayedTracks}
+        player={{
+          onTogglePlay: togglePlayPause,
+          onNext: handleNext,
+          onPrev: handlePrev,
+          onSeek: handleSeek,
+          playTrackFromList,
+          audioElement: audioRef.current,
+        }}
+        library={{
+          onTracksChanged: state.activePlaylistId === null
+            ? loadTracks
+            : () => handleSelectPlaylist(state.activePlaylistId),
+          onSort: (col) => {
+            if (state.sortBy === col) {
+              dispatch({ type: 'SET', payload: { sortDir: state.sortDir === 'ASC' ? 'DESC' : 'ASC' } });
+            } else {
+              dispatch({ type: 'SET', payload: { sortBy: col, sortDir: (col === 'title' || col === 'artist') ? 'ASC' : 'DESC' } });
+            }
+          },
+        }}
+        settings={{
+          onImportModeChange: handleImportModeChange,
+          // Minor-1: the library changed — drop stale tracks so the list
+          // reflects the new directory instead of erroring on play.
+          onLibraryDirChange: (dir) => {
+            dispatch({ type: 'SET', payload: { libraryDir: dir } });
+            dispatch({ type: 'SET', payload: { tracks: [], currentTrack: null, queue: [], queueIndex: -1 } });
+            loadTracks();
+          },
+          onDefaultVolumeChange: handleDefaultVolumeChange,
+          onDefaultVisualizerChange: handleDefaultVisualizerChange,
+          qualityTier: visualizerQualityTier,
+          qualityTiers: visualizerQualityTiers,
+          onQualityChange: changeVisualizerQuality,
+          onResetDatabase: handleResetDatabase,
+        }}
+        playlists={{
+          onAddToPlaylist: handleAddToPlaylist,
+          onRemoveFromPlaylist: handleRemoveFromPlaylist,
+          onCreatePlaylistForTrack: handleOpenCreateForTrack,
+          onSelectPlaylist: handleSelectPlaylist,
+        }}
+        plugins={{ runtime: pluginRuntime, meta }}
+      />
 
       <PlayerBar
         currentTrack={state.currentTrack}

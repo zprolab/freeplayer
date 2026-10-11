@@ -64,13 +64,14 @@
   padding: 2px 8px;
   border-radius: var(--fp-radius-lg);
   background: var(--fp-info-soft);
-  color: var(--fp-info);
+  color: var(--fp-info-ink);
   font-family: var(--fp-font-mono);
 }
 
 .ui-mode-unified .track-count-badge {
-  background: rgba(31, 117, 203, 0.14);
-  color: #8ab8f0;
+  /* 1.72:1 as #8ab8f0 — invisible on the soft blue. --fp-info-ink measures 5.26. */
+  background: var(--fp-info-soft);
+  color: var(--fp-info-ink);
 }
 
 .top-bar-right {

@@ -239,5 +239,9 @@
 
 /* 平板/小窗口：侧栏收窄（768–1023px），≥1024px 保持桌面布局 */
 @media (min-width: 768px) and (max-width: 1023px) {
-  :root { --sidebar-width: 180px; }
+  /* --fp-sidebar-width, not the retired --sidebar-width: the width token was
+     renamed during the token migration but this DECLARATION was left behind
+     while every `var()` reference was updated, so the override applied to a
+     variable nothing read. Same defect as the collapsed rail below. */
+  :root { --fp-sidebar-width: 180px; }
 }

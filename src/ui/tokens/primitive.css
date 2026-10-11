@@ -64,7 +64,11 @@
   --fp-blue-base:    #1f75cb;
   --fp-blue-hover:   #1a5ca1;
   --fp-blue-soft:    #8ab8f0;
-  --fp-blue-strong:  #3b73e6;   /* edit-form.css:111 — a second blue, unified in phase 3 */
+  --fp-blue-strong:  #3b73e6;
+  /* Ink blue: for blue TEXT on the soft blue surfaces. --fp-blue-base measures
+     3.56:1 there and --fp-blue-soft (the old hardcoded #8ab8f0) only 1.72:1,
+     so neither can be used as text on --fp-info-soft. */
+  --fp-blue-ink:     #155aa3;   /* edit-form.css:111 — a second blue, unified in phase 3 */
   --fp-alpha-blue-12: rgba(31, 117, 203, 0.12);   /* active row hover (data-table.css:84) */
   --fp-alpha-blue-15: rgba(59, 115, 230, 0.15);   /* focus ring, second blue (edit-form.css:111) */
   --fp-green-base:   #108548;

@@ -183,4 +183,47 @@ describe('stylesheet integrity', () => {
     }
     expect(offenders).toEqual([]);
   });
+
+  // A declaration that only redeclares a RETIRED name is silent: the override
+  // applies to a variable nothing reads, so the intent (a narrower rail, a
+  // tablet breakpoint) never takes effect and nothing errors anywhere.
+  //
+  // This shipped twice. The token migration renamed every `var()` reference from
+  // --sidebar-width to --fp-sidebar-width but missed the DECLARATIONS in
+  // sidebar.css (the collapsed rail) and responsive.css (the tablet width), so
+  // collapsing the sidebar did nothing at all.
+  it('never redeclares a retired token name', () => {
+    const known = new Set([...declaredVars(primitiveCss), ...declaredVars(semanticCss)]);
+    const offenders = [];
+    for (const file of readdirSync(cssDir).filter((f) => f.endsWith('.css'))) {
+      // Strip comments first: prose that explains the rename necessarily mentions
+      // the retired name, and matching that would make the guard fail on its own
+      // documentation.
+      const css = read(join(cssDir, file)).replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, ' '));
+      css.split('\n').forEach((line, i) => {
+        for (const m of line.matchAll(/(--[a-z0-9-]+)\s*:/g)) {
+          const name = m[1];
+          if (known.has(name)) continue;               // a real token
+          const prefixed = `--fp-${name.slice(2)}`;
+          // The prefixed variant existing means this is a stale declaration of a
+          // renamed token, not a genuinely new local variable.
+          if (known.has(prefixed)) offenders.push(`${file}:${i + 1} ${name} should be ${prefixed}`);
+        }
+      });
+    }
+    expect(offenders).toEqual([]);
+  });
+
+  // The collapsed rail is the concrete case above; assert the cascade is
+  // connected, so a future rename cannot silently disconnect it again.
+  it('the collapsed sidebar rail overrides a token that is actually read', () => {
+    const css = read(join(cssDir, 'sidebar.css'));
+    const block = css.match(/\.app--sidebar-collapsed\s*\{([^}]*)\}/);
+    expect(block, '.app--sidebar-collapsed block must exist').not.toBeNull();
+    const override = block[1].match(/(--[a-z0-9-]+)\s*:\s*72px/);
+    expect(override, 'the collapsed rail must declare a 72px width').not.toBeNull();
+    const all = readdirSync(cssDir).filter((f) => f.endsWith('.css'))
+      .map((f) => read(join(cssDir, f))).join('\n');
+    expect(all.includes(`var(${override[1]})`), `${override[1]} is declared but never read`).toBe(true);
+  });
 });
