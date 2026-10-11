@@ -1,72 +1,72 @@
-# FreePlayer 1.3.0
+# FreePlayer 1.3.1
 
-## Read this first if you used 1.2.0
+## Read this first
 
-Several things in 1.2.0 were **broken without telling you**. They failed silently:
-the UI reported success, nothing appeared in any log, and the damage was only
-visible if you went looking for it.
+**If you are on 1.3.0, this is not an urgent upgrade.** The tray play/pause icon
+worked correctly in 1.3.0; it broke during development afterwards and **never
+appeared in any released version**. 1.3.1 restores it. (The `setAppearance`
+bridge had the same payload defect, but nothing has ever called it — fixed as
+hardening, not as a user-visible repair.)
 
-* **Editing a track's metadata never saved anything.** The edit dialog sent its
-  fields nested under a `fields` key; the native side reads them flat. The column
-  whitelist therefore matched nothing, the update returned `false` without
-  raising, and the dialog closed as though it had saved. Every tag edit made in
-  1.2.0 was discarded.
-* **Creating a playlist filed your tracks under playlist #1.** The insert
-  returned a success flag instead of the new row id, which serialised to `true`
-  and was read as row id 1.
-* **No plugin could run at all.** The host's `readFile` handed the plugin loader
-  the file's text where it expected `{source, bytes}`, so every user plugin threw
-  during its own module scan.
-* **Saving an empty track list in the playlist editor deleted every track in it.**
-* **Shuffle never shuffled** — enabling it kept playing the list in stored order.
-* **Repeat-one recorded one ever-growing play per track.** An hour of looping a
-  3-minute track was logged as a single 3600-second play rather than 20 plays.
+Two long-standing defects are worth the upgrade on their own:
 
-The metadata editor also had no year validation: `parseInt('')` is `NaN`, which
-serialised to null and **silently cleared** a year the track already had.
+* **Collapsing the sidebar did nothing.** The collapse button set a width
+  variable that nothing read, so the sidebar stayed at its full 220px. The
+  tablet breakpoint was dead for the same reason.
+* **The track-count badge was unreadable.** The "N tracks" pill at the top of the
+  Library rendered pale blue on a pale blue background — 1.78:1, well under the
+  4.5:1 minimum. It measured as a contrast failure that the test suite could not
+  see, because translucent backgrounds were being skipped rather than composited.
 
 ## Fixed
 
-* The six defects above, plus an out-of-range year being stored as-is.
-* The visualiser drew a 2048-sample analysis window into a 1024-sample buffer, so
-  the waveform ran at double its true frequency; it now draws a per-column
-  min/max envelope instead of one sample per pixel, which previously aliased
-  anything above ~6.5 kHz into phantom low-frequency shapes.
-* The frequency axis was linear while its labels sat at hand-picked positions, so
-  the labels did not mark the frequencies they claimed. One log mapping now
-  positions both the spectrogram and the labels.
-* The spectrogram drew every row twice (3.3 ms/frame → 0.99 ms).
-* Playlist and library edits that fail now report the failure instead of only
-  writing to the console.
+* **Tray play/pause state** (a regression, fixed before release): the bridge
+  payload was nested twice, so the native side read a dictionary where it
+  expected a number, the cast failed, and it fell back to `false` — the icon
+  stayed on Play permanently and the in-app button never showed Pause.
+* **Sidebar collapse** now narrows to the 72px icon rail, and the 768–1023px
+  tablet width applies again.
+* **Track-count badge** contrast is 5.99:1 (new `--fp-info-ink`), and the muted
+  text in the sidebar was lifted from 3.62:1 to 5.12:1.
+* **Plugin notice** background no longer uses a border token (4.31:1 → 4.64:1).
+* The contrast suite now composites translucent surfaces and asserts that the
+  pre-fix colours fail, so this class of defect cannot pass by being skipped.
+* `sendPlaybackState` / `setAppearance` argument shapes are now guarded by
+  `tests/bridgeContract.test.js`, which derives the convention from both the
+  client and the bridge rather than documenting it.
 
-## Added
+## Internal structural changes
 
-* **A shared design system** with one source of truth per value, replacing two
-  competing token layers and 97 hardcoded colours. This is not only cosmetic: 23
-  controls had no focus state, disabled buttons looked enabled, and five text
-  tokens failed WCAG AA — the dimmest measured 2.05:1 against its background.
-  One z-index scale also fixes dialogs that could open beneath other dialogs.
-* **A playback engine** separated from React, with listening accounting measured
-  from playback position rather than wall-clock. Two minutes spent paused used to
-  be logged as two minutes of listening.
-* **Selectable analysis quality** for the scope (Reactive / Balanced / Precise).
-* Unused parts of the UI system deleted rather than left as dead weight.
+This release contains a large amount of work that does not change behaviour. It
+is listed because it changes where things live, which matters if you read or
+build this project.
 
-## Smaller
-
-* macOS app 1.3 MB → 1.0 MB (stripped binary, indexed-colour icons); download
-  432 KB → 376 KB.
-* The `.git` history no longer contains 104 MB of Android build output (a 40 MB
-  `classes.dex`, debug and release APKs) plus twelve translated READMEs.
-* ESLint runs in CI. It previously had no config, no dependency and no script,
-  while the code carried `eslint-disable` comments asserting things nobody checked.
+* **One seam for the native bridge.** `window.freeplayer` was called directly
+  from 22 files. It is now reached only through `src/core/client.js`, which also
+  validates the payload shapes that had previously caused silent failures (a
+  playlist id that arrived as `true`, a file read that returned text where the
+  loader expected `{ source, bytes }`).
+* **The module tree is grouped by feature.** The `hooks/`, `context/`, `data/`,
+  `components/`, `audio/`, `player/` and `services/` directories are gone;
+  features now live under `src/features/<domain>/` with their own `ui/`, and
+  imports use `@/` aliases instead of relative paths.
+* **Settings keys have a registry** (`src/core/settings.js`) instead of string
+  literals spread across six files.
+* **Library data logic** moved out of the component layer into
+  `src/features/library/store.js`.
+* **Contract tests** derive the playback engine's and media graph's interfaces
+  from the consuming code, so replacing either one is a matter of implementing
+  the members rather than editing call sites. No production code changed for
+  this — it is a description of what exists, with the difference that it can now
+  fail.
+* **CI** runs ESLint (which had a config, a script and disable-comments, but no
+  dependency — the gate was fictional) and the iOS XCTest suite, which had no CI
+  at all.
 
 ## Notes
 
 * **Your library and listening history are untouched.** The database schema did
   not change and existing files carry over as-is.
-* Statistics recorded by 1.2.0 keep their inflated durations; only new plays are
-  measured correctly.
 * macOS build is ad-hoc signed (not notarized): the first launch needs
   right-click → Open, or `xattr -d com.apple.quarantine <path>`.
 * macOS 13+ / Apple Silicon only.
