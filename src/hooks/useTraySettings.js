@@ -1,18 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import * as client from '../core/client';
+import { KEYS, asBool } from '../core/settings';
 
 const SAVE_FAILED = 'Could not save this setting — the change was not applied. Please try again.';
-
-// Coerce a DB setting (may be boolean, number, or string) to a boolean
-const coerceBool = (val) => {
-  if (val === true || val === 1) return true;
-  if (val === false || val === 0 || val == null) return false;
-  if (typeof val === 'string') {
-    const s = val.toLowerCase();
-    return s === 'true' || s === '1' || s === '1.0' || s === 'yes' || s === 'on';
-  }
-  return false;
-};
 
 // Tray / launch toggles with verified persistence:
 // - UI state only flips AFTER the native write confirms, so a failing write
@@ -34,14 +24,14 @@ export function useTraySettings() {
 
   useEffect(() => {
     let cancelled = false;
-    const loadTrayEnabled = client.settings.get('tray_enabled')
-      .then((v) => { if (!cancelled) setTrayEnabled(coerceBool(v)); })
+    const loadTrayEnabled = client.settings.get(KEYS.trayEnabled)
+      .then((v) => { if (!cancelled) setTrayEnabled(asBool(v)); })
       .catch(() => {});
-    const loadTrayNotify = client.settings.get('tray_notify')
-      .then((v) => { if (!cancelled) setTrayNotify(coerceBool(v)); })
+    const loadTrayNotify = client.settings.get(KEYS.trayNotify)
+      .then((v) => { if (!cancelled) setTrayNotify(asBool(v)); })
       .catch(() => {});
-    const loadStartHidden = client.settings.get('start_hidden')
-      .then((v) => { if (!cancelled) setStartHidden(coerceBool(v)); })
+    const loadStartHidden = client.settings.get(KEYS.startHidden)
+      .then((v) => { if (!cancelled) setStartHidden(asBool(v)); })
       .catch(() => {});
     const loadStartOnBoot = client.shell.loginItem()
       .then((login) => { if (!cancelled) setStartOnBoot(!!(login && login.openAtLogin)); })
@@ -89,7 +79,7 @@ export function useTraySettings() {
       () => client.settings.set(key, val),
       () => resync(key, gen,
         () => client.settings.get(key),
-        (v) => { if (isLatest(key, gen)) setTrayEnabled(coerceBool(v)); }));
+        (v) => { if (isLatest(key, gen)) setTrayEnabled(asBool(v)); }));
     if (ok && isLatest(key, gen)) setTrayEnabled(val);
   };
 
@@ -100,7 +90,7 @@ export function useTraySettings() {
       () => client.settings.set(key, val),
       () => resync(key, gen,
         () => client.settings.get(key),
-        (v) => { if (isLatest(key, gen)) setTrayNotify(coerceBool(v)); }));
+        (v) => { if (isLatest(key, gen)) setTrayNotify(asBool(v)); }));
     if (ok && isLatest(key, gen)) setTrayNotify(val);
   };
 
@@ -117,7 +107,7 @@ export function useTraySettings() {
       setSettingsError(SAVE_FAILED);
       await resync(key, gen,
         () => client.shell.loginItem().then((l) => (l && l.openAtLogin ? '1' : '0')),
-        (v) => { if (isLatest(key, gen)) setStartOnBoot(coerceBool(v)); });
+        (v) => { if (isLatest(key, gen)) setStartOnBoot(asBool(v)); });
       return;
     }
     const ok = await client.settings.set(key, val).catch(() => false);
@@ -141,7 +131,7 @@ export function useTraySettings() {
       () => client.settings.set(key, val ? '1' : '0'),
       () => resync(key, gen,
         () => client.settings.get(key),
-        (v) => { if (isLatest(key, gen)) setStartHidden(coerceBool(v)); }));
+        (v) => { if (isLatest(key, gen)) setStartHidden(asBool(v)); }));
     if (!ok) return;
     client.shell.setLoginItem({ openAtLogin: startOnBoot, openAsHidden: val }).catch(() => {});
     if (isLatest(key, gen)) setStartHidden(val);

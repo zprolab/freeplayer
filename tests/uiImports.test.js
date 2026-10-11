@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { readFileSync, readdirSync, statSync } from 'node:fs';
-import { join, relative } from 'node:path';
+import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs';
+import { join, relative, dirname } from 'node:path';
 
 // `vite build` does NOT fail on an undefined component reference — a JSX tag
 // whose identifier was never imported compiles fine and throws at runtime. That
@@ -58,5 +58,44 @@ describe('component references resolve', () => {
     for (const name of ['Button', 'IconButton', 'SegmentedControl', 'ToggleSwitch']) {
       expect(typeof ui[name], `${name} missing from src/ui/components`).toBe('function');
     }
+  });
+
+  // A relative import that does not resolve only surfaces at `vite build` (and
+  // then as a Rollup resolution failure, after every other check has passed).
+  // During the data-seam extraction a scripted rewrite emitted `core/settings`
+  // instead of `./core/settings` in src/App.jsx, and a depth miscount emitted
+  // `../core/client` from files one level deeper than intended. Both were
+  // invisible to lint, to vitest and to the JSX-name guard above.
+  it('every relative import resolves to a file that exists', () => {
+    const problems = [];
+    for (const file of walk(root)) {
+      const src = readFileSync(file, 'utf8');
+      for (const m of src.matchAll(/from\s+'(\.[^']+)'/g)) {
+        // Strip Vite's query suffix (`./sandbox.js?raw`, `../../LICENSE?raw`):
+        // it is a loader directive, not part of the path on disk.
+        const spec = m[1].split('?')[0];
+        const base = join(dirname(file), spec);
+        const hit = [base, `${base}.js`, `${base}.jsx`, `${base}/index.js`, `${base}/index.jsx`]
+          .some((candidate) => existsSync(candidate));
+        if (hit) continue;
+        const line = src.slice(0, m.index).split('\n').length;
+        problems.push(`${relative(root, file)}:${line} '${m[1]}'`);
+      }
+    }
+    expect(problems).toEqual([]);
+  });
+
+  // Bare specifiers (no leading . or /) are treated as node_modules by the
+  // bundler, so a missing './' fails the build with a confusing message.
+  it('no relative import is written as a bare specifier', () => {
+    const problems = [];
+    for (const file of walk(root)) {
+      const src = readFileSync(file, 'utf8');
+      for (const m of src.matchAll(/from\s+'(?![./])((?:core|ui|utils|components|hooks|plugins|features|app)\/[^']+)'/g)) {
+        const line = src.slice(0, m.index).split('\n').length;
+        problems.push(`${relative(root, file)}:${line} '${m[1]}'`);
+      }
+    }
+    expect(problems).toEqual([]);
   });
 });

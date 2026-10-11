@@ -4,6 +4,7 @@ import { Button } from '../ui/components';
 import { sanitizeSvgIcon } from '../plugins/svgIcon';
 import { backfillMissing, isBackfillRunning, needsMetadataFill } from '../services/backfill';
 import * as client from '../core/client';
+import { KEYS } from '../core/settings';
 
 
 const PERM_DESC = {
@@ -192,9 +193,9 @@ export default function PluginPage({ registry, meta, tracks }) {
     (async () => {
       try {
         const [lyrics, cover, metadata] = await Promise.all([
-          client.settings.get('meta.lyricsBackend'),
-          client.settings.get('meta.coverBackend'),
-          client.settings.get('meta.metadataBackend'),
+          client.settings.get(KEYS.lyricsBackend),
+          client.settings.get(KEYS.coverBackend),
+          client.settings.get(KEYS.metadataBackend),
         ]);
         if (cancelled) return;
         setSettingsValues((s) => ({
@@ -466,7 +467,7 @@ export default function PluginPage({ registry, meta, tracks }) {
                       <span className="playback-label">Lyrics backend</span>
                       <span className="playback-hint">Source used when fetching lyrics</span>
                     </div>
-                    <select className="plugin-select" value={settingsValues.lyricsBackend || 'lrclib-lyrics'} onChange={(e) => { setSettingsValues((s) => ({ ...s, lyricsBackend: e.target.value })); client.settings.set('meta.lyricsBackend', e.target.value); }}>
+                    <select className="plugin-select" value={settingsValues.lyricsBackend || 'lrclib-lyrics'} onChange={(e) => { setSettingsValues((s) => ({ ...s, lyricsBackend: e.target.value })); client.settings.set(KEYS.lyricsBackend, e.target.value); }}>
                       {plugins.filter((x) => x.manifest.provides?.lyrics && (x.perms.enabled || x.status === 'active')).map((x) => (
                         <option key={x.id} value={x.id}>{x.manifest.name}{x.id === (settingsValues.lyricsBackend || 'lrclib-lyrics') ? ' (current)' : ''}</option>
                       ))}
@@ -479,7 +480,7 @@ export default function PluginPage({ registry, meta, tracks }) {
                       <span className="playback-label">Cover backend</span>
                       <span className="playback-hint">Source used when fetching artwork</span>
                     </div>
-                    <select className="plugin-select" value={settingsValues.coverBackend || 'itunes-cover'} onChange={(e) => { setSettingsValues((s) => ({ ...s, coverBackend: e.target.value })); client.settings.set('meta.coverBackend', e.target.value); }}>
+                    <select className="plugin-select" value={settingsValues.coverBackend || 'itunes-cover'} onChange={(e) => { setSettingsValues((s) => ({ ...s, coverBackend: e.target.value })); client.settings.set(KEYS.coverBackend, e.target.value); }}>
                       {plugins.filter((x) => x.manifest.provides?.cover && (x.perms.enabled || x.status === 'active')).map((x) => (
                         <option key={x.id} value={x.id}>{x.manifest.name}{x.id === (settingsValues.coverBackend || 'itunes-cover') ? ' (current)' : ''}</option>
                       ))}
@@ -492,7 +493,7 @@ export default function PluginPage({ registry, meta, tracks }) {
                       <span className="playback-label">Metadata backend</span>
                       <span className="playback-hint">Source used for filling in missing track fields</span>
                     </div>
-                    <select className="plugin-select" value={settingsValues.metadataBackend || 'musicbrainz-meta'} onChange={(e) => { setSettingsValues((s) => ({ ...s, metadataBackend: e.target.value })); client.settings.set('meta.metadataBackend', e.target.value); }}>
+                    <select className="plugin-select" value={settingsValues.metadataBackend || 'musicbrainz-meta'} onChange={(e) => { setSettingsValues((s) => ({ ...s, metadataBackend: e.target.value })); client.settings.set(KEYS.metadataBackend, e.target.value); }}>
                       {plugins.filter((x) => x.manifest.provides?.metadata && (x.perms.enabled || x.status === 'active')).map((x) => (
                         <option key={x.id} value={x.id}>{x.manifest.name}{x.id === (settingsValues.metadataBackend || 'musicbrainz-meta') ? ' (current)' : ''}</option>
                       ))}

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef } from 'react';
 import { usePlayer } from '../context/PlayerContext';
 import { applyMonoFont } from '../utils/fonts';
 import * as client from '../core/client';
+import { KEYS } from '../core/settings';
 
 export function useLibrary() {
   const { state, dispatch } = usePlayer();
@@ -31,29 +32,29 @@ export function useLibrary() {
       const result = await client.library.isSetup();
       if (cancelled()) return;
       dispatch({ type: 'SET', payload: { isSetup: result.setup, libraryDir: result.libraryDir || '' } });
-      const impMode = await client.settings.get('import_mode');
+      const impMode = await client.settings.get(KEYS.importMode);
       if (impMode && !cancelled()) dispatch({ type: 'SET', payload: { importMode: impMode } });
       // Global persistent volume: restore last-used value; fall back to
       // default_volume (first run), then 0.8 — no jumps on restart.
-      const savedVol = await client.settings.get('volume');
+      const savedVol = await client.settings.get(KEYS.volume);
       const defVol = savedVol != null
         ? savedVol
-        : await client.settings.get('default_volume');
+        : await client.settings.get(KEYS.defaultVolume);
       if (defVol != null && !cancelled()) {
         const vol = parseFloat(defVol);
         if (isFinite(vol)) {
           dispatch({ type: 'SET', payload: { defaultVolume: vol, volume: vol } });
         }
       }
-      const defVis = await client.settings.get('default_visualizer');
+      const defVis = await client.settings.get(KEYS.defaultVisualizer);
       if (defVis && !cancelled()) {
         dispatch({ type: 'SET', payload: { defaultVisualizer: defVis, visualizerMode: defVis } });
       }
       // Mono font preference (local fonts only — never fetched from a CDN)
-      const monoFont = await client.settings.get('mono_font');
+      const monoFont = await client.settings.get(KEYS.monoFont);
       if (monoFont && !cancelled()) applyMonoFont(monoFont);
       // Sidebar collapse state (1 = collapsed)
-      const collapsed = await client.settings.get('sidebar_collapsed');
+      const collapsed = await client.settings.get(KEYS.sidebarCollapsed);
       if (collapsed === '1' && !cancelled()) {
         dispatch({ type: 'SET', payload: { sidebarCollapsed: true } });
       }
@@ -101,22 +102,22 @@ export function useLibrary() {
 
   const handleImportModeChange = useCallback(async (mode) => {
     dispatch({ type: 'SET', payload: { importMode: mode } });
-    await client.settings.set('import_mode', mode);
+    await client.settings.set(KEYS.importMode, mode);
   }, [dispatch]);
 
   const handleDefaultVolumeChange = useCallback(async (vol) => {
     dispatch({ type: 'SET', payload: { defaultVolume: vol } });
-    await client.settings.set('default_volume', String(vol));
+    await client.settings.set(KEYS.defaultVolume, String(vol));
   }, [dispatch]);
 
   const handleDefaultVisualizerChange = useCallback(async (mode) => {
     dispatch({ type: 'SET', payload: { defaultVisualizer: mode } });
-    await client.settings.set('default_visualizer', mode);
+    await client.settings.set(KEYS.defaultVisualizer, mode);
   }, [dispatch]);
 
   const handleSidebarCollapsedChange = useCallback(async (collapsed) => {
     dispatch({ type: 'SET', payload: { sidebarCollapsed: collapsed } });
-    await client.settings.set('sidebar_collapsed', collapsed ? '1' : '0');
+    await client.settings.set(KEYS.sidebarCollapsed, collapsed ? '1' : '0');
   }, [dispatch]);
 
   const handleResetDatabase = useCallback(async () => {

@@ -3,6 +3,7 @@ import { usePlayer } from '../context/PlayerContext';
 import { computeNextIndex, computePrevIndex, buildShuffleOrder } from './playQueue';
 import { getPlaybackEngine } from '../player/playbackEngine';
 import * as client from '../core/client';
+import { KEYS } from '../core/settings';
 
 // React adapter over PlaybackEngine.
 //
@@ -116,7 +117,7 @@ export function usePlayback() {
     const v = Math.min(Math.max(vol, 0), 1);
     engine.setVolume(v);
     dispatch({ type: 'SET_VOLUME', payload: v });
-    client.settings.set('volume', String(v))
+    client.settings.set(KEYS.volume, String(v))
       .catch(() => {});
   }, [engine, dispatch]);
 

@@ -29,6 +29,7 @@ import { createPluginApi } from './plugins/api';
 import { createEventBus } from './plugins/hooks';
 import { Button, IconButton } from './ui/components';
 import * as client from './core/client';
+import { KEYS } from './core/settings';
 
 // Plugin runtime singleton: registry + metadata registry assembled lazily on
 // first use. Player/audio/events are resolved per plugin activation via
@@ -309,7 +310,7 @@ export default function App() {
 // broadcast `fp-appearance-changed` so the switch applies without a restart.
 useEffect(() => {
     const applyAppearance = () => {
-      client.settings.get('ui_mode')
+      client.settings.get(KEYS.uiMode)
         .then((mode) => {
           // missing setting → Unified (the current look)
           document.documentElement.classList.toggle('ui-mode-unified', mode !== 'classic');

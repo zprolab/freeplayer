@@ -7,6 +7,7 @@ import logoUrl from '../../assets/logo.svg';
 import licenseText from '../../LICENSE?raw';
 import noticesText from '../../THIRD-PARTY-NOTICES.txt?raw';
 import * as client from '../core/client';
+import { KEYS } from '../core/settings';
 
 // Injected at build time by vite.config.js (define): <pkg.version> on tag
 // builds, <pkg.version>-<git-hash> otherwise — matches the native bundles.
@@ -60,8 +61,8 @@ const Settings = memo(function Settings({
   useEffect(() => {
     let cancelled = false;
     Promise.all([
-      client.settings.get('mono_font'),
-      client.settings.get('ui_mode'),
+      client.settings.get(KEYS.monoFont),
+      client.settings.get(KEYS.uiMode),
       client.shell.platform(),
     ])
       .then(([font, mode, plat]) => {
@@ -77,7 +78,7 @@ const Settings = memo(function Settings({
   const handleMonoFontChange = async (value) => {
     setMonoFont(value);
     applyMonoFont(value);
-    await client.settings.set('mono_font', value);
+    await client.settings.set(KEYS.monoFont, value);
   };
 
   const openLegal = (which) => {
@@ -88,7 +89,7 @@ const Settings = memo(function Settings({
   const handleChangeLibraryDir = async () => {
     const result = await client.library.selectDirectory();
     if (!result.canceled) {
-      await client.settings.set('library_dir', result.path);
+      await client.settings.set(KEYS.libraryDir, result.path);
       onLibraryDirChange(result.path);
     }
   };
@@ -331,7 +332,7 @@ const Settings = memo(function Settings({
             onChange={(unified) => {
               const v = unified ? 'unified' : 'classic';
               setUiMode(v);
-              client.settings.set('ui_mode', v);
+              client.settings.set(KEYS.uiMode, v);
               window.dispatchEvent(new Event('fp-appearance-changed'));
             }}
             label="Unified Layout"
