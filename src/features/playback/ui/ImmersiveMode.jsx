@@ -70,19 +70,36 @@ export default function ImmersiveMode({
       if (stale) return;
       try {
         const canvas = document.createElement('canvas');
-        canvas.width = 8;
-        canvas.height = 8;
+        // 24x24 rather than 8x8: a flat average of very few pixels blends the
+        // artwork's actual colours into a muddy mid-tone, and the accent derived
+        // from it then no longer resembles the cover.
+        canvas.width = 24;
+        canvas.height = 24;
         const ctx = canvas.getContext('2d', { willReadFrequently: true });
-        ctx.drawImage(img, 0, 0, 8, 8);
-        const d = ctx.getImageData(0, 0, 8, 8).data;
-        let r = 0, g = 0, b = 0;
+        ctx.drawImage(img, 0, 0, 24, 24);
+        const d = ctx.getImageData(0, 0, 24, 24).data;
+        // Weight each pixel by its saturation, so the artwork's CHROMA decides
+        // the ambient colour instead of whatever covers the most area. A flat
+        // mean lets a large muted background swamp a smaller vivid figure.
+        let r = 0, g = 0, b = 0, w = 0;
         for (let i = 0; i < d.length; i += 4) {
-          r += d[i];
-          g += d[i + 1];
-          b += d[i + 2];
+          const [pr, pg, pb] = [d[i], d[i + 1], d[i + 2]];
+          const max = Math.max(pr, pg, pb);
+          const min = Math.min(pr, pg, pb);
+          // Saturation 0..1, then squared so near-grey pixels barely count.
+          const sat = max === 0 ? 0 : (max - min) / max;
+          const weight = sat * sat;
+          r += pr * weight; g += pg * weight; b += pb * weight; w += weight;
         }
-        const n = d.length / 4;
-        setBgColor({ r: Math.round(r / n), g: Math.round(g / n), b: Math.round(b / n) });
+        // Fully grey artwork has no chroma to weight by — fall back to the mean.
+        if (w === 0) {
+          let sr = 0, sg = 0, sb = 0;
+          for (let i = 0; i < d.length; i += 4) { sr += d[i]; sg += d[i + 1]; sb += d[i + 2]; }
+          const n = d.length / 4;
+          setBgColor({ r: Math.round(sr / n), g: Math.round(sg / n), b: Math.round(sb / n) });
+          return;
+        }
+        setBgColor({ r: Math.round(r / w), g: Math.round(g / w), b: Math.round(b / w) });
       } catch {
         setBgColor(null);
       }

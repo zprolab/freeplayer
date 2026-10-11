@@ -77,18 +77,20 @@ export function contrastRatio(a, b) {
 /**
  * The accent for the immersive view, derived from the ambient colour.
  *
- * `warmTarget` is the hue a cool cover is brought to. `saturation` is high enough
- * that the result always reads as a colour rather than a grey.
+ * The hue is the cover's OWN hue. Nothing is forced toward a target: an earlier
+ * version pulled every cool cover to 32°, which is why a red-orange artwork
+ * produced a gold accent — the accent no longer came from the artwork at all.
+ *
+ * Lightness is inverted against the field so the accent separates from it, and
+ * kept mid-range on purpose: at 0.68 a warm hue washes out into gold/peach
+ * instead of reading as the cover's colour, and at full lightness a teal cover
+ * becomes neon cyan rather than teal.
  */
-export function accentFor(color, { warmTarget = 32, saturation = 0.8 } = {}) {
+export function accentFor(color, { saturation = 0.7 } = {}) {
   if (!color) return null;
   const { h } = rgbToHsl(color.r, color.g, color.b);
-  const isWarm = h < 90 || h > 330;
-  const hue = isWarm ? h : warmTarget;
-  // Inverted against the field: a dark ambient field gets the light step, a light
-  // one gets the dark step.
-  const lightness = relativeLuminance(color) > 0.5 ? 0.42 : 0.68;
-  const [r, g, b] = hslToRgb(hue, saturation, lightness);
+  const lightness = relativeLuminance(color) > 0.5 ? 0.38 : 0.56;
+  const [r, g, b] = hslToRgb(h, saturation, lightness);
   return { r, g, b };
 }
 

@@ -40,26 +40,23 @@ describe('accentFor', () => {
     expect(cssRgb(null)).toBeUndefined();
   });
 
-  it('moves a cool cover into the warm half of the wheel', () => {
-    // Cool cover gets a warm accent, so it never lands on the field's complement.
-    const a = accentFor(TEAL);
-    const { h } = rgbToHsl(a.r, a.g, a.b);
-    expect(h).toBeGreaterThan(15);
-    expect(h).toBeLessThan(60);
-  });
-
-  it('keeps a warm cover warm rather than forcing one hue', () => {
-    // A warm cover would be sent to blue by a fixed rotation, contradicting the
-    // artwork it came from.
-    const a = accentFor(WARM);
-    const { h } = rgbToHsl(a.r, a.g, a.b);
-    expect(h).toBeGreaterThan(0);
-    expect(h).toBeLessThan(90);
+  it('keeps the cover\'s own hue — nothing is forced to a target', () => {
+    // The regression: cool covers used to be pulled to a fixed 32°, so a
+    // red-orange artwork produced a GOLD accent. The accent has to come from the
+    // artwork.
+    for (const cover of [TEAL, WARM, LIGHT]) {
+      const a = accentFor(cover);
+      const coverHue = rgbToHsl(cover.r, cover.g, cover.b).h;
+      const accentHue = rgbToHsl(a.r, a.g, a.b).h;
+      // Hue survives the round-trip within a couple of degrees.
+      const delta = Math.min(Math.abs(accentHue - coverHue), 360 - Math.abs(accentHue - coverHue));
+      expect(delta, `${JSON.stringify(cover)}: ${coverHue.toFixed(0)}° -> ${accentHue.toFixed(0)}°`).toBeLessThan(3);
+    }
   });
 
   it('stays a colour, not a grey or a near-white', () => {
-    // The regression this guards: the max-contrast search returned
-    // rgb(252,236,217) for a teal cover — white in all but name.
+    // The earlier max-contrast search returned rgb(252,236,217) for a teal cover
+    // — white in all but name.
     for (const cover of [TEAL, LIGHT, WARM]) {
       const a = accentFor(cover);
       const { s } = rgbToHsl(a.r, a.g, a.b);
