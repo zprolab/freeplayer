@@ -143,7 +143,12 @@ export const lyrics = {
 
 // ── playback side-channels ───────────────────────────────────────────────────
 export const playback = {
-  sendState: (isPlaying) => call('sendPlaybackState', { isPlaying }),
+  // Pass the BOOLEAN, not { isPlaying }: the bridge layer
+  // (BridgeScript.swift) already wraps it as `{ isPlaying }` before invoking.
+  // Passing a wrapped object here nested it twice, so the native side read a
+  // dictionary where it expected NSNumber, the cast failed and it fell back to
+  // `?? false` — the tray icon could never show Pause.
+  sendState: (isPlaying) => call('sendPlaybackState', isPlaying),
   onControl: (cb) => on('control', 'onPlaybackControl', cb),
   onMediaKey: (cb) => on('mediakey', 'onMediaKey', cb),
 };
@@ -160,7 +165,8 @@ export const equalizer = {
 export const shell = {
   platform: () => call('getPlatform'),
   // The bridge expects { dark }, not a bare boolean.
-  setAppearance: (dark) => call('setAppearance', { dark }),
+  // Same double-wrap trap as sendState: the bridge wraps this as `{ dark }`.
+  setAppearance: (dark) => call('setAppearance', dark),
   finishOnboarding: () => call('finishOnboarding'),
   loginItem: () => call('getLoginItemSettings'),
   setLoginItem: (data) => call('setLoginItemSettings', data),

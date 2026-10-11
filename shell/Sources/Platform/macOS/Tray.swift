@@ -34,9 +34,29 @@ final class Tray: NSObject {
         }
     }
 
+    /// The menu-bar glyph for a playback state.
+    ///
+    /// An SF Symbol template image, not a text character. The title used to be
+    /// "▶"/"⏸", and those are not the same width: U+25B6 has East Asian Width
+    /// *ambiguous* while U+23F8 is an emoji-class code point that macOS renders
+    /// as a wider coloured glyph — so switching play/pause resized the status
+    /// item and shifted every other menu-bar icon beside it.
+    ///
+    /// SF Symbols are drawn on one fixed square grid, so both states occupy
+    /// identical space, and `isTemplate` lets the system tint the image for the
+    /// light/dark menu bar instead of us guessing a colour.
+    private func stateImage(_ symbolName: String) -> NSImage? {
+        let config = NSImage.SymbolConfiguration(pointSize: 13, weight: .medium)
+        let image = NSImage(systemSymbolName: symbolName, accessibilityDescription: nil)?
+            .withSymbolConfiguration(config)
+        image?.isTemplate = true
+        return image
+    }
+
     func create() {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        statusItem?.button?.title = "▶"
+        statusItem?.button?.image = stateImage("play.fill")
+        statusItem?.button?.imagePosition = .imageOnly
         statusItem?.button?.toolTip = "FreePlayer"
 
         let m = NSMenu()
@@ -103,7 +123,9 @@ final class Tray: NSObject {
         self.playing = playing
         DispatchQueue.main.async {
             guard let item = self.statusItem, let button = item.button, let pip = self.playPauseItem else { return }
-            button.title = self.playing ? "⏸" : "▶"
+            // Template image, so both states are the same size (see stateImage).
+            button.title = ""
+            button.image = self.stateImage(self.playing ? "pause.fill" : "play.fill")
             pip.title = self.playing ? "Pause" : "Play"
             // Control Center: keep the playback rate in sync (system advances the
             // progress bar from ElapsedPlaybackTime + rate + duration)
