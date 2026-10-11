@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Sidebar from '@/ui/shell/Sidebar.jsx';
-import logoUrl from '@assets/logo.svg';
 import Library from '@/features/library/ui/Library.jsx';
 import NowPlaying from '@/features/playback/ui/NowPlaying.jsx';
 import Stats from '@/features/library/ui/Stats.jsx';
@@ -11,6 +10,7 @@ import Settings from '@/features/preferences/ui/Settings.jsx';
 import PluginPage from '@/features/plugins/ui/PluginPage.jsx';
 import PlaylistModal from '@/features/playlists/ui/PlaylistModal.jsx';
 import EqWindow from '@/features/playback/ui/EqWindow.jsx';
+import { AppLoading, AppWelcome } from '@/app/AppStates.jsx';
 import { usePlayer, VIEWS } from '@/app/PlayerProvider.jsx';
 import { usePlayback } from '@/features/playback/usePlayback.js';
 import { buildShuffleOrder } from '@/features/playback/queue.js';
@@ -319,13 +319,7 @@ useEffect(() => {
   }, [state.tracks, state.activePlaylistId, state.playlistTracks, state.sortBy, state.sortDir]);
 
   if (state.isLoading) {
-    return (
-      <div className="app-loading">
-        <div className="loading-logo"><img src={logoUrl} width={56} height={56} alt="" /></div>
-        <div className="loading-spinner" />
-        <span className="loading-text">Loading FreePlayer...</span>
-      </div>
-    );
+    return <AppLoading />;
   }
 
   return (
@@ -431,18 +425,7 @@ useEffect(() => {
               onResetDatabase={handleResetDatabase}
             />
           ) : !state.isSetup ? (
-            <div className="empty-state">
-              <div className="empty-state-icon">
-                <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2">
-                  <path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>
-                </svg>
-              </div>
-              <h2>Welcome to FreePlayer</h2>
-              <p>Set up your music library to get started. Choose a directory where your music will be stored, then import your audio files.</p>
-              <Button variant="primary" size="lg" onClick={() => dispatch({ type: 'SET', payload: { importModalOpen: true } })}>
-                Set Up Library
-              </Button>
-            </div>
+            <AppWelcome onSetup={() => dispatch({ type: 'SET', payload: { importModalOpen: true } })} />
           ) : (
             <>
               {state.view === VIEWS.LIBRARY && (
