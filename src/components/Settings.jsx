@@ -6,6 +6,7 @@ import { applyMonoFont } from '../utils/fonts';
 import logoUrl from '../../assets/logo.svg';
 import licenseText from '../../LICENSE?raw';
 import noticesText from '../../THIRD-PARTY-NOTICES.txt?raw';
+import * as client from '../core/client';
 
 // Injected at build time by vite.config.js (define): <pkg.version> on tag
 // builds, <pkg.version>-<git-hash> otherwise — matches the native bundles.
@@ -59,9 +60,9 @@ const Settings = memo(function Settings({
   useEffect(() => {
     let cancelled = false;
     Promise.all([
-      window.freeplayer.getSetting('mono_font'),
-      window.freeplayer.getSetting('ui_mode'),
-      window.freeplayer.getPlatform(),
+      client.settings.get('mono_font'),
+      client.settings.get('ui_mode'),
+      client.shell.platform(),
     ])
       .then(([font, mode, plat]) => {
         if (cancelled) return;
@@ -76,7 +77,7 @@ const Settings = memo(function Settings({
   const handleMonoFontChange = async (value) => {
     setMonoFont(value);
     applyMonoFont(value);
-    await window.freeplayer.setSetting({ key: 'mono_font', value });
+    await client.settings.set('mono_font', value);
   };
 
   const openLegal = (which) => {
@@ -85,15 +86,15 @@ const Settings = memo(function Settings({
   };
 
   const handleChangeLibraryDir = async () => {
-    const result = await window.freeplayer.selectLibraryDir();
+    const result = await client.library.selectDirectory();
     if (!result.canceled) {
-      await window.freeplayer.setSetting({ key: 'library_dir', value: result.path });
+      await client.settings.set('library_dir', result.path);
       onLibraryDirChange(result.path);
     }
   };
 
   const handleReset = async () => {
-    await window.freeplayer.resetDatabase();
+    await client.library.reset();
     setShowResetConfirm(false);
     onResetDatabase();
   };
@@ -330,7 +331,7 @@ const Settings = memo(function Settings({
             onChange={(unified) => {
               const v = unified ? 'unified' : 'classic';
               setUiMode(v);
-              window.freeplayer.setSetting({ key: 'ui_mode', value: v });
+              client.settings.set('ui_mode', v);
               window.dispatchEvent(new Event('fp-appearance-changed'));
             }}
             label="Unified Layout"

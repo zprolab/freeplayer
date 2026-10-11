@@ -28,6 +28,7 @@ import { createLoader } from './plugins/loader';
 import { createPluginApi } from './plugins/api';
 import { createEventBus } from './plugins/hooks';
 import { Button, IconButton } from './ui/components';
+import * as client from './core/client';
 
 // Plugin runtime singleton: registry + metadata registry assembled lazily on
 // first use. Player/audio/events are resolved per plugin activation via
@@ -54,47 +55,47 @@ function compareTracks(a, b, sortBy, sortDir) {
 async function getPluginRuntime() {
   if (pluginRuntime) return pluginRuntime;
   const loader = createLoader({
-    readFile: (pluginId, relPath) => window.freeplayer.readPluginFile(pluginId, relPath),
+    readFile: (pluginId, relPath) => client.plugins.readFile(pluginId, relPath),
     importUrl: (url) => import(/* @vite-ignore */ url),
     createApi: (pluginId) => createPluginApi(pluginId, [], {
       bridge: {
         http: {
-          getJson: (url) => window.freeplayer.httpGetJson(url),
-          getBase64: (url) => window.freeplayer.httpGetBase64(url),
+          getJson: (url) => client.http.getJson(url),
+          getBase64: (url) => client.http.getBase64(url),
         },
         metadata: {
-          getTrackInfo: (id) => window.freeplayer.getTrack(id),
-          getLyrics: (id) => window.freeplayer.getLrc(id).then((r) => r && r.content),
-          getCover: (id) => window.freeplayer.getTrack(id).then((t) => (t ? window.freeplayer.getCover(t.cover_path) : null)),
-          saveLyrics: (id, content) => window.freeplayer.saveLrcContent(id, content),
-          saveCover: (id, base64) => window.freeplayer.saveCover(id, base64),
-          updateTrack: (id, fields) => window.freeplayer.updateTrack({ id, ...fields }),
-          removeLyrics: (id) => window.freeplayer.removeLrc(id),
+          getTrackInfo: (id) => client.library.track(id),
+          getLyrics: (id) => client.lyrics.get(id).then((r) => r && r.content),
+          getCover: (id) => client.library.track(id).then((t) => (t ? client.lyrics.getCover(t.cover_path) : null)),
+          saveLyrics: (id, content) => client.lyrics.save(id, content),
+          saveCover: (id, base64) => client.lyrics.saveCover(id, base64),
+          updateTrack: (id, fields) => client.tracks.update({ id, ...fields }),
+          removeLyrics: (id) => client.lyrics.remove(id),
         },
         audio: null, // provided by App via window.__fpRuntimeState (Step 5b)
       },
       player: null, // provided by App via window.__fpRuntimeState (Step 5b)
       settings: {
-        get: (key) => window.freeplayer.getSetting(key),
-        set: ({ key, value }) => window.freeplayer.setSetting({ key, value }),
+        get: (key) => client.settings.get(key),
+        set: (key, value) => client.settings.set(key, value),
       },
       pluginSettings: {
-        get: (key) => window.freeplayer.getSetting(`plugin.${key}`),
-        set: (key, value) => window.freeplayer.setSetting({ key: `plugin.${key}`, value: JSON.stringify(value) }),
+        get: (key) => client.settings.get(`plugin.${key}`),
+        set: (key, value) => client.settings.set(`plugin.${key}`, JSON.stringify(value)),
       },
-      log: (id, level, msg) => { console.warn(`[plugin:${id}]`, level, msg); window.freeplayer?.logDiagnostic?.(id, level, msg); },
+      log: (id, level, msg) => { console.warn(`[plugin:${id}]`, level, msg); client.diagnostics.log(id, level, msg); },
       events: null, // provided by App via window.__fpRuntimeState (Step 5b)
     }),
     onDenied: (pluginId, key) => console.warn(`[plugin:${pluginId}] permission denied: ${key}`),
   });
   const registry = createRegistry({
-    listPlugins: () => window.freeplayer.listPlugins(),
-    readFile: (pluginId, relPath) => window.freeplayer.readPluginFile(pluginId, relPath),
+    listPlugins: () => client.plugins.list(),
+    readFile: (pluginId, relPath) => client.plugins.readFile(pluginId, relPath),
     loader,
-    log: (id, level, msg) => { console.warn(`[plugin:${id}]`, level, msg); window.freeplayer?.logDiagnostic?.(id, level, msg); },
-    getSetting: (k) => window.freeplayer.getSetting(k),
-    setSetting: (data) => window.freeplayer.setSetting(data),
-    uninstallPlugin: (id) => window.freeplayer.uninstallPlugin(id),
+    log: (id, level, msg) => { console.warn(`[plugin:${id}]`, level, msg); client.diagnostics.log(id, level, msg); },
+    getSetting: (k) => client.settings.get(k),
+    setSetting: (data) => client.settings.set(data),
+    uninstallPlugin: (id) => client.plugins.uninstall(id),
   });
   for (const b of BUILTIN_PLUGINS) registry.registerBuiltin(b);
   registry.registerBuiltin({ id: 'diagnostics-log', manifestRaw: diagnosticsManifest, builtin: true, module: diagnosticsMain });
@@ -102,10 +103,10 @@ async function getPluginRuntime() {
   await registry.restoreState();
   const meta = createMetadataRegistry({
     registry,
-    getSetting: (k) => window.freeplayer.getSetting(k),
-    saveLyrics: (trackId, content) => window.freeplayer.saveLrcContent(trackId, content),
-    saveCover: (trackId, base64) => window.freeplayer.saveCover(trackId, base64),
-    updateTrack: (id, fields) => window.freeplayer.updateTrack({ id, ...fields }),
+    getSetting: (k) => client.settings.get(k),
+    saveLyrics: (trackId, content) => client.lyrics.save(trackId, content),
+    saveCover: (trackId, base64) => client.lyrics.saveCover(trackId, base64),
+    updateTrack: (id, fields) => client.tracks.update({ id, ...fields }),
   });
   pluginRuntime = { registry, meta };
   return pluginRuntime;
@@ -223,7 +224,7 @@ export default function App() {
       'view-stats': () => dispatch({ type: 'SET', payload: { view: VIEWS.STATS } }),
       'view-plugins': () => dispatch({ type: 'SET', payload: { view: VIEWS.PLUGINS } }),
       'view-settings': () => dispatch({ type: 'SET', payload: { view: VIEWS.SETTINGS } }),
-      'open-eq': () => window.freeplayer?.openEq?.(),
+      'open-eq': () => client.equalizer.open(),
     };
     window.__freeplayerMenuAction = (action) => {
       actionRef[action]?.();
@@ -270,7 +271,6 @@ export default function App() {
   playbackHandlersRef.current = { togglePlayPause, handleNext, handlePrev };
 
   useEffect(() => {
-    if (!window.freeplayer?.onPlaybackControl) return;
     const handler = ({ action }) => {
       const h = playbackHandlersRef.current;
       switch (action) {
@@ -279,7 +279,7 @@ export default function App() {
         case 'previous': h.handlePrev(); break;
       }
     };
-    window.freeplayer.onPlaybackControl(handler);
+    client.playback.onControl(handler);
   }, []); // register once; ref always has latest handlers
 
   // Equalizer: init from DB once, apply live curve changes
@@ -291,8 +291,7 @@ export default function App() {
   };
 
   useEffect(() => {
-    if (!window.freeplayer?.getEqState) return;
-    window.freeplayer.getEqState().then((s) => {
+    client.equalizer.getState().then((s) => {
       if (s) {
         audioEngine.applyEq(s.gains, s.enabled);
         dispatch({ type: 'SET', payload: { eqEnabled: s.enabled } });
@@ -303,16 +302,14 @@ export default function App() {
   }, [dispatch]);
 
   useEffect(() => {
-    if (!window.freeplayer?.onEqChange) return;
-    window.freeplayer.onEqChange((s) => eqHandlerRef.current(s));
+    client.equalizer.onChange((s) => eqHandlerRef.current(s));
   }, []);
 
   // Appearance: Classic / Unified layout (defaults to Unified). Settings writes
 // broadcast `fp-appearance-changed` so the switch applies without a restart.
 useEffect(() => {
     const applyAppearance = () => {
-      if (!window.freeplayer?.getSetting) return;
-      window.freeplayer.getSetting('ui_mode')
+      client.settings.get('ui_mode')
         .then((mode) => {
           // missing setting → Unified (the current look)
           document.documentElement.classList.toggle('ui-mode-unified', mode !== 'classic');
@@ -552,9 +549,9 @@ useEffect(() => {
         onOpenEq={() => {
           // iOS is a single-window app: the EQ renders in a sheet instead of
           // a native window (openEq is a no-op there).
-          window.freeplayer?.getPlatform?.()
-            .then((p) => (p === 'ios' ? setEqPanelOpen(true) : window.freeplayer?.openEq?.()))
-            .catch(() => window.freeplayer?.openEq?.());
+          client.shell.platform()
+            .then((p) => (p === 'ios' ? setEqPanelOpen(true) : client.equalizer.open()))
+            .catch(() => client.equalizer.open());
         }}
       />
 

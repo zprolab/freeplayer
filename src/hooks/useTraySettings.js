@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import * as client from '../core/client';
 
 const SAVE_FAILED = 'Could not save this setting — the change was not applied. Please try again.';
 
@@ -33,16 +34,16 @@ export function useTraySettings() {
 
   useEffect(() => {
     let cancelled = false;
-    const loadTrayEnabled = window.freeplayer.getSetting('tray_enabled')
+    const loadTrayEnabled = client.settings.get('tray_enabled')
       .then((v) => { if (!cancelled) setTrayEnabled(coerceBool(v)); })
       .catch(() => {});
-    const loadTrayNotify = window.freeplayer.getSetting('tray_notify')
+    const loadTrayNotify = client.settings.get('tray_notify')
       .then((v) => { if (!cancelled) setTrayNotify(coerceBool(v)); })
       .catch(() => {});
-    const loadStartHidden = window.freeplayer.getSetting('start_hidden')
+    const loadStartHidden = client.settings.get('start_hidden')
       .then((v) => { if (!cancelled) setStartHidden(coerceBool(v)); })
       .catch(() => {});
-    const loadStartOnBoot = window.freeplayer.getLoginItemSettings()
+    const loadStartOnBoot = client.shell.loginItem()
       .then((login) => { if (!cancelled) setStartOnBoot(!!(login && login.openAtLogin)); })
       .catch(() => {});
     Promise.allSettled([loadTrayEnabled, loadTrayNotify, loadStartHidden, loadStartOnBoot])
@@ -85,9 +86,9 @@ export function useTraySettings() {
     const key = 'tray_enabled';
     const gen = nextGen(key);
     const ok = await persist(key, gen,
-      () => window.freeplayer.setSetting({ key, value: val }),
+      () => client.settings.set(key, val),
       () => resync(key, gen,
-        () => window.freeplayer.getSetting(key),
+        () => client.settings.get(key),
         (v) => { if (isLatest(key, gen)) setTrayEnabled(coerceBool(v)); }));
     if (ok && isLatest(key, gen)) setTrayEnabled(val);
   };
@@ -96,9 +97,9 @@ export function useTraySettings() {
     const key = 'tray_notify';
     const gen = nextGen(key);
     const ok = await persist(key, gen,
-      () => window.freeplayer.setSetting({ key, value: val }),
+      () => client.settings.set(key, val),
       () => resync(key, gen,
-        () => window.freeplayer.getSetting(key),
+        () => client.settings.get(key),
         (v) => { if (isLatest(key, gen)) setTrayNotify(coerceBool(v)); }));
     if (ok && isLatest(key, gen)) setTrayNotify(val);
   };
@@ -109,22 +110,22 @@ export function useTraySettings() {
     const key = 'start_on_boot';
     const gen = nextGen(key);
     setSettingsError(null);
-    const native = await window.freeplayer.setLoginItemSettings({ openAtLogin: val, openAsHidden: startHidden })
+    const native = await client.shell.setLoginItem({ openAtLogin: val, openAsHidden: startHidden })
       .catch(() => null);
     if (!native || native.ok === false) {
       if (!isLatest(key, gen)) return;
       setSettingsError(SAVE_FAILED);
       await resync(key, gen,
-        () => window.freeplayer.getLoginItemSettings().then((l) => (l && l.openAtLogin ? '1' : '0')),
+        () => client.shell.loginItem().then((l) => (l && l.openAtLogin ? '1' : '0')),
         (v) => { if (isLatest(key, gen)) setStartOnBoot(coerceBool(v)); });
       return;
     }
-    const ok = await window.freeplayer.setSetting({ key, value: val }).catch(() => false);
+    const ok = await client.settings.set(key, val).catch(() => false);
     if (ok === false) {
       if (!isLatest(key, gen)) return;
       setSettingsError(SAVE_FAILED);
       await resync(key, gen,
-        () => window.freeplayer.getSetting(key),
+        () => client.settings.get(key),
         () => {}); // keep the native-confirmed state; the DB mirror is best-effort
       return;
     }
@@ -137,12 +138,12 @@ export function useTraySettings() {
     const key = 'start_hidden';
     const gen = nextGen(key);
     const ok = await persist(key, gen,
-      () => window.freeplayer.setSetting({ key, value: val ? '1' : '0' }),
+      () => client.settings.set(key, val ? '1' : '0'),
       () => resync(key, gen,
-        () => window.freeplayer.getSetting(key),
+        () => client.settings.get(key),
         (v) => { if (isLatest(key, gen)) setStartHidden(coerceBool(v)); }));
     if (!ok) return;
-    window.freeplayer.setLoginItemSettings({ openAtLogin: startOnBoot, openAsHidden: val }).catch(() => {});
+    client.shell.setLoginItem({ openAtLogin: startOnBoot, openAsHidden: val }).catch(() => {});
     if (isLatest(key, gen)) setStartHidden(val);
   };
 

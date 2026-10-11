@@ -1,5 +1,6 @@
 import { Component } from 'react';
 import { Button } from '../ui/components';
+import * as client from '../core/client';
 
 // Last-resort guard around the app shell.
 //
@@ -21,7 +22,7 @@ export default class ErrorBoundary extends Component {
   componentDidCatch(error, info) {
     console.error('Unhandled render error:', error, info?.componentStack || '');
     try {
-      window.freeplayer?.logDiagnostic?.('ui', 'error', `Render error: ${error?.message || error}`);
+      client.diagnostics.log('ui', 'error', `Render error: ${error?.message || error}`);
     } catch {
       // Logging must never be the thing that crashes the crash handler.
     }

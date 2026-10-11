@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { Button, ModalShell } from '../ui/components';
+import * as client from '../core/client';
 
 export default function EditModal({ track, onClose, onSaved }) {
   const [title, setTitle] = useState(track.title || '');
@@ -44,7 +45,7 @@ export default function EditModal({ track, onClose, onSaved }) {
       // columns under `fields` left the native whitelist loop with nothing to
       // match, so Database.updateTrack returned false and EVERY edit was
       // silently discarded while the dialog still closed as though it saved.
-      await window.freeplayer.updateTrack({
+      await client.tracks.update({
         id: track.id,
         title: title.trim(),
         artist: artist.trim() || 'Unknown Artist',

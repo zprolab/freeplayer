@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { usePlayer } from '../context/PlayerContext';
 import { applyMonoFont } from '../utils/fonts';
+import * as client from '../core/client';
 
 export function useLibrary() {
   const { state, dispatch } = usePlayer();
@@ -12,7 +13,7 @@ export function useLibrary() {
   const loadTracks = useCallback(async () => {
     const seq = ++loadSeqRef.current;
     try {
-      const data = await window.freeplayer.getTracks({
+      const data = await client.library.tracks({
         search: state.searchQuery,
         sortBy: state.sortBy,
         sortDir: state.sortDir,
@@ -27,32 +28,32 @@ export function useLibrary() {
   const checkSetup = useCallback(async (isCancelled) => {
     const cancelled = isCancelled || (() => false);
     try {
-      const result = await window.freeplayer.isSetup();
+      const result = await client.library.isSetup();
       if (cancelled()) return;
       dispatch({ type: 'SET', payload: { isSetup: result.setup, libraryDir: result.libraryDir || '' } });
-      const impMode = await window.freeplayer.getSetting('import_mode');
+      const impMode = await client.settings.get('import_mode');
       if (impMode && !cancelled()) dispatch({ type: 'SET', payload: { importMode: impMode } });
       // Global persistent volume: restore last-used value; fall back to
       // default_volume (first run), then 0.8 — no jumps on restart.
-      const savedVol = await window.freeplayer.getSetting('volume');
+      const savedVol = await client.settings.get('volume');
       const defVol = savedVol != null
         ? savedVol
-        : await window.freeplayer.getSetting('default_volume');
+        : await client.settings.get('default_volume');
       if (defVol != null && !cancelled()) {
         const vol = parseFloat(defVol);
         if (isFinite(vol)) {
           dispatch({ type: 'SET', payload: { defaultVolume: vol, volume: vol } });
         }
       }
-      const defVis = await window.freeplayer.getSetting('default_visualizer');
+      const defVis = await client.settings.get('default_visualizer');
       if (defVis && !cancelled()) {
         dispatch({ type: 'SET', payload: { defaultVisualizer: defVis, visualizerMode: defVis } });
       }
       // Mono font preference (local fonts only — never fetched from a CDN)
-      const monoFont = await window.freeplayer.getSetting('mono_font');
+      const monoFont = await client.settings.get('mono_font');
       if (monoFont && !cancelled()) applyMonoFont(monoFont);
       // Sidebar collapse state (1 = collapsed)
-      const collapsed = await window.freeplayer.getSetting('sidebar_collapsed');
+      const collapsed = await client.settings.get('sidebar_collapsed');
       if (collapsed === '1' && !cancelled()) {
         dispatch({ type: 'SET', payload: { sidebarCollapsed: true } });
       }
@@ -93,29 +94,29 @@ export function useLibrary() {
     dispatch({ type: 'SET', payload: { importModalOpen: false } });
     if (result && !result.canceled) {
       await loadTracks();
-      const setupResult = await window.freeplayer.isSetup();
+      const setupResult = await client.library.isSetup();
       dispatch({ type: 'SET', payload: { isSetup: setupResult.setup, libraryDir: setupResult.libraryDir || '' } });
     }
   }, [dispatch, loadTracks]);
 
   const handleImportModeChange = useCallback(async (mode) => {
     dispatch({ type: 'SET', payload: { importMode: mode } });
-    await window.freeplayer.setSetting({ key: 'import_mode', value: mode });
+    await client.settings.set('import_mode', mode);
   }, [dispatch]);
 
   const handleDefaultVolumeChange = useCallback(async (vol) => {
     dispatch({ type: 'SET', payload: { defaultVolume: vol } });
-    await window.freeplayer.setSetting({ key: 'default_volume', value: String(vol) });
+    await client.settings.set('default_volume', String(vol));
   }, [dispatch]);
 
   const handleDefaultVisualizerChange = useCallback(async (mode) => {
     dispatch({ type: 'SET', payload: { defaultVisualizer: mode } });
-    await window.freeplayer.setSetting({ key: 'default_visualizer', value: mode });
+    await client.settings.set('default_visualizer', mode);
   }, [dispatch]);
 
   const handleSidebarCollapsedChange = useCallback(async (collapsed) => {
     dispatch({ type: 'SET', payload: { sidebarCollapsed: collapsed } });
-    await window.freeplayer.setSetting({ key: 'sidebar_collapsed', value: collapsed ? '1' : '0' });
+    await client.settings.set('sidebar_collapsed', collapsed ? '1' : '0');
   }, [dispatch]);
 
   const handleResetDatabase = useCallback(async () => {

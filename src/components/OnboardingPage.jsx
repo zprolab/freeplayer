@@ -3,6 +3,7 @@ import licenseText from '../../LICENSE?raw';
 import logoUrl from '../../assets/logo.svg';
 import { Button } from '../ui/components';
 import { canAdvance, nextStep, prevStep, ONBOARDING_STEPS } from '../data/onboardingSteps';
+import * as client from '../core/client';
 
 const STEP_LABELS = {
   welcome: 'Welcome', license: 'License', privacy: 'Privacy', library: 'Library',
@@ -26,7 +27,7 @@ export default function OnboardingPage({ onDone }) {
     setChoosing(true);
     setError('');
     try {
-      const res = await window.freeplayer.selectLibraryDir();
+      const res = await client.library.selectDirectory();
       if (res && !res.canceled && res.libraryDir) setLibraryPath(res.libraryDir);
     } catch (err) {
       setError(err.message || 'Failed to select directory');

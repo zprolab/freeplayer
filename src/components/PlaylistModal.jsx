@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { usePlayer } from '../context/PlayerContext';
 import { Button, ModalShell } from '../ui/components';
 import TrackPicker from './TrackPicker';
+import * as client from '../core/client';
 
 export default function PlaylistModal({ mode, playlist, allTracks, onClose, onSubmit }) {
   const { state } = usePlayer();
@@ -37,7 +38,7 @@ export default function PlaylistModal({ mode, playlist, allTracks, onClose, onSu
       setIsLoadingTracks(true);
       setTracksLoaded(false);
       setTracksError(null);
-      window.freeplayer.getPlaylistTracks(playlist.id).then(tracks => {
+      client.playlists.tracks(playlist.id).then(tracks => {
         if (stale) return;
         setSelectedIds(new Set(tracks.map(t => t.id)));
         setIsLoadingTracks(false);

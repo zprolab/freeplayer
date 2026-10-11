@@ -1,4 +1,5 @@
 import { useState, useEffect, memo } from 'react';
+import * as client from '../core/client';
 
 function formatDuration(seconds) {
   if (!seconds || seconds === 0) return '0m';
@@ -24,8 +25,8 @@ const Stats = memo(function Stats() {
     async function load() {
       try {
         const [s, h] = await Promise.all([
-          window.freeplayer.getStats(),
-          window.freeplayer.getPlayHistory(30),
+          client.library.stats(),
+          client.library.history(30),
         ]);
         if (cancelled) return;
         // Normalize responses from older shells as well as the full stats

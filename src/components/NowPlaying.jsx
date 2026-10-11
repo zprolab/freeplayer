@@ -7,6 +7,7 @@ import { formatTime } from '../utils/format';
 import { useCoverArt } from '../hooks/useCoverArt';
 import { sourceLabel, sourceKind } from '../utils/provenance';
 import { fetchAndSaveLyrics, fetchAndSaveCover } from '../services/metaPersistence';
+import * as client from '../core/client';
 
 export default function NowPlaying({
   currentTrack, isPlaying, currentTime, duration,
@@ -36,7 +37,7 @@ export default function NowPlaying({
   useEffect(() => {
     let stale = false;
     if (currentTrack?.id) {
-      window.freeplayer.getLrc(currentTrack.id).then((result) => {
+      client.lyrics.get(currentTrack.id).then((result) => {
         if (!stale) {
           const content = result && result.content ? result.content : null;
           setLrcContent(content);
@@ -61,9 +62,9 @@ export default function NowPlaying({
 
   const handleUploadLrc = useCallback(async () => {
     if (!currentTrack?.id) return;
-    const result = await window.freeplayer.uploadLrc(currentTrack.id);
+    const result = await client.lyrics.upload(currentTrack.id);
     if (result && result.success) {
-      const lrcResult = await window.freeplayer.getLrc(currentTrack.id);
+      const lrcResult = await client.lyrics.get(currentTrack.id);
       if (lrcResult && lrcResult.content) {
         setLrcContent(lrcResult.content);
         setLrcSource(lrcResult.source || 'sidecar');
@@ -73,7 +74,7 @@ export default function NowPlaying({
 
   const handleRemoveLrc = useCallback(async () => {
     if (!currentTrack?.id) return;
-    await window.freeplayer.removeLrc(currentTrack.id);
+    await client.lyrics.remove(currentTrack.id);
     setLrcContent(null);
     setLrcSource(null);
   }, [currentTrack]);
@@ -87,7 +88,7 @@ export default function NowPlaying({
     try {
       const { saved, reason } = await fetchAndSaveLyrics(currentTrack, meta);
       if (saved) {
-        const lrcResult = await window.freeplayer.getLrc(currentTrack.id);
+        const lrcResult = await client.lyrics.get(currentTrack.id);
         if (lrcResult && lrcResult.content) {
           setLrcContent(lrcResult.content);
           setLrcSource(lrcResult.source || 'plugin');
@@ -128,14 +129,14 @@ export default function NowPlaying({
     setResetting(true);
     setResetError(null);
     try {
-      const result = await window.freeplayer.resetTrackFromFile(currentTrack.id);
+      const result = await client.tracks.resetFromFile(currentTrack.id);
       if (!result || result.success === false) {
         setResetError(result?.error || 'reset failed');
         return;
       }
-      const fresh = await window.freeplayer.getTrack(currentTrack.id).catch(() => null);
+      const fresh = await client.library.track(currentTrack.id).catch(() => null);
       if (fresh && onTrackReset) onTrackReset(fresh);
-      const lrcResult = await window.freeplayer.getLrc(currentTrack.id).catch(() => null);
+      const lrcResult = await client.lyrics.get(currentTrack.id).catch(() => null);
       setLrcContent(lrcResult && lrcResult.content ? lrcResult.content : null);
       setLrcSource(lrcResult && lrcResult.content ? (lrcResult.source || null) : null);
     } catch (err) {

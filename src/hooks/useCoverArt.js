@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { getCachedCover, setCachedCover } from '../utils/coverCache';
+import * as client from '../core/client';
 
 export function useCoverArt(track) {
   const [coverUrl, setCoverUrl] = useState(null);
@@ -12,7 +13,7 @@ export function useCoverArt(track) {
         setCoverUrl(cached);
         return;
       }
-      window.freeplayer.getCover(track.cover_path)
+      client.lyrics.getCover(track.cover_path)
         .then((url) => {
           if (!stale && url) {
             setCachedCover(track.cover_path, url);

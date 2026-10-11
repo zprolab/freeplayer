@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { needsMetadataFill } from '../services/backfill';
+import * as client from '../core/client';
 
 // One fetch attempt per track per app session; failures stay quiet.
 // meta = { fetchLyrics, fetchCover, fetchMetadata, getBackend } from the
@@ -38,13 +39,13 @@ export function useAutoMeta(currentTrack, meta, dispatch) {
       ]);
       const [lyricsOn, coverOn, metadataOn] = await Promise.all([
         lyricsBackend
-          ? window.freeplayer.getSetting(`plugin.${lyricsBackend}.autoFetch`).then(autoSettingOn).catch(() => false)
+          ? client.settings.get(`plugin.${lyricsBackend}.autoFetch`).then(autoSettingOn).catch(() => false)
           : Promise.resolve(false),
         coverBackend
-          ? window.freeplayer.getSetting(`plugin.${coverBackend}.autoFetch`).then(autoSettingOn).catch(() => false)
+          ? client.settings.get(`plugin.${coverBackend}.autoFetch`).then(autoSettingOn).catch(() => false)
           : Promise.resolve(false),
         metadataBackend
-          ? window.freeplayer.getSetting(`plugin.${metadataBackend}.autoFetch`).then(autoSettingOn).catch(() => false)
+          ? client.settings.get(`plugin.${metadataBackend}.autoFetch`).then(autoSettingOn).catch(() => false)
           : Promise.resolve(false),
       ]);
       if (!cancelled) setAuto({ lyrics: lyricsOn, cover: coverOn, metadata: metadataOn });
@@ -71,7 +72,7 @@ export function useAutoMeta(currentTrack, meta, dispatch) {
           // cover_path set but file deleted (getCover -> null) still counts
           // as missing, per the "only fetch when missing" rule.
           const coverMissing = !track.cover_path
-            || !(await window.freeplayer.getCover(track.cover_path).catch(() => null));
+            || !(await client.lyrics.getCover(track.cover_path).catch(() => null));
           if (coverMissing) {
             const { saved, coverPath: newCoverPath } = await meta.fetchCover(track);
             if (saved && newCoverPath) {
@@ -81,7 +82,7 @@ export function useAutoMeta(currentTrack, meta, dispatch) {
           }
         }
         if (auto.lyrics) {
-          const lrc = await window.freeplayer.getLrc(track.id);
+          const lrc = await client.lyrics.get(track.id);
           if (!lrc || !lrc.content) {
             const { saved } = await meta.fetchLyrics(track);
             if (saved) lyricsSaved = true;

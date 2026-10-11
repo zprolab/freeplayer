@@ -1,5 +1,6 @@
 import { useCallback, useRef } from 'react';
 import { usePlayer } from '../context/PlayerContext';
+import * as client from '../core/client';
 
 export function usePlaylists() {
   const { state, dispatch } = usePlayer();
@@ -10,7 +11,7 @@ export function usePlaylists() {
 
   const loadPlaylists = useCallback(async () => {
     try {
-      const data = await window.freeplayer.getPlaylists();
+      const data = await client.playlists.list();
       dispatch({ type: 'SET_PLAYLISTS', payload: data });
     } catch (err) {
       console.error('Failed to load playlists:', err);
@@ -25,7 +26,7 @@ export function usePlaylists() {
       activeSelectionRef.current = playlistId;
       dispatch({ type: 'SET', payload: { activePlaylistId: playlistId } });
       try {
-        const tracks = await window.freeplayer.getPlaylistTracks(playlistId);
+        const tracks = await client.playlists.tracks(playlistId);
         if (activeSelectionRef.current === playlistId) {
           dispatch({ type: 'SET_PLAYLIST_TRACKS', payload: tracks });
         }
@@ -38,7 +39,7 @@ export function usePlaylists() {
 
   const handleCreatePlaylist = useCallback(async ({ name, description, trackIds }) => {
     try {
-      const result = await window.freeplayer.createPlaylist({ name, description });
+      const result = await client.playlists.create({ name, description });
       const playlistId = result.lastInsertRowid || result.id;
 
       // Combine pendingAddTrack with selected track IDs (deduped) — copy the
@@ -49,7 +50,7 @@ export function usePlaylists() {
       }
 
       if (allTrackIds.length > 0) {
-        await window.freeplayer.addTracksToPlaylist({ playlistId, trackIds: allTrackIds });
+        await client.playlists.addTracks({ playlistId, trackIds: allTrackIds });
       }
 
       await loadPlaylists();
@@ -62,7 +63,7 @@ export function usePlaylists() {
   const handleRenamePlaylist = useCallback(async ({ name }) => {
     if (state.playlistModal?.playlist) {
       try {
-        await window.freeplayer.renamePlaylist({ id: state.playlistModal.playlist.id, name });
+        await client.playlists.rename({ id: state.playlistModal.playlist.id, name });
         await loadPlaylists();
         dispatch({ type: 'SET', payload: { playlistModal: null } });
       } catch (err) {
@@ -77,11 +78,11 @@ export function usePlaylists() {
     if (!pid) return;
 
     try {
-      await window.freeplayer.setPlaylistTracks({ playlistId: pid, trackIds });
+      await client.playlists.setTracks({ playlistId: pid, trackIds });
 
       // If editing the currently active playlist, refresh displayed tracks
       if (state.activePlaylistId === pid) {
-        const tracks = await window.freeplayer.getPlaylistTracks(pid);
+        const tracks = await client.playlists.tracks(pid);
         dispatch({ type: 'SET_PLAYLIST_TRACKS', payload: tracks });
       }
 
@@ -94,7 +95,7 @@ export function usePlaylists() {
 
   const handleDeletePlaylist = useCallback(async (playlistId) => {
     try {
-      await window.freeplayer.deletePlaylist(playlistId);
+      await client.playlists.remove(playlistId);
       if (state.activePlaylistId === playlistId) {
         dispatch({ type: 'SET', payload: { activePlaylistId: null } });
       }
@@ -106,9 +107,9 @@ export function usePlaylists() {
 
   const handleAddToPlaylist = useCallback(async (playlistId, trackId) => {
     try {
-      await window.freeplayer.addToPlaylist({ playlistId, trackId });
+      await client.playlists.addTrack({ playlistId, trackId });
       if (state.activePlaylistId === playlistId) {
-        const tracks = await window.freeplayer.getPlaylistTracks(playlistId);
+        const tracks = await client.playlists.tracks(playlistId);
         dispatch({ type: 'SET_PLAYLIST_TRACKS', payload: tracks });
       }
       await loadPlaylists();
@@ -120,8 +121,8 @@ export function usePlaylists() {
   const handleRemoveFromPlaylist = useCallback(async (trackId) => {
     if (state.activePlaylistId === null) return;
     try {
-      await window.freeplayer.removeFromPlaylist({ playlistId: state.activePlaylistId, trackId });
-      const tracks = await window.freeplayer.getPlaylistTracks(state.activePlaylistId);
+      await client.playlists.removeTrack({ playlistId: state.activePlaylistId, trackId });
+      const tracks = await client.playlists.tracks(state.activePlaylistId);
       dispatch({ type: 'SET_PLAYLIST_TRACKS', payload: tracks });
       await loadPlaylists();
     } catch (err) {

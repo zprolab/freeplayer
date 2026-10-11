@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { Button, ModalShell } from '../ui/components';
+import * as client from '../core/client';
 
 export default function ImportModal({ onClose, onComplete, importMode }) {
   const [step, setStep] = useState('select-source');
@@ -12,20 +13,20 @@ export default function ImportModal({ onClose, onComplete, importMode }) {
 
   const handleSelectSource = useCallback(async () => {
     try {
-      const result = await window.freeplayer.importDialog();
+      const result = await client.library.importDialog();
       if (result.canceled) {
         onComplete({ canceled: true });
         return;
       }
       setSourceDir(result.sourceDir);
       setStep('scanning');
-      const foundFiles = await window.freeplayer.scanDirectory(result.sourceDir);
+      const foundFiles = await client.library.scanDirectory(result.sourceDir);
       // Native returns { files, truncated, scannedCount } so the UI can warn on
       // truncation; older builds may return a bare array — accept both. Treating
       // the dict as an array here crashed the confirm screen (files.slice is not
       // a function) and blanked the whole app.
       setFiles(Array.isArray(foundFiles) ? foundFiles : (foundFiles?.files ?? []));
-      window.freeplayer?.logDiagnostic?.('import-ui', 'info', `Scan completed: ${JSON.stringify({ sourceDir: result.sourceDir, files: Array.isArray(foundFiles) ? foundFiles.length : foundFiles?.files?.length || 0, truncated: foundFiles?.truncated, scannedCount: foundFiles?.scannedCount })}`);
+      client.diagnostics.log('import-ui', 'info', `Scan completed: ${JSON.stringify({ sourceDir: result.sourceDir, files: Array.isArray(foundFiles) ? foundFiles.length : foundFiles?.files?.length || 0, truncated: foundFiles?.truncated, scannedCount: foundFiles?.scannedCount })}`);
       setStep('confirm');
     } catch (err) {
       console.error('Import scan error:', err);
@@ -39,8 +40,8 @@ export default function ImportModal({ onClose, onComplete, importMode }) {
     setError('');
     setErrorDetails([]);
     try {
-      const res = await window.freeplayer.importFiles({ files });
-      window.freeplayer?.logDiagnostic?.('import-ui', 'info', `Import response: ${JSON.stringify(res)}`);
+      const res = await client.library.importFiles({ files });
+      client.diagnostics.log('import-ui', 'info', `Import response: ${JSON.stringify(res)}`);
       setResult(res);
       if (res.error) {
         setError(res.error);
@@ -55,7 +56,7 @@ export default function ImportModal({ onClose, onComplete, importMode }) {
       }
     } catch (err) {
       console.error('Import error:', err);
-      window.freeplayer?.logDiagnostic?.('import-ui', 'error', `Import exception: ${err?.stack || err?.message || String(err)}`);
+      client.diagnostics.log('import-ui', 'error', `Import exception: ${err?.stack || err?.message || String(err)}`);
       setError(err.message || 'Import failed');
       setStep('error');
     }

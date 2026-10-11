@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef } from 'react';
 import { usePlayer } from '../context/PlayerContext';
 import { computeNextIndex, computePrevIndex, buildShuffleOrder } from './playQueue';
 import { getPlaybackEngine } from '../player/playbackEngine';
+import * as client from '../core/client';
 
 // React adapter over PlaybackEngine.
 //
@@ -115,7 +116,7 @@ export function usePlayback() {
     const v = Math.min(Math.max(vol, 0), 1);
     engine.setVolume(v);
     dispatch({ type: 'SET_VOLUME', payload: v });
-    window.freeplayer.setSetting({ key: 'volume', value: String(v) })
+    client.settings.set('volume', String(v))
       .catch(() => {});
   }, [engine, dispatch]);
 
@@ -158,10 +159,10 @@ export function usePlayback() {
           break;
         case 'error':
           console.error('Audio error:', payload.name, payload.message || '', 'src:', payload.src);
-          window.freeplayer?.logDiagnostic?.('playback', 'error', `Audio error: ${JSON.stringify(payload)}`);
+          client.diagnostics.log('playback', 'error', `Audio error: ${JSON.stringify(payload)}`);
           break;
         case 'mediastate':
-          window.freeplayer?.logDiagnostic?.('playback', 'info', `Media event ${payload.type}: ${JSON.stringify(payload)}`);
+          client.diagnostics.log('playback', 'info', `Media event ${payload.type}: ${JSON.stringify(payload)}`);
           break;
         default:
           break;
@@ -197,14 +198,14 @@ export function usePlayback() {
   // Push playback state to the main process for the tray menu. The native side
   // only reads isPlaying, so re-sending on track change carries no information.
   useEffect(() => {
-    window.freeplayer?.sendPlaybackState(state.isPlaying);
+      // The client rejects when there is no bridge; this is fire-and-forget.
+      client.playback.sendState(state.isPlaying).catch(() => {});
   }, [state.isPlaying]);
 
   // System media keys — one global handler, dispatching through the ref so the
   // latest handlers are used. Unmount re-registers a no-op rather than leaving a
   // stale handler dispatching into unmounted state.
   useEffect(() => {
-    if (!window.freeplayer.onMediaKey) return;
     const handler = (action) => {
       const h = playHandlersRef.current;
       switch (action) {
@@ -213,9 +214,9 @@ export function usePlayback() {
         case 'previous': h.handlePrev(); break;
       }
     };
-    window.freeplayer.onMediaKey(handler);
+    client.playback.onMediaKey(handler);
     return () => {
-      window.freeplayer.onMediaKey(() => {});
+      client.playback.onMediaKey(() => {});
     };
   }, []);
 

@@ -3,6 +3,7 @@ import EditModal from './EditModal';
 import PlaylistMenu from './PlaylistMenu';
 import { formatTime } from '../utils/format';
 import { IconButton } from '../ui/components';
+import * as client from '../core/client';
 
 const SORT_COLUMNS = [
   { key: 'title', label: 'Title', width: 'auto' },
@@ -67,7 +68,7 @@ const Library = memo(function Library({
 
   const handleDelete = async () => {
     if (contextMenu) {
-      await window.freeplayer.deleteTrack(contextMenu.track.id);
+      await client.tracks.remove(contextMenu.track.id);
       setContextMenu(null);
       onTracksChanged?.();
     }
@@ -87,14 +88,14 @@ const Library = memo(function Library({
 
   const handleUploadLrc = async () => {
     if (contextMenu) {
-      await window.freeplayer.uploadLrc(contextMenu.track.id);
+      await client.lyrics.upload(contextMenu.track.id);
       setContextMenu(null);
     }
   };
 
   const handleRemoveLrc = async () => {
     if (contextMenu) {
-      await window.freeplayer.removeLrc(contextMenu.track.id);
+      await client.lyrics.remove(contextMenu.track.id);
       setContextMenu(null);
     }
   };

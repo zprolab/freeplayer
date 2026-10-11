@@ -75,7 +75,7 @@ describe('createPluginApi', () => {
     expect(deps.settings.get).toHaveBeenLastCalledWith('plugin.p1.plugin_perms_musicbrainz-meta');
     // writes land in the plugin's own namespace
     await api.settings.set('apiToken', 's3cret');
-    expect(deps.settings.set).toHaveBeenCalledWith({ key: 'plugin.p1.apiToken', value: 's3cret' });
+    expect(deps.settings.set).toHaveBeenCalledWith('plugin.p1.apiToken', 's3cret');
     // already-namespaced own keys are not double-prefixed
     await api.settings.get('plugin.p1.apiToken');
     expect(deps.settings.get).toHaveBeenLastCalledWith('plugin.p1.apiToken');

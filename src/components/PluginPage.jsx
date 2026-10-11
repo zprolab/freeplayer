@@ -3,6 +3,7 @@ import { ToggleSwitch } from '../ui/components';
 import { Button } from '../ui/components';
 import { sanitizeSvgIcon } from '../plugins/svgIcon';
 import { backfillMissing, isBackfillRunning, needsMetadataFill } from '../services/backfill';
+import * as client from '../core/client';
 
 
 const PERM_DESC = {
@@ -52,7 +53,7 @@ export default function PluginPage({ registry, meta, tracks }) {
     if (!openDetail) return;
     let cancelled = false;
     (async () => {
-      const v = await window.freeplayer.getSetting(`plugin.${openDetail}.autoFetch`).catch(() => null);
+      const v = await client.settings.get(`plugin.${openDetail}.autoFetch`).catch(() => null);
       if (cancelled) return;
       const s = String(v ?? '').toLowerCase();
       setAutoFetch((a) => ({ ...a, [openDetail]: s === '1' || s === '1.0' || s === 'true' || s === 'yes' || s === 'on' }));
@@ -62,7 +63,7 @@ export default function PluginPage({ registry, meta, tracks }) {
 
   const handleAutoFetchChange = (pluginId, val) => {
     setAutoFetch((a) => ({ ...a, [pluginId]: val }));
-    window.freeplayer.setSetting({ key: `plugin.${pluginId}.autoFetch`, value: val ? '1' : '0' }).catch(() => {});
+    client.settings.set(`plugin.${pluginId}.autoFetch`, val ? '1' : '0').catch(() => {});
   };
 
   const handleBackfill = async (p, kind, force = false) => {
@@ -83,12 +84,12 @@ export default function PluginPage({ registry, meta, tracks }) {
       ),
       missingCheck: async (t) => {
         if (kind === 'lyrics') {
-          const lrc = await window.freeplayer.getLrc(t.id).catch(() => null);
+          const lrc = await client.lyrics.get(t.id).catch(() => null);
           return !lrc || !lrc.content;
         }
         if (kind === 'cover') {
           return !t.cover_path
-            || !(await window.freeplayer.getCover(t.cover_path).catch(() => null));
+            || !(await client.lyrics.getCover(t.cover_path).catch(() => null));
         }
         return needsMetadataFill(t);
       },
@@ -108,7 +109,7 @@ export default function PluginPage({ registry, meta, tracks }) {
       const entries = await Promise.all(p.manifest.settings.map(async (s) => {
         let value = s.default;
         try {
-          const stored = await window.freeplayer.getSetting(`plugin.${p.id}.${s.key}`);
+          const stored = await client.settings.get(`plugin.${p.id}.${s.key}`);
           if (stored != null) {
             try { value = JSON.parse(stored); } catch { value = stored; }
           }
@@ -123,7 +124,7 @@ export default function PluginPage({ registry, meta, tracks }) {
 
   useEffect(() => {
     if (openDetail !== 'diagnostics-log') return;
-    window.freeplayer?.getDiagnosticsPath?.().then(setDiagnosticsPath).catch(() => {});
+    client.diagnostics.path().then(setDiagnosticsPath).catch(() => {});
   }, [openDetail]);
 
   // "Never enabled" — the grants-dialog condition. Independent of seen: a
@@ -139,7 +140,7 @@ export default function PluginPage({ registry, meta, tracks }) {
   function markSeen(id) {
     if (seen[id]) return;
     setSeen((s) => ({ ...s, [id]: true }));
-    window.freeplayer.setSetting({ key: `plugin_seen_${id}`, value: '1' }).catch(() => {});
+    client.settings.set(`plugin_seen_${id}`, '1').catch(() => {});
   }
 
   function openPlugin(id) {
@@ -154,7 +155,7 @@ export default function PluginPage({ registry, meta, tracks }) {
     (async () => {
       const entries = await Promise.all(plugins.map(async (p) => {
         try {
-          return [p.id, (await window.freeplayer.getSetting(`plugin_seen_${p.id}`)) === '1'];
+          return [p.id, (await client.settings.get(`plugin_seen_${p.id}`)) === '1'];
         } catch { return [p.id, false]; }
       }));
       if (cancelled) return;
@@ -167,7 +168,7 @@ export default function PluginPage({ registry, meta, tracks }) {
   function handleSettingChange(p, s, value) {
     setSettingsValues((v) => ({ ...v, [p.id]: { ...(v[p.id] || {}), [s.key]: value } }));
     // JSON 序列化保持类型：number/boolean 存字面量（"1200"/"true"），读取时 JSON.parse 还原
-    window.freeplayer.setSetting({ key: `plugin.${p.id}.${s.key}`, value: JSON.stringify(value) }).catch(() => {});
+    client.settings.set(`plugin.${p.id}.${s.key}`, JSON.stringify(value)).catch(() => {});
   }
 
   const refresh = useCallback(async () => {
@@ -191,9 +192,9 @@ export default function PluginPage({ registry, meta, tracks }) {
     (async () => {
       try {
         const [lyrics, cover, metadata] = await Promise.all([
-          window.freeplayer.getSetting('meta.lyricsBackend'),
-          window.freeplayer.getSetting('meta.coverBackend'),
-          window.freeplayer.getSetting('meta.metadataBackend'),
+          client.settings.get('meta.lyricsBackend'),
+          client.settings.get('meta.coverBackend'),
+          client.settings.get('meta.metadataBackend'),
         ]);
         if (cancelled) return;
         setSettingsValues((s) => ({
@@ -234,8 +235,8 @@ export default function PluginPage({ registry, meta, tracks }) {
       } else {
         await registry.disable(p.id);
       }
-      if (p.id === 'diagnostics-log' && window.freeplayer?.setDiagnosticsEnabled) {
-        await window.freeplayer.setDiagnosticsEnabled(enabled);
+      if (p.id === 'diagnostics-log') {
+        await client.diagnostics.enable(enabled);
       }
       await refresh();
     } catch (err) {
@@ -246,8 +247,8 @@ export default function PluginPage({ registry, meta, tracks }) {
   async function confirmEnable() {
     try {
       await registry.enable(pendingPlugin.id, pendingGrants);
-      if (pendingPlugin.id === 'diagnostics-log' && window.freeplayer?.setDiagnosticsEnabled) {
-        await window.freeplayer.setDiagnosticsEnabled(true);
+      if (pendingPlugin.id === 'diagnostics-log') {
+        await client.diagnostics.enable(true);
       }
       setOpenDetail(pendingPlugin.id); setDetailTab('settings');
       setPendingPlugin(null);
@@ -293,7 +294,7 @@ export default function PluginPage({ registry, meta, tracks }) {
                 const next = { ...seen };
                 noticePlugins.forEach((p) => {
                   next[p.id] = true;
-                  window.freeplayer.setSetting({ key: `plugin_seen_${p.id}`, value: '1' }).catch(() => {});
+                  client.settings.set(`plugin_seen_${p.id}`, '1').catch(() => {});
                 });
                 setSeen(next);
               }}
@@ -335,7 +336,7 @@ export default function PluginPage({ registry, meta, tracks }) {
         ))}
         <div className="plugins-footer">
           <Button variant="secondary" onClick={refresh} disabled={refreshing}>{refreshing ? 'Refreshing…' : 'Refresh'}</Button>
-          <Button variant="secondary" onClick={() => window.freeplayer.openPluginsDir()}>Open Plugins Folder</Button>
+          <Button variant="secondary" onClick={() => client.plugins.openDirectory()}>Open Plugins Folder</Button>
           <span className="plugins-dir-path">~/Library/Application Support/FreePlayer/plugins/</span>
         </div>
       </div>
@@ -465,7 +466,7 @@ export default function PluginPage({ registry, meta, tracks }) {
                       <span className="playback-label">Lyrics backend</span>
                       <span className="playback-hint">Source used when fetching lyrics</span>
                     </div>
-                    <select className="plugin-select" value={settingsValues.lyricsBackend || 'lrclib-lyrics'} onChange={(e) => { setSettingsValues((s) => ({ ...s, lyricsBackend: e.target.value })); window.freeplayer.setSetting({ key: 'meta.lyricsBackend', value: e.target.value }); }}>
+                    <select className="plugin-select" value={settingsValues.lyricsBackend || 'lrclib-lyrics'} onChange={(e) => { setSettingsValues((s) => ({ ...s, lyricsBackend: e.target.value })); client.settings.set('meta.lyricsBackend', e.target.value); }}>
                       {plugins.filter((x) => x.manifest.provides?.lyrics && (x.perms.enabled || x.status === 'active')).map((x) => (
                         <option key={x.id} value={x.id}>{x.manifest.name}{x.id === (settingsValues.lyricsBackend || 'lrclib-lyrics') ? ' (current)' : ''}</option>
                       ))}
@@ -478,7 +479,7 @@ export default function PluginPage({ registry, meta, tracks }) {
                       <span className="playback-label">Cover backend</span>
                       <span className="playback-hint">Source used when fetching artwork</span>
                     </div>
-                    <select className="plugin-select" value={settingsValues.coverBackend || 'itunes-cover'} onChange={(e) => { setSettingsValues((s) => ({ ...s, coverBackend: e.target.value })); window.freeplayer.setSetting({ key: 'meta.coverBackend', value: e.target.value }); }}>
+                    <select className="plugin-select" value={settingsValues.coverBackend || 'itunes-cover'} onChange={(e) => { setSettingsValues((s) => ({ ...s, coverBackend: e.target.value })); client.settings.set('meta.coverBackend', e.target.value); }}>
                       {plugins.filter((x) => x.manifest.provides?.cover && (x.perms.enabled || x.status === 'active')).map((x) => (
                         <option key={x.id} value={x.id}>{x.manifest.name}{x.id === (settingsValues.coverBackend || 'itunes-cover') ? ' (current)' : ''}</option>
                       ))}
@@ -491,7 +492,7 @@ export default function PluginPage({ registry, meta, tracks }) {
                       <span className="playback-label">Metadata backend</span>
                       <span className="playback-hint">Source used for filling in missing track fields</span>
                     </div>
-                    <select className="plugin-select" value={settingsValues.metadataBackend || 'musicbrainz-meta'} onChange={(e) => { setSettingsValues((s) => ({ ...s, metadataBackend: e.target.value })); window.freeplayer.setSetting({ key: 'meta.metadataBackend', value: e.target.value }); }}>
+                    <select className="plugin-select" value={settingsValues.metadataBackend || 'musicbrainz-meta'} onChange={(e) => { setSettingsValues((s) => ({ ...s, metadataBackend: e.target.value })); client.settings.set('meta.metadataBackend', e.target.value); }}>
                       {plugins.filter((x) => x.manifest.provides?.metadata && (x.perms.enabled || x.status === 'active')).map((x) => (
                         <option key={x.id} value={x.id}>{x.manifest.name}{x.id === (settingsValues.metadataBackend || 'musicbrainz-meta') ? ' (current)' : ''}</option>
                       ))}

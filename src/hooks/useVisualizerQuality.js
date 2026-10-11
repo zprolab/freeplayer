@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { audioEngine } from '../audio/audioEngine';
+import * as client from '../core/client';
 
 // ── Analysis quality tiers ──
 // One knob trades frequency resolution against time resolution (inversely
@@ -55,7 +56,7 @@ export function useVisualizerQuality() {
     // The stored preference may differ from the module default: normalise on
     // mount so both surfaces agree with what will actually be analysed.
     let cancelled = false;
-    window.freeplayer?.getSetting?.(SETTING_KEY)
+    client.settings.get(SETTING_KEY)
       .then((saved) => {
         if (cancelled) return;
         const tier = tierFor(saved);
@@ -72,7 +73,7 @@ export function useVisualizerQuality() {
     const tier = applyQualityTier(id);
     // Persist, and surface a rejection: a silent failure here is exactly how
     // this preference used to be dropped (the native key was not allowlisted).
-    window.freeplayer?.setSetting?.({ key: SETTING_KEY, value: tier.id })
+    client.settings.set(SETTING_KEY, tier.id)
       .then((ok) => {
         if (ok === false) console.error('Could not save the analysis quality setting');
       })

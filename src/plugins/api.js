@@ -117,7 +117,7 @@ export function createPluginApi(pluginId, granted, deps) {
     },
     settings: {
       get: (key) => deps.settings.get(scopedSettingKey(pluginId, key)),
-      set: (key, value) => deps.settings.set({ key: scopedSettingKey(pluginId, key), value }),
+      set: (key, value) => deps.settings.set(scopedSettingKey(pluginId, key), value),
     },
     pluginSettings: {
       get: (key) => deps.pluginSettings.get(`${pluginId}.${key}`),
