@@ -48,15 +48,29 @@ function logFracOfFreq(freq) {
 // Per-column FFT bin index for a plot of `plotW` pixels. Cached because the
 // spectrogram inner loop runs once per pixel per frame — calling Math.log there
 // would cost ~1M calls/frame.
-let logBinMap = { key: '', map: null };
+//
+// A MAP, not a single slot. The two callers use different geometries — the
+// spectrogram maps `dplotW` columns, the spectrum maps `barCount` bars — so a
+// one-entry cache would be evicted by whichever ran last and rebuild a
+// 1300-entry Int32Array (plus its Math.log calls) on every frame. It happens to
+// hold today only because each mode calls one of them per frame; alternating
+// callers would thrash it.
+const LOG_BIN_CACHE_MAX = 6;
+const logBinMaps = new Map();
 function getLogBinMap(plotW, binCount, sampleRate) {
   const key = `${plotW}:${binCount}:${sampleRate}`;
-  if (logBinMap.key === key && logBinMap.map) return logBinMap.map;
+  const hit = logBinMaps.get(key);
+  if (hit) return hit;
   const map = new Int32Array(plotW);
   for (let px = 0; px < plotW; px++) {
     map[px] = binIndexAt(px, plotW, binCount, sampleRate);
   }
-  logBinMap = { key, map };
+  // Bound the cache: geometries change on resize, and this must not grow with
+  // every window size the user drags through.
+  if (logBinMaps.size >= LOG_BIN_CACHE_MAX) {
+    logBinMaps.delete(logBinMaps.keys().next().value);
+  }
+  logBinMaps.set(key, map);
   return map;
 }
 
@@ -108,14 +122,29 @@ const SPECTRO_LUT = (() => {
   return lut;
 })();
 
-// ── Spectrogram history buffer (module-level, survives remount) ──
-let spectrogramBuffer = null;
-
-// Reusable per-frame buffers (avoid 2+ heap allocations per animation frame)
-let sharedTimeData = null;
-let sharedFreqData = null;
-let specImageData = null;
-let scratchRow = new Uint8ClampedArray(0);
+// Per-frame scratch buffers.
+//
+// These were module-level, i.e. SHARED BY EVERY INSTANCE. That works only
+// because exactly one visualizer is mounted today: a second one would overwrite
+// the first's spectrogram history, its ImageData and its envelope buffers, and
+// the symptom would be two scopes showing each other's frames with nothing in
+// the logs. They are per-instance now, created once per mount and threaded
+// through the draw calls, so a second instance is simply independent.
+//
+// Still reused across frames rather than reallocated — that was the point of
+// hoisting them in the first place.
+function createScratch() {
+  return {
+    spectrogram: null,       // ring of Uint8Array rows, survives remounts in-instance
+    imageData: null,         // spectrogram ImageData
+    row: new Uint8ClampedArray(0),  // one decoded row, blitted per screen row
+    freq: null,              // getByteFrequencyData target
+    time: null,              // getByteTimeDomainData target
+    waveMin: null,           // waveform envelope, per column
+    waveMax: null,
+    bars: null,              // spectrum bar levels
+  };
+}
 
 // ═══════════════════════════════════════════════════════════════
 //  Component
@@ -125,6 +154,15 @@ export default function WaveformVisualizer({ audioElement, trackId, mode, onMode
   const canvasRef = useRef(null);
   const ctxRef = useRef(null);
   const animFrameRef = useRef(null);
+  // Per-instance scratch, created once and reused across frames — see
+  // createScratch() for why this is not module-level state.
+  //
+  // Created inside an effect rather than during render: `if (!ref.current)
+  // ref.current = ...` is the usual lazy-init pattern but it reads a ref while
+  // rendering (react-hooks/refs), and useState would forbid mutating the buffers
+  // it holds (react-hooks/immutability). A ref filled from effects is the shape
+  // this actually is: a stable mutable box that nothing renders from directly.
+  const scratchRef = useRef(null);
   // Shared with the Settings page: the engine owns the live fftSize and both
   // surfaces subscribe, so changing it in one place updates the other.
   const { quality: qualitySize, changeQuality, tiers: qualityTiers } = useVisualizerQuality();
@@ -134,7 +172,8 @@ export default function WaveformVisualizer({ audioElement, trackId, mode, onMode
   // analysis resolution changes: the history rows are allocated per bin count,
   // so rows filled at the previous fftSize would render at the wrong width.
   useEffect(() => {
-    spectrogramBuffer = null;
+    const scratch = (scratchRef.current ??= createScratch());
+    scratch.spectrogram = null;
   }, [trackId, quality]);
 
   // Resume suspended context on play
@@ -187,6 +226,7 @@ export default function WaveformVisualizer({ audioElement, trackId, mode, onMode
     if (!canvas) return;
 
     let running = true;
+    const scratch = (scratchRef.current ??= createScratch());
 
     const schedule = () => {
       if (!running) return;
@@ -218,19 +258,19 @@ export default function WaveformVisualizer({ audioElement, trackId, mode, onMode
       // getByteTimeDomainData needs an fftSize-long array (the FFT input
       // window), not frequencyBinCount (its half): handing it a shorter buffer
       // silently drops the tail of every analysis window.
-      if (!sharedFreqData || sharedFreqData.length !== bufferLen
-          || !sharedTimeData || sharedTimeData.length !== an.fftSize) {
-        sharedFreqData = new Uint8Array(bufferLen);
-        sharedTimeData = new Uint8Array(an.fftSize);
+      if (!scratch.freq || scratch.freq.length !== bufferLen
+          || !scratch.time || scratch.time.length !== an.fftSize) {
+        scratch.freq = new Uint8Array(bufferLen);
+        scratch.time = new Uint8Array(an.fftSize);
       }
-      an.getByteFrequencyData(sharedFreqData);
-      an.getByteTimeDomainData(sharedTimeData);
+      an.getByteFrequencyData(scratch.freq);
+      an.getByteTimeDomainData(scratch.time);
 
       const sampleRate = audioEngine.ctx?.sampleRate || 44100;
       if (mode === 'spectrogram') {
-        drawSpectrogramMode(ctx, sharedFreqData, bufferLen, W, H, sampleRate);
+        drawSpectrogramMode(ctx, scratch.freq, bufferLen, W, H, sampleRate, scratch);
       } else {
-        drawWaveformMode(ctx, sharedFreqData, sharedTimeData, bufferLen, W, H, sampleRate);
+        drawWaveformMode(ctx, scratch.freq, scratch.time, bufferLen, W, H, sampleRate, scratch);
       }
 
       schedule();
@@ -332,7 +372,7 @@ export default function WaveformVisualizer({ audioElement, trackId, mode, onMode
 //  Mode: Waveform + Spectrum bars
 // ═══════════════════════════════════════════════════════════════
 
-function drawWaveformMode(ctx, freqData, timeData, bufferLen, W, H, sampleRate) {
+function drawWaveformMode(ctx, freqData, timeData, bufferLen, W, H, sampleRate, scratch) {
   // Solid background — prevents transparent-canvas bleed-through
   ctx.fillStyle = BG_COLOR;
   ctx.fillRect(0, 0, W, H);
@@ -345,7 +385,7 @@ function drawWaveformMode(ctx, freqData, timeData, bufferLen, W, H, sampleRate) 
   const spBaseline = spTop + spH;
 
   drawGrid(ctx, W, H, wfTop, wfH, spTop, spH, spBaseline);
-  drawWaveform(ctx, timeData, W, wfTop, wfH);
+  drawWaveform(ctx, timeData, W, wfTop, wfH, scratch);
 
   // Check if any frequency data is above noise floor (P2: no spread — the
   // 1024-element spread allocates an argument array every frame)
@@ -357,7 +397,7 @@ function drawWaveformMode(ctx, freqData, timeData, bufferLen, W, H, sampleRate) 
   // the same energy over more bins, so the low bands sit close to 0 even with
   // music playing — a high threshold would blank the panel's left third.
   if (maxFreq > 2) {
-    drawSpectrum(ctx, freqData, W, spTop, spH, sampleRate);
+    drawSpectrum(ctx, freqData, W, spTop, spH, sampleRate, scratch);
   }
 
   drawLabels(ctx, W, H, wfTop, wfH, spBaseline);
@@ -372,7 +412,7 @@ function drawWaveformMode(ctx, freqData, timeData, bufferLen, W, H, sampleRate) 
 //  Mode: Spectrogram (waterfall heatmap)
 // ═══════════════════════════════════════════════════════════════
 
-function drawSpectrogramMode(ctx, freqData, bufferLen, W, H, sampleRate) {
+function drawSpectrogramMode(ctx, freqData, bufferLen, W, H, sampleRate, scratch) {
   ctx.fillStyle = BG_COLOR;
   ctx.fillRect(0, 0, W, H);
 
@@ -387,13 +427,13 @@ function drawSpectrogramMode(ctx, freqData, bufferLen, W, H, sampleRate) {
   const numRows = Math.max(MIN_SPECTROGRAM_ROWS, Math.min(MAX_SPECTROGRAM_ROWS, Math.floor(plotH)));
 
   // Initialize or resize spectrogram buffer
-  if (!spectrogramBuffer) {
-    spectrogramBuffer = new Array(numRows);
+  if (!scratch.spectrogram) {
+    scratch.spectrogram = new Array(numRows);
     for (let i = 0; i < numRows; i++) {
-      spectrogramBuffer[i] = new Uint8Array(bufferLen);
+      scratch.spectrogram[i] = new Uint8Array(bufferLen);
     }
-  } else if (spectrogramBuffer.length !== numRows) {
-    const oldLen = spectrogramBuffer.length;
+  } else if (scratch.spectrogram.length !== numRows) {
+    const oldLen = scratch.spectrogram.length;
     const newBuffer = new Array(numRows);
     if (numRows > oldLen) {
       const diff = numRows - oldLen;
@@ -401,27 +441,27 @@ function drawSpectrogramMode(ctx, freqData, bufferLen, W, H, sampleRate) {
         newBuffer[i] = new Uint8Array(bufferLen);
       }
       for (let i = 0; i < oldLen; i++) {
-        newBuffer[diff + i] = spectrogramBuffer[i];
+        newBuffer[diff + i] = scratch.spectrogram[i];
       }
     } else {
       const diff = oldLen - numRows;
       for (let i = 0; i < numRows; i++) {
-        newBuffer[i] = spectrogramBuffer[diff + i];
+        newBuffer[i] = scratch.spectrogram[diff + i];
       }
     }
-    spectrogramBuffer = newBuffer;
+    scratch.spectrogram = newBuffer;
   }
 
   // Shift history up, append new frequency data at the end (byte copies —
   // see pushSpectrogramFrame; reference-shifting would alias all rows onto
   // the newest frame and wipe the scroll history).
-  spectrogramBuffer = pushSpectrogramFrame(spectrogramBuffer, numRows, freqData);
+  scratch.spectrogram = pushSpectrogramFrame(scratch.spectrogram, numRows, freqData);
 
   // DIAGNOSTIC (FP_SPECTRO_TEST=1, dev builds only): overwrite the newest row
   // with a known 4-quadrant brightness pattern to verify frequency mapping:
   //   left 1/4 = 255 (loudest) -> right 1/4 = 0 (silent)
   if (import.meta.env.DEV && window.__FP_SPECTRO_TEST) {
-    const testRow = spectrogramBuffer[numRows - 1];
+    const testRow = scratch.spectrogram[numRows - 1];
     const q = bufferLen / 4;
     for (let i = 0; i < bufferLen; i++) {
       testRow[i] = i < q ? 255 : i < q * 2 ? 170 : i < q * 3 ? 85 : 0;
@@ -443,10 +483,10 @@ function drawSpectrogramMode(ctx, freqData, bufferLen, W, H, sampleRate) {
   const dplotH = dh - dmTop - dmBottom;
   if (dplotW <= 0 || dplotH <= 0) return;
 
-  if (!specImageData || specImageData.width !== dplotW || specImageData.height !== dplotH) {
-    specImageData = ctx.createImageData(dplotW, dplotH);
+  if (!scratch.imageData || scratch.imageData.width !== dplotW || scratch.imageData.height !== dplotH) {
+    scratch.imageData = ctx.createImageData(dplotW, dplotH);
   }
-  const pixels = specImageData.data;
+  const pixels = scratch.imageData.data;
 
   // Log-frequency column → FFT bin map (precomputed; see getLogBinMap).
   // Below ~150 Hz one bin covers many columns, so the bass shows as flat
@@ -458,18 +498,18 @@ function drawSpectrogramMode(ctx, freqData, bufferLen, W, H, sampleRate) {
   // a nested (row, column, duplicate-line) loop. The old shape wrote each
   // logical row dRowH times — 2x the pixels at 1.5x DPR — and cost ~3.3 ms a
   // frame; blitting a prepared row brings that to ~1 ms.
-  if (scratchRow.length < dplotW * 4) scratchRow = new Uint8ClampedArray(dplotW * 4);
+  if (scratch.row.length < dplotW * 4) scratch.row = new Uint8ClampedArray(dplotW * 4);
   for (let row = 0; row < numRows; row++) {
-    const srcRow = spectrogramBuffer[row];
+    const srcRow = scratch.spectrogram[row];
 
     for (let px = 0; px < dplotW; px++) {
       const srcVal = srcRow[binForColumn[px]];
       const lo = srcVal * 4;
       const o = px * 4;
-      scratchRow[o] = SPECTRO_LUT[lo];
-      scratchRow[o + 1] = SPECTRO_LUT[lo + 1];
-      scratchRow[o + 2] = SPECTRO_LUT[lo + 2];
-      scratchRow[o + 3] = 255;
+      scratch.row[o] = SPECTRO_LUT[lo];
+      scratch.row[o + 1] = SPECTRO_LUT[lo + 1];
+      scratch.row[o + 2] = SPECTRO_LUT[lo + 2];
+      scratch.row[o + 3] = 255;
     }
 
     // row 0 is the oldest frame. Paint it into the band [y0, y1) so the whole
@@ -477,14 +517,14 @@ function drawSpectrogramMode(ctx, freqData, bufferLen, W, H, sampleRate) {
     const y0 = Math.round(((numRows - 1 - row) / numRows) * dplotH);
     const y1 = row === 0 ? dplotH : Math.round(((numRows - row) / numRows) * dplotH);
     if (y1 <= y0) continue;
-    const blit = scratchRow.subarray(0, dplotW * 4);
+    const blit = scratch.row.subarray(0, dplotW * 4);
     const base = y0 * dplotW * 4;
     for (let y = y0; y < y1; y++) {
       pixels.set(blit, base + (y - y0) * dplotW * 4);
     }
   }
 
-  ctx.putImageData(specImageData, dmLeft, dmTop);
+  ctx.putImageData(scratch.imageData, dmLeft, dmTop);
 
   // Grid overlay
   ctx.strokeStyle = 'rgba(16, 133, 72, 0.10)';
@@ -610,17 +650,14 @@ function drawGrid(ctx, W, H, wfTop, wfH, spTop, spH, spBaseline) {
 }
 
 // Min/max envelope scratch buffers (module-level, sized on demand)
-let waveMinBuf = null;
-let waveMaxBuf = null;
-
-function drawWaveform(ctx, timeData, W, wfTop, wfH) {
+function drawWaveform(ctx, timeData, W, wfTop, wfH, scratch) {
   const midY = wfTop + wfH / 2;
   const amplitude = wfH * 0.46;
   const n = timeData.length;
   const cols = Math.max(1, Math.round(W));
-  if (!waveMinBuf || waveMinBuf.length !== cols) {
-    waveMinBuf = new Float32Array(cols);
-    waveMaxBuf = new Float32Array(cols);
+  if (!scratch.waveMin || scratch.waveMin.length !== cols) {
+    scratch.waveMin = new Float32Array(cols);
+    scratch.waveMax = new Float32Array(cols);
   }
 
   // One min/max pair per pixel column instead of one sampled point. Drawing
@@ -641,16 +678,16 @@ function drawWaveform(ctx, timeData, W, wfTop, wfH) {
       if (v < lo) lo = v;
       if (v > hi) hi = v;
     }
-    waveMinBuf[px] = midY + (lo / 128.0 - 1) * amplitude;
-    waveMaxBuf[px] = midY + (hi / 128.0 - 1) * amplitude;
+    scratch.waveMin[px] = midY + (lo / 128.0 - 1) * amplitude;
+    scratch.waveMax[px] = midY + (hi / 128.0 - 1) * amplitude;
   }
 
   const buildPath = () => {
     ctx.beginPath();
-    ctx.moveTo(0, waveMaxBuf[0]);
-    for (let px = 1; px < cols; px++) ctx.lineTo(px, waveMaxBuf[px]);
-    for (let px = cols - 1; px >= 0; px--) ctx.lineTo(px, waveMinBuf[px]);
-    ctx.lineTo(0, waveMaxBuf[0]);
+    ctx.moveTo(0, scratch.waveMax[0]);
+    for (let px = 1; px < cols; px++) ctx.lineTo(px, scratch.waveMax[px]);
+    for (let px = cols - 1; px >= 0; px--) ctx.lineTo(px, scratch.waveMin[px]);
+    ctx.lineTo(0, scratch.waveMax[0]);
     ctx.closePath();
   };
 
@@ -669,7 +706,7 @@ function drawWaveform(ctx, timeData, W, wfTop, wfH) {
   ctx.stroke();
 }
 
-function drawSpectrum(ctx, dataArray, W, spTop, spH, sampleRate) {
+function drawSpectrum(ctx, dataArray, W, spTop, spH, sampleRate, scratch) {
   const barCount = 128;
   const totalW = W - 20;
   const startX = 10;
@@ -683,7 +720,9 @@ function drawSpectrum(ctx, dataArray, W, spTop, spH, sampleRate) {
   // repeats a single measurement — that granularity is the FFT's, not the
   // mapping's (see ANALYSIS_FFT_SIZE), and no amount of per-bar blending adds
   // information the analyser never measured.
-  const levels = new Float64Array(barCount);
+  // Reused rather than allocated: this ran once per frame.
+  if (!scratch.bars || scratch.bars.length !== barCount) scratch.bars = new Float64Array(barCount);
+  const levels = scratch.bars;
   for (let i = 0; i < barCount; i++) {
     const binLo = binForColumn[i];
     const binHi = i + 1 < barCount ? Math.max(binForColumn[i + 1], binLo + 1) : dataArray.length;
