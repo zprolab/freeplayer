@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { sourceLabel, sourceKind, SOURCE_LABELS } from '../src/utils/provenance';
+import { sourceLabel, sourceKind, SOURCE_LABELS } from '@/features/metadata/provenance';
 
 describe('provenance', () => {
   it('labels every source the shell records', () => {

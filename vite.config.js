@@ -59,6 +59,12 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),
+      // Repo-root files reachable from src/: the logo and the licence texts the
+      // About and onboarding screens render. Aliased because a relative
+      // '../../assets/logo.svg' silently broke the moment a component moved one
+      // level deeper during the restructure — twice, in different files.
+      '@assets': fileURLToPath(new URL('./assets', import.meta.url)),
+      '@root': fileURLToPath(new URL('.', import.meta.url)),
     },
   },
 });

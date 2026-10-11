@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { EQ_PRESETS, EQ_MIN, EQ_MAX, sliderFrac, eqResponseDb, eqOctaveAt } from '../src/audio/eqPresets';
-import { AudioEngine } from '../src/audio/audioEngine';
+import { EQ_PRESETS, EQ_MIN, EQ_MAX, sliderFrac, eqResponseDb, eqOctaveAt } from '@/features/playback/eqPresets';
+import { AudioEngine } from '@/features/playback/audio';
 
 describe('EQ presets data', () => {
   it('has 6 presets with 10 bands each', () => {

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { backfillMissing, cancelBackfill, isBackfillRunning, needsMetadataFill } from '../src/services/backfill';
+import { backfillMissing, cancelBackfill, isBackfillRunning, needsMetadataFill } from '@/features/library/backfill';
 
 describe('needsMetadataFill', () => {
   it('flags tracks with missing or unknown title/artist/album', () => {

@@ -1,7 +1,7 @@
-import { collectModuleGraph, rewriteModule, resolveRelPath } from './collect';
-import { wrapApi } from './api';
-import { hookTimeout } from './hooks';
-import sandboxSource from './sandbox.js?raw';
+import { collectModuleGraph, rewriteModule, resolveRelPath } from '@/plugins/collect.js';
+import { wrapApi } from '@/plugins/api.js';
+import { hookTimeout } from '@/plugins/hooks.js';
+import sandboxSource from '@/plugins/sandbox.js?raw';
 
 export function blobUrlForModule(module) {
   return URL.createObjectURL(new Blob([module.source], { type: 'text/javascript' }));

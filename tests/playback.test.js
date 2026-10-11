@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { computeNextIndex, computePrevIndex, shuffleArray, buildShuffleOrder } from '../src/hooks/playQueue';
+import { computeNextIndex, computePrevIndex, shuffleArray, buildShuffleOrder } from '@/features/playback/queue';
 
 const tracks = [
   { id: 1, title: 'A', file_path: 'path-A' }, { id: 2, title: 'B', file_path: 'path-B' },
@@ -163,11 +163,11 @@ vi.mock('react', async (importOriginal) => {
   };
 });
 
-vi.mock('../src/context/PlayerContext', () => ({
+vi.mock('@/app/PlayerProvider', () => ({
   usePlayer: vi.fn(),
 }));
 
-vi.mock('../src/audio/audioEngine', () => ({
+vi.mock('@/features/playback/audio', () => ({
   audioEngine: {
     setGain: vi.fn(), setVolume: vi.fn(), dispose: vi.fn(),
     // the graph wires (idempotently) at play start — see usePlayback
@@ -175,10 +175,10 @@ vi.mock('../src/audio/audioEngine', () => ({
   },
 }));
 
-import { usePlayer } from '../src/context/PlayerContext';
-import { audioEngine } from '../src/audio/audioEngine';
-import { usePlayback } from '../src/hooks/usePlayback';
-import { PlaybackEngine, __setPlaybackEngineForTests } from '../src/player/playbackEngine';
+import { usePlayer } from '@/app/PlayerProvider';
+import { audioEngine } from '@/features/playback/audio';
+import { usePlayback } from '@/features/playback/usePlayback';
+import { PlaybackEngine, __setPlaybackEngineForTests } from '@/features/playback/engine';
 
 function reset() {
   hookState.effects = [];

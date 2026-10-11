@@ -85,6 +85,33 @@ describe('component references resolve', () => {
     expect(problems).toEqual([]);
   });
 
+  // Aliased imports bypass the guard above entirely, which is how six broken
+  // asset paths (`@/../assets/logo.svg` in three files) passed lint, vitest and
+  // `vite build` while being wrong. The alias map here mirrors vite.config.js.
+  it('every aliased import resolves to a file that exists', () => {
+    const aliases = {
+      '@/': `${root}/`,
+      '@assets/': join(root, '..', 'assets') + '/',
+      '@root/': join(root, '..') + '/',
+    };
+    const problems = [];
+    for (const file of walk(root)) {
+      const src = readFileSync(file, 'utf8');
+      // `@/x` (empty alias name) and `@assets/x` both match: the name is optional.
+      for (const m of src.matchAll(/from\s+'(@[a-z]*\/)([^']+)'/g)) {
+        const [, prefix, rest] = m;
+        const base = aliases[prefix] ? join(aliases[prefix], rest.split('?')[0]) : null;
+        if (!base) { problems.push(`unknown alias '${prefix}'`); continue; }
+        const hit = [base, `${base}.js`, `${base}.jsx`, `${base}/index.js`, `${base}/index.jsx`]
+          .some((candidate) => existsSync(candidate));
+        if (hit) continue;
+        const line = src.slice(0, m.index).split('\n').length;
+        problems.push(`${relative(root, file)}:${line} '${prefix}${rest}'`);
+      }
+    }
+    expect(problems).toEqual([]);
+  });
+
   // Bare specifiers (no leading . or /) are treated as node_modules by the
   // bundler, so a missing './' fails the build with a confusing message.
   it('no relative import is written as a bare specifier', () => {

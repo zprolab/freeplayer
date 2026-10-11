@@ -25,7 +25,7 @@ vi.mock('react', async (importOriginal) => {
   };
 });
 
-import { useTraySettings } from '../src/hooks/useTraySettings';
+import { useTraySettings } from '@/features/preferences/useTraySettings';
 
 function reset() {
   hookState.effects = [];

@@ -1,7 +1,7 @@
-import { validateManifest, normalizePermissions, PERMISSIONS, API_VERSION } from './manifest';
-import { sanitizeSvgIcon } from './svgIcon';
-import { loadPermissions, persistPermissions } from './permissions';
-import { createEventBus, EVENT_CHANNELS, hookTimeout } from './hooks';
+import { validateManifest, normalizePermissions, PERMISSIONS, API_VERSION } from '@/plugins/manifest.js';
+import { sanitizeSvgIcon } from '@/plugins/svgIcon.js';
+import { loadPermissions, persistPermissions } from '@/plugins/permissions.js';
+import { createEventBus, EVENT_CHANNELS, hookTimeout } from '@/plugins/hooks.js';
 
 const AUDIT_LIMIT = 200;
 const EVENT_TO_HOOK = {

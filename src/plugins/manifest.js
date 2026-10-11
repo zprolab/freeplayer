@@ -1,4 +1,4 @@
-import { sanitizeSvgIcon } from './svgIcon';
+import { sanitizeSvgIcon } from '@/plugins/svgIcon.js';
 
 export const API_VERSION = 1;
 

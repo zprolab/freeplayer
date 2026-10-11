@@ -21,7 +21,7 @@ vi.mock('react', async (importOriginal) => {
   };
 });
 
-vi.mock('../src/audio/audioEngine', () => {
+vi.mock('@/features/playback/audio', () => {
   const listeners = new Set();
   return {
     audioEngine: {
@@ -34,10 +34,10 @@ vi.mock('../src/audio/audioEngine', () => {
   };
 });
 
-import { audioEngine } from '../src/audio/audioEngine';
+import { audioEngine } from '@/features/playback/audio';
 import {
   useVisualizerQuality, QUALITY_TIERS, SETTING_KEY,
-} from '../src/hooks/useVisualizerQuality';
+} from '@/features/preferences/useVisualizerQuality';
 
 function reset() {
   hookState.effects = [];

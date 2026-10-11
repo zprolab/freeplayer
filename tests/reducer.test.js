@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { reducer, initialState } from '../src/context/PlayerContext';
+import { reducer, initialState } from '@/app/PlayerProvider';
 
 function baseState(overrides = {}) {
   return {

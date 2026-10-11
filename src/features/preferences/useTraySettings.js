@@ -1,0 +1,152 @@
+import { useEffect, useRef, useState } from 'react';
+import * as client from '@/core/client.js';
+import { KEYS, asBool } from '@/core/settings.js';
+
+const SAVE_FAILED = 'Could not save this setting — the change was not applied. Please try again.';
+
+// Tray / launch toggles with verified persistence:
+// - UI state only flips AFTER the native write confirms, so a failing write
+//   can never leave the switch and the stored setting out of sync.
+// - Every key loads independently, so one failing read cannot zero the rest.
+// - A per-key generation guard means a stale (older) write result for a key
+//   never clobbers a newer one when the user toggles quickly.
+export function useTraySettings() {
+  const [settingsLoaded, setSettingsLoaded] = useState(false);
+  const [trayEnabled, setTrayEnabled] = useState(false);
+  const [trayNotify, setTrayNotify] = useState(false);
+  const [startOnBoot, setStartOnBoot] = useState(false);
+  const [startHidden, setStartHidden] = useState(false);
+  const [settingsError, setSettingsError] = useState(null);
+  const genRef = useRef({});
+
+  const nextGen = (key) => (genRef.current[key] = (genRef.current[key] || 0) + 1);
+  const isLatest = (key, gen) => gen === genRef.current[key];
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadTrayEnabled = client.settings.get(KEYS.trayEnabled)
+      .then((v) => { if (!cancelled) setTrayEnabled(asBool(v)); })
+      .catch(() => {});
+    const loadTrayNotify = client.settings.get(KEYS.trayNotify)
+      .then((v) => { if (!cancelled) setTrayNotify(asBool(v)); })
+      .catch(() => {});
+    const loadStartHidden = client.settings.get(KEYS.startHidden)
+      .then((v) => { if (!cancelled) setStartHidden(asBool(v)); })
+      .catch(() => {});
+    const loadStartOnBoot = client.shell.loginItem()
+      .then((login) => { if (!cancelled) setStartOnBoot(!!(login && login.openAtLogin)); })
+      .catch(() => {});
+    Promise.allSettled([loadTrayEnabled, loadTrayNotify, loadStartHidden, loadStartOnBoot])
+      .then(() => { if (!cancelled) setSettingsLoaded(true); });
+    return () => { cancelled = true; };
+  }, []);
+
+  // Re-read the persisted value and sync the UI state with it. Used after a
+  // failed write so the switch always shows what is actually stored. When the
+  // read itself fails, leave the current UI state alone: the DB may still hold
+  // the written value, and forcing the switch to false would lie about it.
+  const resync = async (key, gen, readPersisted, setState) => {
+    if (!isLatest(key, gen)) return;
+    let actual;
+    try {
+      actual = await readPersisted();
+    } catch {
+      return;
+    }
+    if (isLatest(key, gen)) setState(actual);
+  };
+
+  // Write first, then flip the UI: a failed write surfaces an error and
+  // re-syncs the switch from the persisted value instead of lying.
+  const persist = async (key, gen, write, resyncState) => {
+    setSettingsError(null);
+    const ok = await write().catch(() => false);
+    if (ok === false) {
+      // A stale (older) failure must not surface: a newer write for this key
+      // owns the UI and may have already succeeded.
+      if (!isLatest(key, gen)) return false;
+      setSettingsError(SAVE_FAILED);
+      await resyncState();
+      return false;
+    }
+    return true;
+  };
+
+  const changeTrayEnabled = async (val) => {
+    const key = 'tray_enabled';
+    const gen = nextGen(key);
+    const ok = await persist(key, gen,
+      () => client.settings.set(key, val),
+      () => resync(key, gen,
+        () => client.settings.get(key),
+        (v) => { if (isLatest(key, gen)) setTrayEnabled(asBool(v)); }));
+    if (ok && isLatest(key, gen)) setTrayEnabled(val);
+  };
+
+  const changeTrayNotify = async (val) => {
+    const key = 'tray_notify';
+    const gen = nextGen(key);
+    const ok = await persist(key, gen,
+      () => client.settings.set(key, val),
+      () => resync(key, gen,
+        () => client.settings.get(key),
+        (v) => { if (isLatest(key, gen)) setTrayNotify(asBool(v)); }));
+    if (ok && isLatest(key, gen)) setTrayNotify(val);
+  };
+
+  // The OS login item is the source of truth for startOnBoot: flip the UI and
+  // mirror the DB only when the native registration/unregistration succeeded.
+  const changeStartOnBoot = async (val) => {
+    const key = 'start_on_boot';
+    const gen = nextGen(key);
+    setSettingsError(null);
+    const native = await client.shell.setLoginItem({ openAtLogin: val, openAsHidden: startHidden })
+      .catch(() => null);
+    if (!native || native.ok === false) {
+      if (!isLatest(key, gen)) return;
+      setSettingsError(SAVE_FAILED);
+      await resync(key, gen,
+        () => client.shell.loginItem().then((l) => (l && l.openAtLogin ? '1' : '0')),
+        (v) => { if (isLatest(key, gen)) setStartOnBoot(asBool(v)); });
+      return;
+    }
+    const ok = await client.settings.set(key, val).catch(() => false);
+    if (ok === false) {
+      if (!isLatest(key, gen)) return;
+      setSettingsError(SAVE_FAILED);
+      await resync(key, gen,
+        () => client.settings.get(key),
+        () => {}); // keep the native-confirmed state; the DB mirror is best-effort
+      return;
+    }
+    if (isLatest(key, gen)) setStartOnBoot(val);
+  };
+
+  // The DB start_hidden value is what the shell consults at launch, so the DB
+  // write is authoritative; the native call only mirrors openAsHidden.
+  const changeStartHidden = async (val) => {
+    const key = 'start_hidden';
+    const gen = nextGen(key);
+    const ok = await persist(key, gen,
+      () => client.settings.set(key, val ? '1' : '0'),
+      () => resync(key, gen,
+        () => client.settings.get(key),
+        (v) => { if (isLatest(key, gen)) setStartHidden(asBool(v)); }));
+    if (!ok) return;
+    client.shell.setLoginItem({ openAtLogin: startOnBoot, openAsHidden: val }).catch(() => {});
+    if (isLatest(key, gen)) setStartHidden(val);
+  };
+
+  return {
+    settingsLoaded,
+    trayEnabled,
+    trayNotify,
+    startOnBoot,
+    startHidden,
+    settingsError,
+    changeTrayEnabled,
+    changeTrayNotify,
+    changeStartOnBoot,
+    changeStartHidden,
+  };
+}

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseLRC, sanitizeText } from '../src/utils/lrc';
+import { parseLRC, sanitizeText } from '@/features/lyrics/lrc';
 
 describe('sanitizeText', () => {
   it('keeps non-BMP characters intact instead of emitting lone surrogates', () => {

@@ -1,5 +1,5 @@
 import { createElement as h, useCallback, useEffect } from 'react';
-import { IconButton } from './Button';
+import { IconButton } from '@/ui/components/Button.jsx';
 
 /**
  * Modal — one dialog shell for the whole app.

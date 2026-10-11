@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { fetchAndSaveLyrics, fetchAndSaveCover } from '../src/services/metaPersistence';
+import { fetchAndSaveLyrics, fetchAndSaveCover } from '@/features/metadata/metaPersistence';
 
 describe('fetchAndSaveLyrics', () => {
   it('delegates to meta.fetchLyrics and passes the result through', async () => {

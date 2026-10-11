@@ -1,4 +1,4 @@
-import { normalizePermissions } from './manifest';
+import { normalizePermissions } from '@/plugins/manifest.js';
 
 const DOMAIN_LEVEL = {
   http: 1, player: 2, audio: 1, metadata: 3, settings: 3,

@@ -26,7 +26,7 @@ vi.mock('react', async (importOriginal) => {
   };
 });
 
-import { useAutoMeta } from '../src/hooks/useAutoMeta';
+import { useAutoMeta } from '@/features/metadata/useAutoMeta';
 
 const track1 = { id: 1, title: 'Sun', artist: 'A' };
 const track2 = { id: 2, title: 'Moon', artist: 'B' };

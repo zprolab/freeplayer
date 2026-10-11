@@ -1,4 +1,4 @@
-import { pickBestMatch } from './match.js';
+import { pickBestMatch } from '@/plugins/builtin/musicbrainz/match.js';
 
 const COOLDOWN_MS = 5000;
 const PACING_MS = 1000; // MusicBrainz hard limit: 1 req/s

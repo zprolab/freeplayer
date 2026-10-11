@@ -1,4 +1,4 @@
-import { createPermissionProxy } from './permissions';
+import { createPermissionProxy } from '@/plugins/permissions.js';
 
 const UPDATE_WHITELIST = ['title', 'artist', 'album', 'genre', 'year', 'track_number'];
 const RATE_WINDOW_MS = 10000;

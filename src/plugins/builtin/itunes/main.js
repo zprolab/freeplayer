@@ -1,4 +1,4 @@
-import { pickBestMatch } from './match.js';
+import { pickBestMatch } from '@/plugins/builtin/itunes/match.js';
 
 const COOLDOWN_MS = 5000;
 let cooldownUntil = 0;
