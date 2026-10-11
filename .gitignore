@@ -33,3 +33,7 @@ local.properties
 *.dex
 *.class
 captures/
+
+# Local code-review artefacts (reports, plans). Kept on disk for reference,
+# deliberately not tracked: they describe work rather than being part of it.
+.codereview/
