@@ -272,8 +272,9 @@
      (ambientColor.js); the brand accent is only the fallback used before the
      cover resolves. The fixed brand red measured 3.32:1 on a cover-derived
      background AND sat on its own complement, which is what read as "dirty". */
-  color: var(--immersive-accent, var(--fp-accent));
+  color: var(--immersive-accent, rgba(255, 255, 255, 0.72));
   font-weight: 600;
+  transition: color 0.4s ease;
   letter-spacing: 0.01em;
   /* Plain color-mix-free form: the glow inherits the accent at reduced opacity
      through the variable itself, since `rgb(from ...)` is not reliable in
@@ -286,7 +287,7 @@
   font-size: var(--fp-font-md);
   /* Was rgba(226,67,41,0.55) — 1.75:1 on the ambient background, effectively
      invisible for the timestamp of the line being sung. */
-  color: var(--immersive-accent, var(--fp-accent));
+  color: var(--immersive-accent, rgba(255, 255, 255, 0.72));
   opacity: 0.9;
   font-weight: 500;
 }
@@ -300,7 +301,7 @@
   transform: translateY(-50%);
   width: 3px;
   height: 50%;
-  background: linear-gradient(to bottom, transparent, var(--immersive-accent, var(--fp-accent)) 30%, var(--immersive-accent, var(--fp-accent)) 70%, transparent);
+  background: linear-gradient(to bottom, transparent, var(--immersive-accent, rgba(255, 255, 255, 0.72)) 30%, var(--immersive-accent, rgba(255, 255, 255, 0.72)) 70%, transparent);
   border-radius: 0 var(--fp-radius-sm) var(--fp-radius-sm) 0;
   opacity: 0.85;
 }
@@ -423,7 +424,7 @@
   /* Same accent as the active lyric and its indicator: one derived colour for
      the whole view, so the three read as one system rather than brand-red
      against a cover-derived background. */
-  background: linear-gradient(to right, var(--immersive-accent, var(--fp-accent)), var(--immersive-accent, var(--fp-accent)));
+  background: linear-gradient(to right, var(--immersive-accent, rgba(255, 255, 255, 0.72)), var(--immersive-accent, rgba(255, 255, 255, 0.72)));
   border-radius: inherit;
   transition: width 0.2s linear;
 }

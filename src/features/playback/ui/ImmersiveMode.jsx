@@ -115,8 +115,12 @@ export default function ImmersiveMode({
       // One accent for the whole view — the active lyric, its left indicator and
       // the progress fill all read this. Derived from the cover's average colour
       // with lightness inverted against the background, so it stays legible on
-      // dark and light artwork alike (see ambientColor.js). Falls back to the
-      // brand accent in CSS while the cover resolves.
+      // dark and light artwork alike (see ambientColor.js). Before the cover has
+      // been sampled the variable is simply absent, and the CSS fallback is a
+      // NEUTRAL white — the brand red used to be that fallback, which is why the
+      // view flashed red for a moment on open and then settled into the cover's
+      // colour. The accent also transitions, so the change reads as a settle
+      // rather than a jump.
       style={accent ? { '--immersive-accent': cssRgb(accent) } : undefined}
     >
       {/* Ambient background: blurred cover + dark tint + dominant-color glow */}
