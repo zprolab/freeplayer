@@ -173,13 +173,22 @@ describe('stylesheet integrity', () => {
   });
 
   it('leaves no malformed var() with an extra closing paren', () => {
+    // The original form of this check flagged `var(--a))`, which is also what a
+    // LEGAL fallback looks like: `var(--a, var(--b))`. So it was really asserting
+    // balance, not nesting. Balance must be counted per DECLARATION, not per line:
+    // a multi-line value splits its parentheses across lines, and a line-based
+    // count then reports every continuation as unbalanced.
     const offenders = [];
     for (const file of readdirSync(cssDir).filter((f) => f.endsWith('.css'))) {
-      read(join(cssDir, file)).split('\n').forEach((line, i) => {
-        if (/var\(--[a-z0-9-]+\)\)/.test(line) && !/gradient|calc|rgba/.test(line)) {
-          offenders.push(`${file}:${i + 1}`);
+      const css = read(join(cssDir, file)).replace(/\/\*[\s\S]*?\*\//g, '');
+      for (const decl of css.split(';')) {
+        const opens = (decl.match(/\(/g) || []).length;
+        const closes = (decl.match(/\)/g) || []).length;
+        if (closes !== opens) {
+          const firstLine = decl.trim().split('\n')[0].slice(0, 40);
+          offenders.push(`${file}: "${firstLine}" (${opens} open, ${closes} close)`);
         }
-      });
+      }
     }
     expect(offenders).toEqual([]);
   });

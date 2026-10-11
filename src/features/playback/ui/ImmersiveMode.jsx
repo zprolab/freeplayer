@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { parseLRC } from '@/features/lyrics/lrc.js';
 import { formatTime } from '@/utils/format.js';
 import { useActiveLineScroll } from '@/features/lyrics/useActiveLineScroll.js';
+import { accentFor, cssRgb } from '@/features/playback/ambientColor.js';
 
 // Zoom ladder. Module scope because it is a constant, not state.
 const ZOOM_STEPS = [-2, -1, 0, 1, 2, 3, 4];
@@ -54,6 +55,10 @@ export default function ImmersiveMode({
 
   // Extract the dominant color from the cover art for the ambient glow
   const [bgColor, setBgColor] = useState(null);
+  // Accent derived from the same average colour as the background, so the
+  // highlight belongs to the artwork instead of fighting it. Null until the
+  // cover resolves, in which case the CSS falls back to the brand accent.
+  const accent = useMemo(() => accentFor(bgColor), [bgColor]);
   useEffect(() => {
     let stale = false;
     if (!coverUrl) {
@@ -176,7 +181,14 @@ export default function ImmersiveMode({
               <div
                 key={idx}
                 className={`immersive-line${isActive ? ' immersive-line--active' : ''}${isPast ? ' immersive-line--past' : ''}${!isActive && !isPast && !isNear ? ' immersive-line--distant' : ''}`}
-                style={{ fontSize: `${isActive ? fontSize : Math.max(12, fontSize - 6)}px` }}
+                style={{
+                  fontSize: `${isActive ? fontSize : Math.max(12, fontSize - 6)}px`,
+                  // The accent follows the ambient colour rather than the fixed
+                  // brand red: on a cover-derived background the brand red reached
+                  // only 3.32:1 and sat on its own complement, which reads as dirty.
+                  // See ambientColor.js.
+                  '--immersive-accent': isActive ? cssRgb(accent) : undefined,
+                }}
               >
                 <span className="immersive-time mono">{formatTime(entry.time)}</span>
                 <span className="immersive-text">{entry.text}</span>

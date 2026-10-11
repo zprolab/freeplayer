@@ -268,17 +268,26 @@
 }
 
 .immersive-line--active .immersive-text {
-  color: var(--fp-accent);
+  /* --immersive-accent is derived from the cover's average colour
+     (ambientColor.js); the brand accent is only the fallback used before the
+     cover resolves. The fixed brand red measured 3.32:1 on a cover-derived
+     background AND sat on its own complement, which is what read as "dirty". */
+  color: var(--immersive-accent, var(--fp-accent));
   font-weight: 600;
   letter-spacing: 0.01em;
-  text-shadow: 0 0 48px rgba(226, 67, 41, 0.25),
-               0 0 12px rgba(226, 67, 41, 0.1);
+  /* Plain color-mix-free form: the glow inherits the accent at reduced opacity
+     through the variable itself, since `rgb(from ...)` is not reliable in
+     WKWebView. */
+  text-shadow: 0 0 20px currentColor;
   line-height: 1.4;
 }
 
 .immersive-line--active .immersive-time {
   font-size: var(--fp-font-md);
-  color: rgba(226, 67, 41, 0.55);
+  /* Was rgba(226,67,41,0.55) — 1.75:1 on the ambient background, effectively
+     invisible for the timestamp of the line being sung. */
+  color: var(--immersive-accent, var(--fp-accent));
+  opacity: 0.9;
   font-weight: 500;
 }
 
